@@ -46,12 +46,6 @@ let idleCheckInterval = null;
 function startBounce() {
     if (bounceInterval) return;
     
-    const primaryDisplay = screen.getPrimaryDisplay();
-    // Use full screen bounds for tighter edge detection
-    const screenBounds = primaryDisplay.bounds;
-    const screenWidth = screenBounds.width;
-    const screenHeight = screenBounds.height;
-    
     // Reset velocities to ensure diagonal movement
     velocityX = 3;
     velocityY = 2;
@@ -62,6 +56,16 @@ function startBounce() {
         const [x, y] = mainWindow.getPosition();
         const [winWidth, winHeight] = mainWindow.getSize();
         
+        // Get screen bounds dynamically - use the display containing the window
+        // This handles multi-monitor setups and display resolution changes
+        const windowBounds = mainWindow.getBounds();
+        const currentDisplay = screen.getDisplayNearestPoint({ x: windowBounds.x, y: windowBounds.y });
+        const screenBounds = currentDisplay.bounds;
+        const screenLeft = screenBounds.x;
+        const screenTop = screenBounds.y;
+        const screenRight = screenBounds.x + screenBounds.width;
+        const screenBottom = screenBounds.y + screenBounds.height;
+        
         // Calculate margins based on transparent padding around sprite
         const hPadding = Math.round(winWidth * 0.15);
         const vPadding = Math.round(winHeight * 0.15);
@@ -71,25 +75,25 @@ function startBounce() {
         let bounced = false;
         const now = Date.now();
         
-        // Bounce off left/right edges
-        if (newX <= -hPadding) {
+        // Bounce off left/right edges (accounting for screen origin)
+        if (newX <= screenLeft - hPadding) {
             velocityX = Math.abs(velocityX); // Force positive (go right)
-            newX = -hPadding + 1;
+            newX = screenLeft - hPadding + 1;
             bounced = true;
-        } else if (newX + winWidth >= screenWidth + hPadding) {
+        } else if (newX + winWidth >= screenRight + hPadding) {
             velocityX = -Math.abs(velocityX); // Force negative (go left)
-            newX = screenWidth + hPadding - winWidth - 1;
+            newX = screenRight + hPadding - winWidth - 1;
             bounced = true;
         }
         
-        // Bounce off top/bottom edges
-        if (newY <= -vPadding) {
+        // Bounce off top/bottom edges (accounting for screen origin)
+        if (newY <= screenTop - vPadding) {
             velocityY = Math.abs(velocityY); // Force positive (go down)
-            newY = -vPadding + 1;
+            newY = screenTop - vPadding + 1;
             bounced = true;
-        } else if (newY + winHeight >= screenHeight + vPadding) {
+        } else if (newY + winHeight >= screenBottom + vPadding) {
             velocityY = -Math.abs(velocityY); // Force negative (go up)
-            newY = screenHeight + vPadding - winHeight - 1;
+            newY = screenBottom + vPadding - winHeight - 1;
             bounced = true;
         }
         
@@ -468,6 +472,40 @@ function startSystemEventMonitoring() {
     }, 10000); // Check every 10 seconds
 }
 
+// Self-update function - pulls from GitHub, reinstalls, and relaunches
+function performUpdate() {
+    const appDir = app.isPackaged ? path.dirname(process.execPath) : __dirname;
+    const isWin = process.platform === 'win32';
+    
+    // Build the update command chain
+    let updateCmd;
+    if (isWin) {
+        // Windows: PowerShell command
+        updateCmd = `cd "${appDir}" ; git pull ; npm install ; npm start`;
+    } else {
+        // macOS/Linux: bash command
+        updateCmd = `cd "${appDir}" && git pull && npm install && npm start`;
+    }
+    
+    const shell = isWin ? 'powershell.exe' : '/bin/bash';
+    const shellArgs = isWin ? ['-Command', updateCmd] : ['-c', updateCmd];
+    
+    // Spawn detached process that will outlive this app
+    const { spawn } = require('child_process');
+    const child = spawn(shell, shellArgs, {
+        detached: true,
+        stdio: 'ignore',
+        cwd: appDir,
+        shell: false
+    });
+    child.unref();
+    
+    // Quit current instance
+    setTimeout(() => {
+        app.quit();
+    }, 500);
+}
+
 // Preset colors for the color picker submenu
 const colorPresets = [
     { label: 'Rad Red', color: '#ff3344' },
@@ -597,6 +635,12 @@ function createTray() {
             label: 'Dev Tools',
             click: () => {
                 mainWindow.webContents.openDevTools({ mode: 'detach' });
+            }
+        },
+        {
+            label: 'Update from GitHub',
+            click: () => {
+                performUpdate();
             }
         },
         { type: 'separator' },
