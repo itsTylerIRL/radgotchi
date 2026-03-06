@@ -196,7 +196,7 @@ const RG = (function() {
         faceEl.classList.remove(
             'rg-bounce', 'rg-wiggle', 'rg-shake', 'rg-nod', 'rg-float',
             'rg-spin', 'rg-pulse', 'rg-peek-l', 'rg-peek-r', 'rg-sleep',
-            'rg-upload', 'rg-scared', 'rg-sad'
+            'rg-upload', 'rg-scared', 'rg-sad', 'rg-glitch', 'rg-sad-wobble'
         );
     }
 

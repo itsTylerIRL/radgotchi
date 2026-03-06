@@ -93,7 +93,6 @@ if (savedScale) {
 window.addEventListener('wheel', (e) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP; // Scroll up = bigger
-    console.log('Wheel event! delta:', delta, 'new scale:', currentScale + delta);
     applyScale(currentScale + delta);
 }, { passive: false });
 
