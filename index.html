@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+    <title>Radgotchi</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="radgotchi-container">
+        <button id="color-picker-btn" title="Change color"></button>
+        <input type="color" id="color-picker-input" value="#ff3344">
+        <div id="face-flip-wrapper">
+            <img src="assets/AWAKE.png" 
+                 alt="Radgotchi" 
+                 class="radgotchi-face" 
+                 id="radgotchi-face"
+                 draggable="false">
+        </div>
+        <span class="radgotchi-status" id="radgotchi-status">SIGINT NOMINAL</span>
+    </div>
+    
+    <script src="radgotchi.js"></script>
+    <script src="renderer.js"></script>
+</body>
+</html>

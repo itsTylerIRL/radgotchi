@@ -1,0 +1,76 @@
+{
+  "name": "radgotchi",
+  "version": "1.0.0",
+  "description": "A Windows desktop virtual pet that lives on your screen, reacts to your system, and keeps you company.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:safe": "electron . --no-sandbox --disable-gpu",
+    "build": "electron-builder --win",
+    "build:portable": "electron-builder --win portable",
+    "clean": "rimraf dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/radgotchi.git"
+  },
+  "keywords": [
+    "radgotchi",
+    "virtual-pet",
+    "desktop-pet",
+    "electron",
+    "windows",
+    "pixel-art",
+    "tamagotchi",
+    "system-monitor"
+  ],
+  "author": "Radgotchi Team",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yourusername/radgotchi/issues"
+  },
+  "homepage": "https://github.com/yourusername/radgotchi#readme",
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "build": {
+    "appId": "com.radgotchi.app",
+    "productName": "Radgotchi",
+    "copyright": "Copyright © 2026 Radgotchi",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/radbro.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "radgotchi.js",
+      "index.html",
+      "styles.css",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ]
+  }
+}
