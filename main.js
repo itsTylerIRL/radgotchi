@@ -5,19 +5,11 @@ const { exec } = require('child_process');
 
 // Platform-specific GPU/transparency configuration
 const isLinux = process.platform === 'linux';
-const isWayland = process.env.XDG_SESSION_TYPE === 'wayland' || 
-                  process.env.WAYLAND_DISPLAY !== undefined;
 
-if (isLinux && isWayland) {
-    // Wayland (Hyprland, Sway, etc.) needs these for transparency
-    app.commandLine.appendSwitch('enable-features', 'UseOzonePlatform');
-    app.commandLine.appendSwitch('ozone-platform', 'wayland');
+if (isLinux) {
+    // Linux (X11 or XWayland) - enable transparent visuals
     app.commandLine.appendSwitch('enable-transparent-visuals');
     app.commandLine.appendSwitch('disable-gpu-compositing');
-} else if (isLinux) {
-    // X11 Linux
-    app.commandLine.appendSwitch('enable-transparent-visuals');
-    app.commandLine.appendSwitch('disable-gpu');
 } else {
     // Windows/macOS - disable GPU for compatibility (remote sessions, VMs, etc.)
     app.disableHardwareAcceleration();
@@ -165,13 +157,20 @@ function getAssetPath(...paths) {
 
 function createWindow() {
     const primaryDisplay = screen.getPrimaryDisplay();
-    const { width, height } = primaryDisplay.workAreaSize;
+    const bounds = primaryDisplay.bounds;
+    const workArea = primaryDisplay.workAreaSize;
+    
+    // Calculate position relative to screen bounds, ensuring it stays on-screen
+    const winWidth = 240;
+    const winHeight = 280;
+    const x = Math.max(bounds.x, bounds.x + workArea.width - winWidth - 180);
+    const y = Math.max(bounds.y, bounds.y + workArea.height - winHeight - 200);
 
     mainWindow = new BrowserWindow({
-        width: 240,
-        height: 280,
-        x: width - 420,
-        y: height - 480,
+        width: winWidth,
+        height: winHeight,
+        x: x,
+        y: y,
         frame: false,
         transparent: true,
         backgroundColor: '#00000000', // Fully transparent background
@@ -539,8 +538,12 @@ function createTray() {
             label: 'Reset Position',
             click: () => {
                 const primaryDisplay = screen.getPrimaryDisplay();
-                const { width, height } = primaryDisplay.workAreaSize;
-                mainWindow.setPosition(width - 400, height - 450);
+                const bounds = primaryDisplay.bounds;
+                const workArea = primaryDisplay.workAreaSize;
+                const [winWidth, winHeight] = mainWindow.getSize();
+                const x = Math.max(bounds.x, bounds.x + workArea.width - winWidth - 180);
+                const y = Math.max(bounds.y, bounds.y + workArea.height - winHeight - 200);
+                mainWindow.setPosition(x, y);
             }
         },
         {
