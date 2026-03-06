@@ -40,8 +40,11 @@ const RG = (function() {
         upload2: 'assets/UPLOAD2.png'
     };
 
-    // === Status Text Messages (themed) ===
-    const statusText = {
+    // === Language Support ===
+    let currentLang = localStorage.getItem('radgotchi-lang') || 'en';
+
+    // === Status Text Messages — English (themed) ===
+    const statusTextEN = {
         awake: ['SIGINT NOMINAL', 'OVERWATCH ACTIVE', 'ALL VECTORS CLEAR', 'SYSTEMS ONLINE', 'AWAITING ORDERS'],
         happy: ['ASSET VERIFIED', 'OPS NOMINAL', 'CLEARANCE GRANTED', 'MISSION SUCCESS', 'ALL CLEAR'],
         excited: ['HIGH ALERT', 'CONTACT ACQUIRED', 'TARGET LOCKED', 'SIGNAL STRONG', 'INTERCEPT READY'],
@@ -69,11 +72,45 @@ const RG = (function() {
         upload2: ['EXFIL DONE', 'BURST SENT', 'TX COMPLETE', 'UPLOAD OK', 'SYNC 100%']
     };
 
+    // === Status Text Messages — Chinese (中文) ===
+    const statusTextZH = {
+        awake: ['信号正常', '监控中', '全线畅通', '系统在线', '等待指令'],
+        happy: ['资产确认', '运行正常', '权限通过', '任务成功', '一切正常'],
+        excited: ['高度警戒', '目标捕获', '信号锁定', '信号强劲', '准备拦截'],
+        cool: ['休闲模式', '隐身启动', '低调运行', '暗中行动', '秘密行动'],
+        grateful: ['感谢有你', '关系稳固', '信任确认', '同盟确认', '伙伴认可'],
+        motivated: ['蓄势待发', '战斗准备', '全力以赴', '待命中', '任务准备'],
+        friend: ['握手成功', '连接安全', '通讯畅通', '伙伴在线', '频道开启'],
+        look_l: ['左侧扫描', '周界检查', '目视巡查', '区域扫描'],
+        look_r: ['右侧扫描', '侧翼检查', '目视巡查', '区域扫描'],
+        look_l_happy: ['左侧友军', '发现伙伴', '氛围很好', '身份确认'],
+        look_r_happy: ['右侧友军', '发现伙伴', '氛围很好', '身份确认'],
+        smart: ['分析中', '数据处理', '模式匹配', '解码进行', '运算中'],
+        intense: ['高度警戒', '威胁临近', '注意安全', '状态升级', '保持警惕'],
+        debug: ['取证模式', '堆栈追踪', '根因分析', '深度扫描', '诊断中'],
+        bored: ['空闲状态', '无信号', '安静区域', '低活动', '待机中'],
+        sad: ['信号丢失', '资产离线', '士气低落', '通讯中断', '已离线'],
+        angry: ['一级战备', '敌对行为', '安全失守', '红色警报', '防线突破'],
+        lonely: ['无上行链路', '零联系', '通讯黑暗', '全面断联', '孤立无援'],
+        demotivated: ['士气低落', '任务存疑', '精力不足', '过度疲劳', '身心俱疲'],
+        broken: ['系统故障', '完整性丢失', '严重错误', '隔离中', '功能异常'],
+        sleep: ['休眠行动', '低功耗', '被动模式', '休息周期', '梦境中'],
+        sleep2: ['深度睡眠', '冬眠中', '充电中', '低功耗待机', '恢复中'],
+        upload: ['数据传出', '数据突发', '传输中', '上行激活', '同步开始'],
+        upload1: ['传输继续', '突发模式', '传输进行', '上传中', '同步50%'],
+        upload2: ['传输完成', '突发已送', '传输结束', '上传完成', '同步100%']
+    };
+
+    // Active status text pool — switches based on current language
+    function getStatusText() {
+        return currentLang === 'zh' ? statusTextZH : statusTextEN;
+    }
+
     // === Negative Moods (for sad filter) ===
     const negativeMoods = ['sad', 'angry', 'broken', 'lonely', 'demotivated'];
 
-    // === System Event Status Messages ===
-    const systemEventStatus = {
+    // === System Event Status Messages — English ===
+    const systemEventStatusEN = {
         'cpu-spike': ['CPU MAXED', 'PROC OVERLOAD', 'COMPUTE SPIKE', 'THERMAL EVENT', 'THROTTLE RISK'],
         'cpu-high': ['HIGH LOAD', 'PROCESSING', 'BUSY CYCLE', 'HEAVY OPS', 'CRUNCHING'],
         'cpu-normal': ['LOAD CLEAR', 'CPU STABLE', 'CYCLES FREE', 'PROC NOMINAL'],
@@ -85,6 +122,25 @@ const RG = (function() {
         'window-closed': ['ASSET TERM', 'WINDOW DOWN', 'PROC EXIT', 'TARGET LOST', 'DESPAWN'],
         'app-not-responding': ['HUNG DETECT', 'ZOMBIE PROC', 'FROZEN APP', 'DEADLOCK', 'UNRESPONSIVE']
     };
+
+    // === System Event Status Messages — Chinese (中文) ===
+    const systemEventStatusZH = {
+        'cpu-spike': ['CPU爆满', '处理器超载', '算力飙升', '过热警告', '降频风险'],
+        'cpu-high': ['高负载', '处理中', '繁忙周期', '高强度运算', '数据处理'],
+        'cpu-normal': ['负载正常', 'CPU稳定', '周期空闲', '处理器正常'],
+        'memory-high': ['内存紧张', '内存告急', '交换启动', '分配警告', '堆已满'],
+        'memory-normal': ['内存正常', '内存充足', '堆正常', '分配良好'],
+        'network-connected': ['连接恢复', '网络在线', '通讯激活', '已连接', '信号找到'],
+        'network-disconnected': ['连接断开', '网络离线', '通讯丢失', '无信号', '暗网'],
+        'window-opened': ['新窗口', '检测到启动', '资产在线', '窗口打开', '进程启动'],
+        'window-closed': ['资产终止', '窗口关闭', '进程退出', '目标丢失', '已销毁'],
+        'app-not-responding': ['检测到卡死', '僵尸进程', '应用冻结', '死锁', '无响应']
+    };
+
+    // Active system event status pool — switches based on current language
+    function getSystemEventStatus() {
+        return currentLang === 'zh' ? systemEventStatusZH : systemEventStatusEN;
+    }
 
     // === State Variables ===
     let mood = 'awake';
@@ -196,7 +252,7 @@ const RG = (function() {
         faceEl.classList.remove(
             'rg-bounce', 'rg-wiggle', 'rg-shake', 'rg-nod', 'rg-float',
             'rg-spin', 'rg-pulse', 'rg-peek-l', 'rg-peek-r', 'rg-sleep',
-            'rg-upload', 'rg-scared', 'rg-sad'
+            'rg-upload', 'rg-scared', 'rg-sad', 'rg-glitch', 'rg-sad-wobble'
         );
     }
 
@@ -271,7 +327,8 @@ const RG = (function() {
         }
 
         // Update status text
-        const text = opts.status || pick(statusText[mood] || statusText.awake);
+        const st = getStatusText();
+        const text = opts.status || pick(st[mood] || st.awake);
         statusEl.textContent = text;
 
         // Apply animation
@@ -318,37 +375,49 @@ const RG = (function() {
         const msgLower = (msg || '').toLowerCase();
 
         // Critical events
+        const zh = currentLang === 'zh';
+
         if (level === 'critical') {
-            setMood('angry', { duration: 6000, anim: 'rg-shake', priority: true, status: 'THREAT CRITICAL' });
+            setMood('angry', { duration: 6000, anim: 'rg-shake', priority: true,
+                status: zh ? '威胁严重' : 'THREAT CRITICAL' });
             return;
         }
 
         // Warning events
         if (level === 'warning') {
-            setMood('intense', { duration: 3500, anim: 'rg-shake', status: 'ALERT ACTIVE' });
+            setMood('intense', { duration: 3500, anim: 'rg-shake',
+                status: zh ? '警报激活' : 'ALERT ACTIVE' });
             return;
         }
 
         // Keyword matching
         if (msgLower.includes('offline') || msgLower.includes('down')) {
-            setMood('sad', { duration: 4000, anim: '', status: 'ASSET OFFLINE' });
+            setMood('sad', { duration: 4000, anim: '',
+                status: zh ? '资产离线' : 'ASSET OFFLINE' });
         } else if (msgLower.includes('online') || msgLower.includes('started')) {
-            setMood('excited', { duration: 2500, anim: 'rg-bounce', status: 'CONTACT RESTORED' });
+            setMood('excited', { duration: 2500, anim: 'rg-bounce',
+                status: zh ? '连接恢复' : 'CONTACT RESTORED' });
         } else if (msgLower.includes('cpu') && (msgLower.includes('high') || msgLower.includes('spike'))) {
-            setMood('intense', { duration: 3000, anim: 'rg-shake', status: 'CPU SPIKE' });
+            setMood('intense', { duration: 3000, anim: 'rg-shake',
+                status: zh ? 'CPU飙升' : 'CPU SPIKE' });
         } else if (msgLower.includes('memory') && (msgLower.includes('high') || msgLower.includes('pressure'))) {
-            setMood('intense', { duration: 3000, anim: 'rg-pulse', status: 'MEM PRESSURE' });
+            setMood('intense', { duration: 3000, anim: 'rg-pulse',
+                status: zh ? '内存压力' : 'MEM PRESSURE' });
         } else if (msgLower.includes('sync') || msgLower.includes('upload') || msgLower.includes('transfer')) {
-            setMood('upload', { duration: 3500, anim: 'rg-upload', status: 'DATA TRANSFER' });
+            setMood('upload', { duration: 3500, anim: 'rg-upload',
+                status: zh ? '数据传输' : 'DATA TRANSFER' });
         } else if (msgLower.includes('debug') || msgLower.includes('trace')) {
-            setMood('debug', { duration: 2500, anim: 'rg-nod', status: 'DEBUG MODE' });
+            setMood('debug', { duration: 2500, anim: 'rg-nod',
+                status: zh ? '调试模式' : 'DEBUG MODE' });
         } else if (msgLower.includes('failed') || msgLower.includes('error') || msgLower.includes('crash')) {
-            setMood('broken', { duration: 3500, anim: 'rg-shake', status: 'ERROR DETECTED' });
+            setMood('broken', { duration: 3500, anim: 'rg-shake',
+                status: zh ? '检测到错误' : 'ERROR DETECTED' });
         } else if (level === 'info' && Math.random() < 0.25) {
             const positiveMoods = ['happy', 'excited', 'cool', 'motivated'];
             setMood(pick(positiveMoods), { duration: 1800, anim: 'rg-bounce' });
         } else if (level === 'ok' && Math.random() < 0.4) {
-            setMood('happy', { duration: 1500, anim: 'rg-bounce', status: 'ALL CLEAR' });
+            setMood('happy', { duration: 1500, anim: 'rg-bounce',
+                status: zh ? '一切正常' : 'ALL CLEAR' });
         }
     }
 
@@ -375,12 +444,16 @@ const RG = (function() {
             const oldHealth = systemHealth;
             systemHealth = newHealth;
 
+            const zh = currentLang === 'zh';
             if (newHealth === 'crit') {
-                setMood('intense', { duration: 4000, anim: 'rg-shake', status: 'THREAT LVL CRITICAL' });
+                setMood('intense', { duration: 4000, anim: 'rg-shake',
+                    status: zh ? '威胁等级严重' : 'THREAT LVL CRITICAL' });
             } else if (newHealth === 'warn' && oldHealth === 'good') {
-                setMood('intense', { duration: 2500, anim: 'rg-pulse', status: 'ESCALATION DETECTED' });
+                setMood('intense', { duration: 2500, anim: 'rg-pulse',
+                    status: zh ? '检测到升级' : 'ESCALATION DETECTED' });
             } else if (newHealth === 'good' && (oldHealth === 'crit' || oldHealth === 'warn')) {
-                setMood('happy', { duration: 2000, anim: 'rg-bounce', status: 'THREAT NEUTRALIZED' });
+                setMood('happy', { duration: 2000, anim: 'rg-bounce',
+                    status: zh ? '威胁已解除' : 'THREAT NEUTRALIZED' });
             }
         }
     }
@@ -392,7 +465,8 @@ const RG = (function() {
         
         const type = event.type;
         const value = event.value;
-        const statusPool = systemEventStatus[type] || [];
+        const ses = getSystemEventStatus();
+        const statusPool = ses[type] || [];
         const status = statusPool.length > 0 ? pick(statusPool) : type.toUpperCase();
         
         switch (type) {
@@ -549,7 +623,7 @@ const RG = (function() {
             if (isNight || Math.random() < 0.5) {
                 setMood(pick(['sleep', 'sleep2']), { anim: 'rg-sleep' });
             } else {
-                setMood('lonely', { status: 'AWAITING CONTACT' });
+                setMood('lonely', { status: currentLang === 'zh' ? '等待接触' : 'AWAITING CONTACT' });
             }
             return;
         }
@@ -614,9 +688,11 @@ const RG = (function() {
         stopRoutine();
 
         if (mood.startsWith('sleep')) {
-            setMood('awake', { anim: 'rg-bounce', status: 'AWAKENED' });
+            setMood('awake', { anim: 'rg-bounce',
+                status: currentLang === 'zh' ? '已唤醒' : 'AWAKENED' });
         } else if (['bored', 'lonely', 'demotivated'].includes(mood)) {
-            setMood('happy', { anim: 'rg-wiggle', status: 'CONTACT MADE' });
+            setMood('happy', { anim: 'rg-wiggle',
+                status: currentLang === 'zh' ? '有人来了' : 'CONTACT MADE' });
         } else if (!locked) {
             setMood('happy', { anim: 'rg-wiggle' });
         }
@@ -645,19 +721,21 @@ const RG = (function() {
 
         // Rapid click reactions
         if (clickCount >= 5) {
-            setMood('angry', { duration: 3000, anim: 'rg-shake', priority: true, status: 'EXCESSIVE INPUT' });
+            setMood('angry', { duration: 3000, anim: 'rg-shake', priority: true,
+                status: currentLang === 'zh' ? '输入过多' : 'EXCESSIVE INPUT' });
             clickCount = 0;
             return;
         }
 
         if (clickCount >= 3) {
-            setMood('excited', { duration: 2000, anim: 'rg-bounce', status: 'RAPID CONTACT' });
+            setMood('excited', { duration: 2000, anim: 'rg-bounce',
+                status: currentLang === 'zh' ? '快速接触' : 'RAPID CONTACT' });
             return;
         }
 
         // Normal click - random positive reaction
         petCount++;
-        const reactions = [
+        const reactionsEN = [
             { m: 'happy', a: 'rg-bounce', s: 'CONTACT CONFIRMED' },
             { m: 'excited', a: 'rg-wiggle', s: 'GOOD CONTACT' },
             { m: 'grateful', a: 'rg-nod', s: 'ACKNOWLEDGED' },
@@ -667,19 +745,33 @@ const RG = (function() {
             { m: 'happy', a: 'rg-wiggle', s: 'RAPPORT ++' },
             { m: 'excited', a: 'rg-bounce', s: 'MORALE BOOST' }
         ];
+        const reactionsZH = [
+            { m: 'happy', a: 'rg-bounce', s: '接触确认' },
+            { m: 'excited', a: 'rg-wiggle', s: '良好接触' },
+            { m: 'grateful', a: 'rg-nod', s: '已收到' },
+            { m: 'cool', a: 'rg-float', s: '已感谢' },
+            { m: 'motivated', a: 'rg-pulse', s: '充能完毕' },
+            { m: 'friend', a: 'rg-bounce', s: '盟友确认' },
+            { m: 'happy', a: 'rg-wiggle', s: '好感 ++' },
+            { m: 'excited', a: 'rg-bounce', s: '士气提升' }
+        ];
 
-        const reaction = pick(reactions);
+        const reaction = pick(currentLang === 'zh' ? reactionsZH : reactionsEN);
         setMood(reaction.m, { duration: 2000, anim: reaction.a, status: reaction.s });
 
         // Milestone reactions
         if (petCount === 10) {
-            setTimeout(() => setMood('excited', { duration: 2500, anim: 'rg-spin', status: '10 CONTACTS!' }), 500);
+            setTimeout(() => setMood('excited', { duration: 2500, anim: 'rg-spin',
+                status: currentLang === 'zh' ? '10次接触！' : '10 CONTACTS!' }), 500);
         } else if (petCount === 50) {
-            setTimeout(() => setMood('grateful', { duration: 3000, anim: 'rg-spin', status: '50 CONTACTS!' }), 500);
+            setTimeout(() => setMood('grateful', { duration: 3000, anim: 'rg-spin',
+                status: currentLang === 'zh' ? '50次接触！' : '50 CONTACTS!' }), 500);
         } else if (petCount === 100) {
-            setTimeout(() => setMood('motivated', { duration: 3500, anim: 'rg-pulse', status: 'CENTURY MARK!' }), 500);
+            setTimeout(() => setMood('motivated', { duration: 3500, anim: 'rg-pulse',
+                status: currentLang === 'zh' ? '百次达成！' : 'CENTURY MARK!' }), 500);
         } else if (petCount % 25 === 0 && petCount > 100) {
-            setTimeout(() => setMood('cool', { duration: 2000, anim: 'rg-bounce', status: petCount + ' STRONG' }), 500);
+            setTimeout(() => setMood('cool', { duration: 2000, anim: 'rg-bounce',
+                status: currentLang === 'zh' ? petCount + ' 次！' : petCount + ' STRONG' }), 500);
         }
     });
 
@@ -688,8 +780,19 @@ const RG = (function() {
         e.preventDefault();
         lastInteractTime = Date.now();
         stopRoutine();
-        setMood('excited', { duration: 2000, anim: 'rg-spin', status: 'EVASIVE MANEUVER' });
+        setMood('excited', { duration: 2000, anim: 'rg-spin',
+            status: currentLang === 'zh' ? '紧急规避' : 'EVASIVE MANEUVER' });
     });
+
+    // === Language Setter ===
+
+    function setLanguage(lang) {
+        currentLang = lang;
+        localStorage.setItem('radgotchi-lang', lang);
+        // Refresh status text to reflect new language immediately
+        const st = getStatusText();
+        statusEl.textContent = pick(st[mood] || st.awake);
+    }
 
     // === Public API ===
 
@@ -698,8 +801,10 @@ const RG = (function() {
         assessHealth: assessHealth,
         handleSystemEvent: handleSystemEvent,
         setMood: setMood,
+        setLanguage: setLanguage,
         get mood() { return mood; },
-        get petCount() { return petCount; }
+        get petCount() { return petCount; },
+        get language() { return currentLang; }
     };
 
 })();

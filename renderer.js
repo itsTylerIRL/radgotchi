@@ -93,7 +93,6 @@ if (savedScale) {
 window.addEventListener('wheel', (e) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP; // Scroll up = bigger
-    console.log('Wheel event! delta:', delta, 'new scale:', currentScale + delta);
     applyScale(currentScale + delta);
 }, { passive: false });
 
@@ -208,6 +207,15 @@ async function pollMetrics() {
 setInterval(pollMetrics, 5000);
 // Initial poll after a short delay
 setTimeout(pollMetrics, 1000);
+
+// Language change listener (tray menu → renderer → RG module)
+if (window.electronAPI && window.electronAPI.onSetLanguage) {
+    window.electronAPI.onSetLanguage((lang) => {
+        if (window.RG && typeof window.RG.setLanguage === 'function') {
+            window.RG.setLanguage(lang);
+        }
+    });
+}
 
 // System event listener
 if (window.electronAPI && window.electronAPI.onSystemEvent) {
