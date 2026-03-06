@@ -3,10 +3,27 @@ const path = require('path');
 const os = require('os');
 const { exec } = require('child_process');
 
-// Disable GPU for compatibility (remote sessions, VMs, etc.)
-app.disableHardwareAcceleration();
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
+// Platform-specific GPU/transparency configuration
+const isLinux = process.platform === 'linux';
+const isWayland = process.env.XDG_SESSION_TYPE === 'wayland' || 
+                  process.env.WAYLAND_DISPLAY !== undefined;
+
+if (isLinux && isWayland) {
+    // Wayland (Hyprland, Sway, etc.) needs these for transparency
+    app.commandLine.appendSwitch('enable-features', 'UseOzonePlatform');
+    app.commandLine.appendSwitch('ozone-platform', 'wayland');
+    app.commandLine.appendSwitch('enable-transparent-visuals');
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+} else if (isLinux) {
+    // X11 Linux
+    app.commandLine.appendSwitch('enable-transparent-visuals');
+    app.commandLine.appendSwitch('disable-gpu');
+} else {
+    // Windows/macOS - disable GPU for compatibility (remote sessions, VMs, etc.)
+    app.disableHardwareAcceleration();
+    app.commandLine.appendSwitch('disable-gpu');
+    app.commandLine.appendSwitch('disable-software-rasterizer');
+}
 
 // System event tracking state
 let lastCpuTimes = null;
@@ -157,6 +174,7 @@ function createWindow() {
         y: height - 480,
         frame: false,
         transparent: true,
+        backgroundColor: '#00000000', // Fully transparent background
         alwaysOnTop: isAlwaysOnTop,
         skipTaskbar: true,
         resizable: false,
@@ -580,7 +598,8 @@ function createTray() {
     });
 }
 
-app.whenReady().then(() => {
+// On Linux, transparent visuals need a slight delay to be ready
+function initializeApp() {
     createWindow();
     createTray();
 
@@ -589,6 +608,15 @@ app.whenReady().then(() => {
             createWindow();
         }
     });
+}
+
+app.whenReady().then(() => {
+    if (process.platform === 'linux') {
+        // Linux needs a short delay for transparent visuals
+        setTimeout(initializeApp, 100);
+    } else {
+        initializeApp();
+    }
 });
 
 app.on('window-all-closed', () => {
