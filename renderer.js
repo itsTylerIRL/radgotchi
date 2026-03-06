@@ -184,6 +184,37 @@ if (window.electronAPI && window.electronAPI.onBounceEdge) {
     });
 }
 
+// Movement mode change listener
+let currentMovementMode = 'none';
+if (window.electronAPI && window.electronAPI.onMovementModeChange) {
+    window.electronAPI.onMovementModeChange((mode) => {
+        currentMovementMode = mode;
+        // Restore user's saved color when leaving bounce mode
+        if (mode !== 'bounce') {
+            const saved = localStorage.getItem('radgotchi-color');
+            if (saved) {
+                colorInput.value = saved;
+                updateThemeColor(saved, true);
+            }
+        }
+    });
+}
+
+// Wander pause/resume listener
+if (window.electronAPI && window.electronAPI.onWanderPause) {
+    window.electronAPI.onWanderPause((paused) => {
+        if (currentMovementMode !== 'wander') return;
+        if (paused) {
+            // Slow breathing while paused
+            faceFlipWrapper.classList.add('rg-breathing-slow');
+            faceFlipWrapper.classList.remove('rg-breathing');
+        } else {
+            faceFlipWrapper.classList.add('rg-breathing');
+            faceFlipWrapper.classList.remove('rg-breathing-slow');
+        }
+    });
+}
+
 // Load saved color
 const savedColor = localStorage.getItem('radgotchi-color');
 if (savedColor) {
