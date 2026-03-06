@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "start:safe": "electron . --no-sandbox --disable-gpu",
+    "start:wayland": "electron . --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-transparent-visuals",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
