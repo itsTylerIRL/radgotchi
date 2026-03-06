@@ -280,33 +280,70 @@ function getNetworkStats() {
 }
 
 function getWindowCount(callback) {
-    // Use PowerShell to get window count
-    exec('powershell -command "(Get-Process | Where-Object {$_.MainWindowHandle -ne 0}).Count"', 
-        { timeout: 2000 }, 
-        (err, stdout) => {
-            if (err) {
-                callback(lastWindowCount);
-                return;
+    const platform = process.platform;
+    
+    if (platform === 'win32') {
+        // Windows: Use PowerShell to get window count
+        exec('powershell -command "(Get-Process | Where-Object {$_.MainWindowHandle -ne 0}).Count"', 
+            { timeout: 2000 }, 
+            (err, stdout) => {
+                if (err) {
+                    callback(lastWindowCount);
+                    return;
+                }
+                const count = parseInt(stdout.trim()) || 0;
+                callback(count);
             }
-            const count = parseInt(stdout.trim()) || 0;
-            callback(count);
-        }
-    );
+        );
+    } else if (platform === 'darwin') {
+        // macOS: Use AppleScript to count visible apps
+        exec('osascript -e "tell application \\"System Events\\" to count (every process whose background only is false)"',
+            { timeout: 2000 }, 
+            (err, stdout) => {
+                if (err) {
+                    callback(lastWindowCount);
+                    return;
+                }
+                const count = parseInt(stdout.trim()) || 0;
+                callback(count);
+            }
+        );
+    } else {
+        // Linux: Use wmctrl if available, otherwise xdotool
+        exec('wmctrl -l 2>/dev/null | wc -l || xdotool search --onlyvisible --name "" 2>/dev/null | wc -l || echo 0',
+            { timeout: 2000 }, 
+            (err, stdout) => {
+                if (err) {
+                    callback(lastWindowCount);
+                    return;
+                }
+                const count = parseInt(stdout.trim()) || 0;
+                callback(count);
+            }
+        );
+    }
 }
 
 function checkNotResponding(callback) {
-    // Check for hung windows using PowerShell
-    exec('powershell -command "Get-Process | Where-Object {$_.Responding -eq $false} | Select-Object -First 1 | ForEach-Object { $_.ProcessName }"',
-        { timeout: 3000 },
-        (err, stdout) => {
-            if (err) {
-                callback(null);
-                return;
+    const platform = process.platform;
+    
+    if (platform === 'win32') {
+        // Windows: Check for hung windows using PowerShell
+        exec('powershell -command "Get-Process | Where-Object {$_.Responding -eq $false} | Select-Object -First 1 | ForEach-Object { $_.ProcessName }"',
+            { timeout: 3000 },
+            (err, stdout) => {
+                if (err) {
+                    callback(null);
+                    return;
+                }
+                const hung = stdout.trim();
+                callback(hung || null);
             }
-            const hung = stdout.trim();
-            callback(hung || null);
-        }
-    );
+        );
+    } else {
+        // macOS/Linux: No simple equivalent, skip this check
+        callback(null);
+    }
 }
 
 function startSystemEventMonitoring() {
@@ -434,11 +471,17 @@ function createTray() {
     const iconPath = getAssetPath('radbro.png');
     let trayIcon;
     
+    // Platform-specific tray icon sizes
+    const iconSize = process.platform === 'darwin' ? 22 : 16;
+    
     try {
         trayIcon = nativeImage.createFromPath(iconPath);
-        // Resize for tray (16x16 on Windows)
         if (!trayIcon.isEmpty()) {
-            trayIcon = trayIcon.resize({ width: 16, height: 16 });
+            trayIcon = trayIcon.resize({ width: iconSize, height: iconSize });
+            // macOS requires template images for proper dark/light mode support
+            if (process.platform === 'darwin') {
+                trayIcon.setTemplateImage(true);
+            }
         } else {
             // Fallback: create a simple icon
             trayIcon = nativeImage.createEmpty();
