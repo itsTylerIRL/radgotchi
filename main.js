@@ -22,6 +22,8 @@ let lastCpuTimes = null;
 let lastNetworkStats = null;
 let lastWindowCount = 0;
 let systemEventInterval = null;
+let windowCountInterval = null;
+let notRespondingInterval = null;
 
 let mainWindow;
 let tray;
@@ -225,13 +227,9 @@ function createWindow() {
         };
     });
 
-    // System metrics IPC
+    // System metrics IPC — uses delta-based CPU calculation for accurate current usage
     ipcMain.handle('get-system-metrics', async () => {
-        const cpus = os.cpus();
-        const totalIdle = cpus.reduce((acc, cpu) => acc + cpu.times.idle, 0);
-        const totalTick = cpus.reduce((acc, cpu) => 
-            acc + cpu.times.user + cpu.times.nice + cpu.times.sys + cpu.times.idle + cpu.times.irq, 0);
-        const cpuUsage = 100 - (100 * totalIdle / totalTick);
+        const cpuUsage = getCpuUsage();
 
         const totalMem = os.totalmem();
         const freeMem = os.freemem();
@@ -433,8 +431,8 @@ function startSystemEventMonitoring() {
         
     }, 3000); // Check every 3 seconds
     
-    // Window count monitoring (less frequent)
-    setInterval(() => {
+    // Window count monitoring (less frequent, stored for cleanup)
+    windowCountInterval = setInterval(() => {
         if (!mainWindow || !mainWindow.webContents) return;
         
         getWindowCount((count) => {
@@ -455,8 +453,8 @@ function startSystemEventMonitoring() {
         });
     }, 5000); // Check every 5 seconds
     
-    // Not responding check (less frequent, heavier operation)
-    setInterval(() => {
+    // Not responding check (less frequent, heavier operation, stored for cleanup)
+    notRespondingInterval = setInterval(() => {
         if (!mainWindow || !mainWindow.webContents) return;
         
         checkNotResponding((hungApp) => {
@@ -622,11 +620,16 @@ app.whenReady().then(() => {
     }
 });
 
-app.on('window-all-closed', () => {
-    // Keep app running in tray on Windows
-    if (process.platform !== 'darwin') {
-        // Don't quit, just hide
-    }
+// Intentionally keep app alive on Windows/Linux so it stays in the system tray
+app.on('window-all-closed', () => {});
+
+// Clean up all intervals on quit to prevent leaked timers
+app.on('will-quit', () => {
+    if (systemEventInterval) clearInterval(systemEventInterval);
+    if (windowCountInterval) clearInterval(windowCountInterval);
+    if (notRespondingInterval) clearInterval(notRespondingInterval);
+    stopBounce();
+    stopIdleDetection();
 });
 
 // Prevent multiple instances
