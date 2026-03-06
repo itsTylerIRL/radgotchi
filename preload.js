@@ -26,6 +26,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Bounce edge hit (DVD-style color cycle)
     onBounceEdge: (callback) => safeOn('bounce-edge', () => callback()),
 
+    // Movement mode changed (none / bounce / follow / wander)
+    onMovementModeChange: (callback) => safeOn('movement-mode-change', (_event, mode) => callback(mode)),
+
+    // Wander pause/resume events
+    onWanderPause: (callback) => safeOn('wander-pause', (_event, paused) => callback(paused)),
+
     // System event (CPU/memory/network changes trigger mood reactions)
     onSystemEvent: (callback) => safeOn('system-event', (_event, data) => callback(data)),
 
