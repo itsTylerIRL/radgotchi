@@ -30,88 +30,309 @@ let tray;
 let isAlwaysOnTop = true;
 let isDragging = false;
 
+// Movement modes: 'none', 'bounce', 'follow', 'wander'
+let movementMode = 'none';
+let movementInterval = null;
+
 // Bounce mode (DVD logo style)
-let isBouncing = false;
-let bounceInterval = null;
 let velocityX = 3;
-let velocityY = 2; // Slightly different for diagonal movement
+let velocityY = 2;
 let lastBounceTime = 0;
+
+// Follow mode (pet follows cursor)
+let followVelX = 0;
+let followVelY = 0;
+const FOLLOW_MAX_SPEED = 5;
+const FOLLOW_ACCELERATION = 0.4;
+const FOLLOW_FRICTION = 0.92;
+const FOLLOW_STOP_DISTANCE = 60;  // Start slowing down
+const FOLLOW_DEAD_ZONE = 20;      // Stop completely
+
+// Wander mode (random exploration)
+let wanderTargetX = 0;
+let wanderTargetY = 0;
+let wanderVelX = 0;
+let wanderVelY = 0;
+let wanderPauseUntil = 0;
+let wanderNextRetarget = 0;
+const WANDER_MAX_SPEED = 2;
+const WANDER_ACCELERATION = 0.15;
+const WANDER_FRICTION = 0.95;
+const WANDER_PAUSE_MIN = 1500;   // ms
+const WANDER_PAUSE_MAX = 4000;
+const WANDER_MOVE_MIN = 2000;
+const WANDER_MOVE_MAX = 5000;
 
 // Idle detection
 let isUserIdle = false;
-let wasBouncingBeforeIdle = false;
+let modeBeforeIdle = 'none';
 const IDLE_THRESHOLD_SECONDS = 120; // 2 minutes
 let idleCheckInterval = null;
 
-function startBounce() {
-    if (bounceInterval) return;
+// ── Movement mode management ───────────────────────────────────────────
+
+function setMovementMode(mode) {
+    // Stop any running movement
+    stopMovement();
+    movementMode = mode;
     
-    // Reset velocities to ensure diagonal movement
+    if (mode === 'bounce') startBounce();
+    else if (mode === 'follow') startFollow();
+    else if (mode === 'wander') startWander();
+    
+    // Notify renderer so it can react (animations, status text, etc.)
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('movement-mode-change', mode);
+    }
+}
+
+function stopMovement() {
+    if (movementInterval) {
+        clearInterval(movementInterval);
+        movementInterval = null;
+    }
+    followVelX = 0;
+    followVelY = 0;
+    wanderVelX = 0;
+    wanderVelY = 0;
+}
+
+// Helper: get work area for current window position
+function getWorkArea() {
+    const [x, y] = mainWindow.getPosition();
+    const currentDisplay = screen.getDisplayNearestPoint({ x, y });
+    return currentDisplay.workArea;
+}
+
+// Helper: clamp position inside work area
+function clampToWorkArea(newX, newY, winWidth, winHeight) {
+    const workArea = getWorkArea();
+    newX = Math.max(workArea.x, Math.min(newX, workArea.x + workArea.width - winWidth));
+    newY = Math.max(workArea.y, Math.min(newY, workArea.y + workArea.height - winHeight));
+    return [newX, newY];
+}
+
+// ── Bounce Mode (DVD logo style) ──────────────────────────────────────
+
+function startBounce() {
+    if (movementInterval) return;
+    
     velocityX = 3;
     velocityY = 2;
     
-    bounceInterval = setInterval(() => {
-        if (!mainWindow || !isBouncing) return;
+    movementInterval = setInterval(() => {
+        if (!mainWindow || movementMode !== 'bounce') return;
         
         const [x, y] = mainWindow.getPosition();
         const [winWidth, winHeight] = mainWindow.getSize();
-        
-        // Get screen bounds dynamically - use the display containing the window
-        // This handles multi-monitor setups and display resolution changes
-        const windowBounds = mainWindow.getBounds();
-        const currentDisplay = screen.getDisplayNearestPoint({ x: windowBounds.x, y: windowBounds.y });
-        const screenBounds = currentDisplay.bounds;
-        const screenLeft = screenBounds.x;
-        const screenTop = screenBounds.y;
-        const screenRight = screenBounds.x + screenBounds.width;
-        const screenBottom = screenBounds.y + screenBounds.height;
-        
-        // Calculate margins based on transparent padding around sprite
-        const hPadding = Math.round(winWidth * 0.15);
-        const vPadding = Math.round(winHeight * 0.15);
+        const workArea = getWorkArea();
         
         let newX = x + velocityX;
         let newY = y + velocityY;
         let bounced = false;
         const now = Date.now();
         
-        // Bounce off left/right edges (accounting for screen origin)
-        if (newX <= screenLeft - hPadding) {
-            velocityX = Math.abs(velocityX); // Force positive (go right)
-            newX = screenLeft - hPadding + 1;
+        if (newX <= workArea.x) {
+            velocityX = Math.abs(velocityX);
+            newX = workArea.x;
             bounced = true;
-        } else if (newX + winWidth >= screenRight + hPadding) {
-            velocityX = -Math.abs(velocityX); // Force negative (go left)
-            newX = screenRight + hPadding - winWidth - 1;
-            bounced = true;
-        }
-        
-        // Bounce off top/bottom edges (accounting for screen origin)
-        if (newY <= screenTop - vPadding) {
-            velocityY = Math.abs(velocityY); // Force positive (go down)
-            newY = screenTop - vPadding + 1;
-            bounced = true;
-        } else if (newY + winHeight >= screenBottom + vPadding) {
-            velocityY = -Math.abs(velocityY); // Force negative (go up)
-            newY = screenBottom + vPadding - winHeight - 1;
+        } else if (newX + winWidth >= workArea.x + workArea.width) {
+            velocityX = -Math.abs(velocityX);
+            newX = workArea.x + workArea.width - winWidth;
             bounced = true;
         }
         
-        // Only send color change if bounced and enough time passed (500ms cooldown)
+        if (newY <= workArea.y) {
+            velocityY = Math.abs(velocityY);
+            newY = workArea.y;
+            bounced = true;
+        } else if (newY + winHeight >= workArea.y + workArea.height) {
+            velocityY = -Math.abs(velocityY);
+            newY = workArea.y + workArea.height - winHeight;
+            bounced = true;
+        }
+        
+        mainWindow.setPosition(Math.round(newX), Math.round(newY));
+        
+        // Safety net: detect OS-level position constraints
+        if (!bounced) {
+            const [actualX, actualY] = mainWindow.getPosition();
+            if (Math.abs(actualX - Math.round(newX)) > 1) {
+                velocityX = -velocityX;
+                bounced = true;
+            }
+            if (Math.abs(actualY - Math.round(newY)) > 1) {
+                velocityY = -velocityY;
+                bounced = true;
+            }
+        }
+        
         if (bounced && now - lastBounceTime > 500 && mainWindow.webContents) {
             mainWindow.webContents.send('bounce-edge');
             lastBounceTime = now;
         }
-        
-        mainWindow.setPosition(Math.round(newX), Math.round(newY));
-    }, 16); // ~60fps
+    }, 16);
 }
 
-function stopBounce() {
-    if (bounceInterval) {
-        clearInterval(bounceInterval);
-        bounceInterval = null;
-    }
+// ── Follow Mode (pet follows cursor) ──────────────────────────────────
+
+function startFollow() {
+    if (movementInterval) return;
+    
+    followVelX = 0;
+    followVelY = 0;
+    
+    movementInterval = setInterval(() => {
+        if (!mainWindow || movementMode !== 'follow') return;
+        
+        const [x, y] = mainWindow.getPosition();
+        const [winWidth, winHeight] = mainWindow.getSize();
+        const mousePos = screen.getCursorScreenPoint();
+        
+        // Target: sit next to the cursor (left or right side, not overlapping).
+        // Pick whichever side the pet is already approaching from.
+        const petCenterX = x + winWidth / 2;
+        const side = petCenterX < mousePos.x ? -1 : 1; // -1 = approach from left, 1 = from right
+        const offsetX = side * (winWidth / 2 + 10); // 10px gap between pet edge and cursor
+        const targetX = mousePos.x + offsetX - winWidth / 2;
+        const targetY = mousePos.y - winHeight / 2;
+        
+        const dx = targetX - x;
+        const dy = targetY - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < FOLLOW_DEAD_ZONE) {
+            // Close enough — gentle stop
+            followVelX *= 0.8;
+            followVelY *= 0.8;
+            if (Math.abs(followVelX) < 0.1 && Math.abs(followVelY) < 0.1) {
+                followVelX = 0;
+                followVelY = 0;
+                return; // Don't move
+            }
+        } else {
+            // Normalised direction
+            const nx = dx / distance;
+            const ny = dy / distance;
+            
+            // Speed factor: ease out as we get closer
+            const speedFactor = Math.min(1, (distance - FOLLOW_DEAD_ZONE) / (FOLLOW_STOP_DISTANCE - FOLLOW_DEAD_ZONE));
+            const accel = FOLLOW_ACCELERATION * Math.max(0.2, speedFactor);
+            
+            followVelX += nx * accel;
+            followVelY += ny * accel;
+        }
+        
+        // Apply friction
+        followVelX *= FOLLOW_FRICTION;
+        followVelY *= FOLLOW_FRICTION;
+        
+        // Clamp speed
+        const speed = Math.sqrt(followVelX * followVelX + followVelY * followVelY);
+        if (speed > FOLLOW_MAX_SPEED) {
+            followVelX = (followVelX / speed) * FOLLOW_MAX_SPEED;
+            followVelY = (followVelY / speed) * FOLLOW_MAX_SPEED;
+        }
+        
+        let newX = x + followVelX;
+        let newY = y + followVelY;
+        [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
+        
+        mainWindow.setPosition(Math.round(newX), Math.round(newY));
+    }, 16);
+}
+
+// ── Wander Mode (random exploration with pauses) ──────────────────────
+
+function pickWanderTarget() {
+    if (!mainWindow) return;
+    const [winWidth, winHeight] = mainWindow.getSize();
+    const workArea = getWorkArea();
+    
+    // Pick a random point within the work area
+    wanderTargetX = workArea.x + Math.random() * (workArea.width - winWidth);
+    wanderTargetY = workArea.y + Math.random() * (workArea.height - winHeight);
+}
+
+function startWander() {
+    if (movementInterval) return;
+    
+    wanderVelX = 0;
+    wanderVelY = 0;
+    wanderPauseUntil = 0;
+    wanderNextRetarget = 0;
+    pickWanderTarget();
+    
+    movementInterval = setInterval(() => {
+        if (!mainWindow || movementMode !== 'wander') return;
+        
+        const now = Date.now();
+        const [x, y] = mainWindow.getPosition();
+        const [winWidth, winHeight] = mainWindow.getSize();
+        
+        // Currently pausing?
+        if (now < wanderPauseUntil) {
+            // Gently decelerate during pause
+            wanderVelX *= 0.9;
+            wanderVelY *= 0.9;
+            if (Math.abs(wanderVelX) > 0.2 || Math.abs(wanderVelY) > 0.2) {
+                let newX = x + wanderVelX;
+                let newY = y + wanderVelY;
+                [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
+                mainWindow.setPosition(Math.round(newX), Math.round(newY));
+            }
+            return;
+        }
+        
+        // Time to pick a new target?
+        if (now >= wanderNextRetarget) {
+            pickWanderTarget();
+            wanderNextRetarget = now + WANDER_MOVE_MIN + Math.random() * (WANDER_MOVE_MAX - WANDER_MOVE_MIN);
+        }
+        
+        const dx = wanderTargetX - x;
+        const dy = wanderTargetY - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < 15) {
+            // Reached target — pause, then pick new target
+            wanderPauseUntil = now + WANDER_PAUSE_MIN + Math.random() * (WANDER_PAUSE_MAX - WANDER_PAUSE_MIN);
+            wanderNextRetarget = wanderPauseUntil; // Pick new target after pause
+            // Notify renderer about pausing (for idle animation)
+            if (mainWindow.webContents) {
+                mainWindow.webContents.send('wander-pause', true);
+            }
+            return;
+        }
+        
+        // Notify renderer we're moving again
+        if (wanderVelX === 0 && wanderVelY === 0 && mainWindow.webContents) {
+            mainWindow.webContents.send('wander-pause', false);
+        }
+        
+        // Accelerate toward target
+        const nx = dx / distance;
+        const ny = dy / distance;
+        wanderVelX += nx * WANDER_ACCELERATION;
+        wanderVelY += ny * WANDER_ACCELERATION;
+        
+        // Apply friction
+        wanderVelX *= WANDER_FRICTION;
+        wanderVelY *= WANDER_FRICTION;
+        
+        // Clamp speed
+        const speed = Math.sqrt(wanderVelX * wanderVelX + wanderVelY * wanderVelY);
+        if (speed > WANDER_MAX_SPEED) {
+            wanderVelX = (wanderVelX / speed) * WANDER_MAX_SPEED;
+            wanderVelY = (wanderVelY / speed) * WANDER_MAX_SPEED;
+        }
+        
+        let newX = x + wanderVelX;
+        let newY = y + wanderVelY;
+        [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
+        
+        mainWindow.setPosition(Math.round(newX), Math.round(newY));
+    }, 16);
 }
 
 // Idle detection - checks system idle time
@@ -128,17 +349,17 @@ function startIdleDetection() {
         // State changed
         if (isUserIdle !== wasIdle) {
             if (isUserIdle) {
-                // User went AFK
-                wasBouncingBeforeIdle = isBouncing;
-                if (isBouncing) {
-                    stopBounce();
+                // User went AFK — save current mode and stop movement
+                modeBeforeIdle = movementMode;
+                if (movementMode !== 'none') {
+                    stopMovement();
+                    movementMode = 'none';
                 }
                 mainWindow.webContents.send('idle-change', { idle: true });
             } else {
-                // User returned
-                if (wasBouncingBeforeIdle) {
-                    isBouncing = true;
-                    startBounce();
+                // User returned — restore previous mode
+                if (modeBeforeIdle !== 'none') {
+                    setMovementMode(modeBeforeIdle);
                 }
                 mainWindow.webContents.send('idle-change', { idle: false });
             }
@@ -583,17 +804,33 @@ function createTray() {
             }
         },
         {
-            label: 'Bounce Mode',
-            type: 'checkbox',
-            checked: isBouncing,
-            click: (menuItem) => {
-                isBouncing = menuItem.checked;
-                if (isBouncing) {
-                    startBounce();
-                } else {
-                    stopBounce();
+            label: 'Movement',
+            submenu: [
+                {
+                    label: 'None',
+                    type: 'radio',
+                    checked: movementMode === 'none',
+                    click: () => setMovementMode('none')
+                },
+                {
+                    label: 'Bounce (DVD)',
+                    type: 'radio',
+                    checked: movementMode === 'bounce',
+                    click: () => setMovementMode('bounce')
+                },
+                {
+                    label: 'Follow Cursor',
+                    type: 'radio',
+                    checked: movementMode === 'follow',
+                    click: () => setMovementMode('follow')
+                },
+                {
+                    label: 'Wander',
+                    type: 'radio',
+                    checked: movementMode === 'wander',
+                    click: () => setMovementMode('wander')
                 }
-            }
+            ]
         },
         {
             label: 'Color',
