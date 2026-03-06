@@ -1,6 +1,8 @@
 # 🤖 Radgotchi
 
-> A Windows desktop virtual pet that lives on your screen, reacts to your system, and keeps you company.
+> A cross-platform desktop virtual pet that lives on your screen, reacts to your system, and keeps you company.
+
+**Supports:** Windows • macOS • Linux
 
 <p align="center">
   <img src="assets/AWAKE.png" alt="Radgotchi" width="120">
@@ -52,7 +54,7 @@
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) v18 or later
-- Windows 10/11 (macOS/Linux support coming soon)
+- Windows 10/11, macOS 10.15+, or Linux (Ubuntu/Debian recommended)
 
 ### Quick Start
 
@@ -149,16 +151,31 @@ Edit the `statusText` object in `radgotchi.js` to add your own messages for each
 ### Create Distributable
 
 ```bash
-# Windows installer (NSIS) + portable
+# Build for current platform
 npm run build
 
-# Portable only
+# Platform-specific builds
+npm run build:win      # Windows (NSIS installer + portable)
+npm run build:mac      # macOS (DMG + ZIP)
+npm run build:linux    # Linux (AppImage + DEB)
+
+# Windows portable only
 npm run build:portable
 ```
 
 Output goes to the `dist/` folder:
+
+**Windows:**
 - `Radgotchi Setup x.x.x.exe` — Installer
 - `Radgotchi x.x.x.exe` — Portable version
+
+**macOS:**
+- `Radgotchi-x.x.x.dmg` — Disk image
+- `Radgotchi-x.x.x-mac.zip` — Zipped app
+
+**Linux:**
+- `Radgotchi-x.x.x.AppImage` — Universal Linux app
+- `radgotchi_x.x.x_amd64.deb` — Debian/Ubuntu package
 
 ---
 
