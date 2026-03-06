@@ -208,6 +208,15 @@ setInterval(pollMetrics, 5000);
 // Initial poll after a short delay
 setTimeout(pollMetrics, 1000);
 
+// Language change listener (tray menu → renderer → RG module)
+if (window.electronAPI && window.electronAPI.onSetLanguage) {
+    window.electronAPI.onSetLanguage((lang) => {
+        if (window.RG && typeof window.RG.setLanguage === 'function') {
+            window.RG.setLanguage(lang);
+        }
+    });
+}
+
 // System event listener
 if (window.electronAPI && window.electronAPI.onSystemEvent) {
     window.electronAPI.onSystemEvent((event) => {

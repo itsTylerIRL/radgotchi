@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Idle state toggle (AFK sleep / wake-up)
     onIdleChange: (callback) => safeOn('idle-change', (_event, data) => callback(data)),
 
+    // Language change from tray menu (en / zh)
+    onSetLanguage: (callback) => safeOn('set-language', (_event, lang) => callback(lang)),
+
     // Mouse position for eye tracking
     getMousePosition: () => ipcRenderer.invoke('get-mouse-position')
 });

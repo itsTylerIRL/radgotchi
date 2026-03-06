@@ -527,8 +527,8 @@ function createTray() {
             label: 'Always on Top',
             type: 'checkbox',
             checked: isAlwaysOnTop,
-            click: () => {
-                isAlwaysOnTop = !isAlwaysOnTop;
+            click: (menuItem) => {
+                isAlwaysOnTop = menuItem.checked;
                 mainWindow.setAlwaysOnTop(isAlwaysOnTop);
             }
         },
@@ -560,6 +560,27 @@ function createTray() {
         {
             label: 'Color',
             submenu: colorSubmenu
+        },
+        {
+            label: 'Language',
+            submenu: [
+                {
+                    label: 'English',
+                    click: () => {
+                        if (mainWindow) {
+                            mainWindow.webContents.send('set-language', 'en');
+                        }
+                    }
+                },
+                {
+                    label: '中文',
+                    click: () => {
+                        if (mainWindow) {
+                            mainWindow.webContents.send('set-language', 'zh');
+                        }
+                    }
+                }
+            ]
         },
         { type: 'separator' },
         {
