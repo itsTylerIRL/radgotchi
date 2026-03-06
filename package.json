@@ -1,18 +1,21 @@
 {
   "name": "radgotchi",
   "version": "1.0.0",
-  "description": "A Windows desktop virtual pet that lives on your screen, reacts to your system, and keeps you company.",
+  "description": "A cross-platform desktop virtual pet that lives on your screen, reacts to your system, and keeps you company.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "start:safe": "electron . --no-sandbox --disable-gpu",
-    "build": "electron-builder --win",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
     "build:portable": "electron-builder --win portable",
     "clean": "rimraf dist"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/radgotchi.git"
+    "url": "https://github.com/itsTylerIRL/radgotchi.git"
   },
   "keywords": [
     "radgotchi",
@@ -20,6 +23,8 @@
     "desktop-pet",
     "electron",
     "windows",
+    "macos",
+    "linux",
     "pixel-art",
     "tamagotchi",
     "system-monitor"
@@ -27,9 +32,9 @@
   "author": "Radgotchi Team",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/yourusername/radgotchi/issues"
+    "url": "https://github.com/itsTylerIRL/radgotchi/issues"
   },
-  "homepage": "https://github.com/yourusername/radgotchi#readme",
+  "homepage": "https://github.com/itsTylerIRL/radgotchi#readme",
   "devDependencies": {
     "electron": "^28.3.3",
     "electron-builder": "^24.9.1"
@@ -49,7 +54,23 @@
         "nsis",
         "portable"
       ],
-      "icon": "assets/radbro.png"
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.entertainment"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/radbro.png",
+      "category": "Utility"
     },
     "nsis": {
       "oneClick": false,
