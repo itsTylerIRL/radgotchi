@@ -12,5 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setColor: (color) => ipcRenderer.send('chat-set-color', color),
     setLanguage: (lang) => ipcRenderer.send('chat-set-language', lang),
     onSetLanguage: (callback) => ipcRenderer.on('set-language', (_event, lang) => callback(lang)),
-    onMovementModeChange: (callback) => ipcRenderer.on('movement-mode-change', (_event, mode) => callback(mode))
+    onMovementModeChange: (callback) => ipcRenderer.on('movement-mode-change', (_event, mode) => callback(mode)),
+    // Expression-only mode (no text, just expression)
+    setExpressionOnly: (enabled) => ipcRenderer.send('chat-set-expression-only', enabled)
 });

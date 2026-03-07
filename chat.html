@@ -634,6 +634,11 @@
                 </select>
             </div>
             <span class="control-divider"></span>
+            <button class="control-toggle" id="toggle-expression-only" title="Expression only (no text)">
+                <span class="toggle-indicator"></span>
+                <span class="toggle-label" id="label-expr">EXPR</span>
+            </button>
+            <span class="control-divider"></span>
             <button class="control-toggle" id="toggle-lang">
                 <span class="toggle-indicator"></span>
                 <span class="toggle-label">中文</span>
@@ -830,6 +835,22 @@
             } else {
                 addMessage('assistant', t.linkEstablished);
             }
+            
+            // Preselect movement mode from current state
+            if (data.movementMode) {
+                selectMovement.value = data.movementMode;
+            }
+            
+            // Preselect color from current state
+            if (data.color) {
+                selectColor.value = data.color;
+                applyColor(data.color);
+            }
+            
+            // Preselect expression-only toggle from current state
+            if (data.expressionOnly) {
+                toggleExpressionOnly.classList.add('active');
+            }
         });
         
         // Color sync from main window
@@ -872,8 +893,10 @@
         const selectMovement = document.getElementById('select-movement');
         const selectColor = document.getElementById('select-color');
         const toggleLang = document.getElementById('toggle-lang');
+        const toggleExpressionOnly = document.getElementById('toggle-expression-only');
         const labelMov = document.getElementById('label-mov');
         const labelCol = document.getElementById('label-col');
+        const labelExpr = document.getElementById('label-expr');
         
         // Translations
         const translations = {
@@ -897,6 +920,7 @@
                 system: 'SYSTEM',
                 mov: 'MOV',
                 col: 'COL',
+                expr: 'EXPR',
                 langToggle: '中文',
                 movOptions: { none: 'NONE', bounce: 'BOUNCE', follow: 'FOLLOW', wander: 'WANDER' },
                 colOptions: { '#ff3344': 'RED', '#00ffff': 'CYAN', '#39ff14': 'GREEN', '#bf00ff': 'PURPLE', '#ff1493': 'PINK', '#ff6600': 'ORANGE', '#ffd700': 'YELLOW', '#00bfff': 'BLUE', '#00ff00': 'LIME', '#ffffff': 'WHITE' }
@@ -921,6 +945,7 @@
                 system: '系统',
                 mov: '动作',
                 col: '颜色',
+                expr: '表情',
                 langToggle: 'EN',
                 movOptions: { none: '无', bounce: '弹跳', follow: '跟随', wander: '漫游' },
                 colOptions: { '#ff3344': '红', '#00ffff': '青', '#39ff14': '绿', '#bf00ff': '紫', '#ff1493': '粉', '#ff6600': '橙', '#ffd700': '黄', '#00bfff': '蓝', '#00ff00': '草绿', '#ffffff': '白' }
@@ -944,6 +969,7 @@
             // Update control labels
             labelMov.textContent = t.mov;
             labelCol.textContent = t.col;
+            labelExpr.textContent = t.expr;
             toggleLang.querySelector('.toggle-label').textContent = t.langToggle;
             
             // Update dropdown options
@@ -987,6 +1013,15 @@
             applyColor(color);
             if (window.electronAPI && window.electronAPI.setColor) {
                 window.electronAPI.setColor(color);
+            }
+        });
+        
+        // Expression-only toggle (hides status text, shows only face)
+        toggleExpressionOnly.addEventListener('click', () => {
+            toggleExpressionOnly.classList.toggle('active');
+            const enabled = toggleExpressionOnly.classList.contains('active');
+            if (window.electronAPI && window.electronAPI.setExpressionOnly) {
+                window.electronAPI.setExpressionOnly(enabled);
             }
         });
         

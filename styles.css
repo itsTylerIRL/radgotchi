@@ -82,10 +82,13 @@ body {
     image-rendering: pixelated;
     image-rendering: crisp-edges;
     -ms-interpolation-mode: nearest-neighbor;
+    /* Clean phosphor glow - only drop-shadows, no overlays */
     filter: 
         invert(1) sepia(1) saturate(8) hue-rotate(-10deg) brightness(1.1)
-        drop-shadow(0 0 4px var(--rg-color)) 
-        drop-shadow(0 0 8px var(--rg-glow))
+        drop-shadow(0 0 2px var(--rg-color))
+        drop-shadow(0 0 6px var(--rg-color))
+        drop-shadow(0 0 12px var(--rg-glow))
+        drop-shadow(0 0 20px var(--rg-glow))
         contrast(1.1);
     transition: transform 0.2s ease-out, filter 0.3s ease;
     animation: rg-breathe 4s ease-in-out infinite;
@@ -450,6 +453,24 @@ body {
     font-size: 9px;
     text-align: center;
     margin: 4px 0;
+}
+
+/* RGB chromatic aberration on hover for extra glow */
+#radgotchi-container:hover .radgotchi-face {
+    filter: 
+        invert(1) sepia(1) saturate(8) hue-rotate(-10deg) brightness(1.15)
+        drop-shadow(0 0 2px var(--rg-color))
+        drop-shadow(0 0 6px var(--rg-color))
+        drop-shadow(0 0 12px var(--rg-glow))
+        drop-shadow(0 0 24px var(--rg-glow))
+        drop-shadow(-1px 0 0 rgba(255, 0, 0, 0.4))
+        drop-shadow(1px 0 0 rgba(0, 255, 255, 0.4))
+        contrast(1.1);
+}
+
+/* Phosphor persistence effect - afterglow trails */
+.radgotchi-face {
+    position: relative;
 }
 
 .chat-message.thinking {

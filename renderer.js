@@ -406,6 +406,15 @@ if (window.electronAPI && window.electronAPI.onSetLanguage) {
     });
 }
 
+// Expression-only mode listener (chat panel → renderer → RG module)
+if (window.electronAPI && window.electronAPI.onSetExpressionOnly) {
+    window.electronAPI.onSetExpressionOnly((enabled) => {
+        if (window.RG && typeof window.RG.setExpressionOnly === 'function') {
+            window.RG.setExpressionOnly(enabled);
+        }
+    });
+}
+
 // System event listener
 if (window.electronAPI && window.electronAPI.onSystemEvent) {
     window.electronAPI.onSystemEvent((event) => {

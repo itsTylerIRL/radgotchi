@@ -52,5 +52,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Chat window control
     openChat: () => ipcRenderer.send('open-chat'),
     onChatMood: (callback) => safeOn('chat-mood', (_event, mood) => callback(mood)),
-    syncChatColor: (color) => ipcRenderer.send('sync-chat-color', color)
+    syncChatColor: (color) => ipcRenderer.send('sync-chat-color', color),
+    
+    // Expression-only mode (no text, just expression)
+    onSetExpressionOnly: (callback) => safeOn('set-expression-only', (_event, enabled) => callback(enabled))
 });

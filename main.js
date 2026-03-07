@@ -622,7 +622,7 @@ function createChatWindow() {
     }
 
     chatWindow = new BrowserWindow({
-        width: 320,
+        width: 360,
         height: 380,
         x: chatX,
         y: chatY,
@@ -632,7 +632,7 @@ function createChatWindow() {
         alwaysOnTop: true,
         skipTaskbar: true,
         resizable: true,
-        minWidth: 280,
+        minWidth: 320,
         minHeight: 250,
         webPreferences: {
             preload: path.join(__dirname, 'preload-chat.js'),
@@ -646,13 +646,33 @@ function createChatWindow() {
 
     // Send config status once loaded
     chatWindow.webContents.on('did-finish-load', () => {
-        chatWindow.webContents.send('chat-ready', { configured: llmConfig.enabled });
-        // Send current color to chat window
-        mainWindow.webContents.executeJavaScript('localStorage.getItem("radgotchi-color") || "#ff3344"')
-            .then(color => {
-                if (chatWindow) chatWindow.webContents.send('set-color', color);
+        // Get current color and expression-only state from main window
+        mainWindow.webContents.executeJavaScript(`({
+            color: localStorage.getItem("radgotchi-color") || "#ff3344",
+            expressionOnly: localStorage.getItem("radgotchi-expression-only") === "true"
+        })`)
+            .then(state => {
+                if (chatWindow) {
+                    // Send initial state with config, movement mode, color, and expression-only
+                    chatWindow.webContents.send('chat-ready', { 
+                        configured: llmConfig.enabled,
+                        movementMode: movementMode,
+                        color: state.color,
+                        expressionOnly: state.expressionOnly
+                    });
+                }
             })
-            .catch(() => {});
+            .catch(() => {
+                // Fallback if can't get state
+                if (chatWindow) {
+                    chatWindow.webContents.send('chat-ready', { 
+                        configured: llmConfig.enabled,
+                        movementMode: movementMode,
+                        color: '#ff3344',
+                        expressionOnly: false
+                    });
+                }
+            });
     });
 
     chatWindow.on('closed', () => {
@@ -711,6 +731,13 @@ ipcMain.on('chat-set-language', (event, lang) => {
     }
     if (chatWindow && chatWindow.webContents) {
         chatWindow.webContents.send('set-language', lang);
+    }
+});
+
+// IPC: Chat panel controls expression-only mode (no text, just expression)
+ipcMain.on('chat-set-expression-only', (event, enabled) => {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('set-expression-only', enabled);
     }
 });
 

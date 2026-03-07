@@ -42,6 +42,9 @@ const RG = (function() {
 
     // === Language Support ===
     let currentLang = localStorage.getItem('radgotchi-lang') || 'en';
+    
+    // === Expression-Only Mode (no text, just expression) ===
+    let expressionOnly = localStorage.getItem('radgotchi-expression-only') === 'true';
 
     // === Status Text Messages — English (themed) ===
     const statusTextEN = {
@@ -329,7 +332,13 @@ const RG = (function() {
         // Update status text
         const st = getStatusText();
         const text = opts.status || pick(st[mood] || st.awake);
-        statusEl.textContent = text;
+        if (expressionOnly) {
+            statusEl.textContent = '';
+            statusEl.style.display = 'none';
+        } else {
+            statusEl.textContent = text;
+            statusEl.style.display = '';
+        }
 
         // Apply animation
         clearAnimations();
@@ -791,7 +800,32 @@ const RG = (function() {
         localStorage.setItem('radgotchi-lang', lang);
         // Refresh status text to reflect new language immediately
         const st = getStatusText();
-        statusEl.textContent = pick(st[mood] || st.awake);
+        if (!expressionOnly) {
+            statusEl.textContent = pick(st[mood] || st.awake);
+        }
+    }
+    
+    // === Expression-Only Setter ===
+    
+    function setExpressionOnly(enabled) {
+        expressionOnly = enabled;
+        localStorage.setItem('radgotchi-expression-only', enabled ? 'true' : 'false');
+        if (enabled) {
+            statusEl.textContent = '';
+            statusEl.style.display = 'none';
+        } else {
+            const st = getStatusText();
+            statusEl.textContent = pick(st[mood] || st.awake);
+            statusEl.style.display = '';
+        }
+    }
+
+    // === Initialization ===
+    
+    // Apply expression-only mode on startup if saved
+    if (expressionOnly) {
+        statusEl.textContent = '';
+        statusEl.style.display = 'none';
     }
 
     // === Public API ===
@@ -802,9 +836,11 @@ const RG = (function() {
         handleSystemEvent: handleSystemEvent,
         setMood: setMood,
         setLanguage: setLanguage,
+        setExpressionOnly: setExpressionOnly,
         get mood() { return mood; },
         get petCount() { return petCount; },
-        get language() { return currentLang; }
+        get language() { return currentLang; },
+        get expressionOnly() { return expressionOnly; }
     };
 
 })();
