@@ -150,9 +150,8 @@ window.addEventListener('mouseup', (e) => {
             window.electronAPI.stopDrag();
         }
     } else {
-        // Was a click - trigger emote and show chat button
+        // Was a click - trigger emote
         triggerClickEmote();
-        showChatButton();
     }
     
     // Reset tracking
@@ -445,27 +444,10 @@ if (window.electronAPI && window.electronAPI.onIdleChange) {
 }
 
 // === CHAT FUNCTIONALITY ===
-const chatBtn = document.getElementById('chat-btn');
-let chatButtonTimeout = null;
 
-// Show chat button briefly when clicking on radgotchi
-function showChatButton() {
-    if (chatButtonTimeout) {
-        clearTimeout(chatButtonTimeout);
-    }
-    chatBtn.classList.remove('hidden');
-    
-    // Auto-hide after 3 seconds if not interacted with
-    chatButtonTimeout = setTimeout(() => {
-        chatBtn.classList.add('hidden');
-    }, 3000);
-}
-
-// Open chat window (separate window)
-chatBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    chatBtn.classList.add('hidden');
-    
+// Right-click on pet opens chat
+container.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
     if (window.electronAPI && window.electronAPI.openChat) {
         window.electronAPI.openChat();
     }
