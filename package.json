@@ -55,7 +55,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/radbro.png"
     },
     "mac": {
       "target": [
@@ -82,9 +82,11 @@
     "files": [
       "main.js",
       "preload.js",
+      "preload-chat.js",
       "renderer.js",
       "radgotchi.js",
       "index.html",
+      "chat.html",
       "styles.css",
       "assets/**/*"
     ],

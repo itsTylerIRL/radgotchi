@@ -279,6 +279,122 @@
             letter-spacing: 1px;
         }
         
+        /* Markdown styles */
+        .message code {
+            font-family: var(--font-mono);
+            background: rgba(0, 0, 0, 0.4);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .message pre {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-x: auto;
+            position: relative;
+        }
+        
+        .code-block-wrapper {
+            position: relative;
+            margin: 8px 0;
+        }
+        
+        .code-block-wrapper pre {
+            margin: 0;
+            padding-top: 28px;
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(0, 255, 136, 0.15);
+            border: 1px solid var(--term-green);
+            color: var(--term-green);
+            font-family: var(--font-mono);
+            font-size: 8px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            padding: 3px 8px;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.2s ease;
+            z-index: 5;
+        }
+        
+        .copy-btn:hover {
+            background: var(--term-green);
+            color: #000;
+            box-shadow: 0 0 8px var(--term-green);
+        }
+        
+        .copy-btn.copied {
+            background: var(--term-cyan);
+            border-color: var(--term-cyan);
+            color: #000;
+        }
+        
+        .message pre code {
+            background: transparent;
+            padding: 0;
+            border: none;
+            font-size: 10px;
+            line-height: 1.4;
+        }
+        
+        .message strong {
+            color: var(--term-green);
+            font-weight: 600;
+        }
+        
+        .message em {
+            font-style: italic;
+            opacity: 0.9;
+        }
+        
+        .message ul, .message ol {
+            margin: 6px 0 6px 16px;
+            padding: 0;
+        }
+        
+        .message li {
+            margin: 3px 0;
+        }
+        
+        .message a {
+            color: var(--term-cyan);
+            text-decoration: none;
+            border-bottom: 1px dotted var(--term-cyan);
+        }
+        
+        .message a:hover {
+            text-shadow: 0 0 6px var(--term-cyan);
+        }
+        
+        .message blockquote {
+            margin: 6px 0;
+            padding: 4px 10px;
+            border-left: 2px solid var(--term-dim);
+            opacity: 0.85;
+        }
+        
+        .message p {
+            margin: 4px 0;
+        }
+        
+        .message p:first-child {
+            margin-top: 0;
+        }
+        
+        .message p:last-child {
+            margin-bottom: 0;
+        }
+        
         .message.thinking {
             color: var(--term-dim);
             font-style: italic;
@@ -404,6 +520,55 @@
         let chatHistory = [];
         let isSending = false;
         
+        // Simple markdown parser
+        function parseMarkdown(text) {
+            // Escape HTML first
+            let html = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            
+            // Code blocks (```)
+            html = html.replace(/```([\s\S]*?)```/g, '<div class="code-block-wrapper"><button class="copy-btn" onclick="copyCode(this)">COPY</button><pre><code>$1</code></pre></div>');
+            
+            // Inline code (`)
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // Bold (**text** or __text__)
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+            
+            // Italic (*text* or _text_)
+            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+            
+            // Links [text](url)
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+            
+            // Blockquotes (>)
+            html = html.replace(/^&gt; ?(.*)$/gm, '<blockquote>$1</blockquote>');
+            
+            // Unordered lists (- or *)
+            html = html.replace(/^[\-\*] (.*)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+            
+            // Ordered lists (1. 2. etc)
+            html = html.replace(/^\d+\. (.*)$/gm, '<li>$1</li>');
+            
+            // Paragraphs (double newlines)
+            html = html.replace(/\n\n/g, '</p><p>');
+            
+            // Single newlines to <br> (only outside code blocks)
+            html = html.replace(/\n/g, '<br>');
+            
+            // Clean up <br> inside pre tags
+            html = html.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (match, code) => {
+                return '<pre><code>' + code.replace(/<br>/g, '\n') + '</code></pre>';
+            });
+            
+            return html;
+        }
+        
         // Generate session ID
         sessionIdEl.textContent = 'RG-' + Math.random().toString(36).substr(2, 4).toUpperCase();
         
@@ -447,7 +612,14 @@
             const msgEl = document.createElement('div');
             msgEl.className = `message ${role}${isThinking ? ' thinking' : ''}`;
             msgEl.setAttribute('data-time', getTimeStr());
-            msgEl.textContent = content;
+            
+            // Parse markdown for assistant messages, plain text for others
+            if (role === 'assistant' && !isThinking) {
+                msgEl.innerHTML = parseMarkdown(content);
+            } else {
+                msgEl.textContent = content;
+            }
+            
             messagesEl.appendChild(msgEl);
             messagesEl.scrollTop = messagesEl.scrollHeight;
             return msgEl;
@@ -523,6 +695,27 @@
         
         // Focus input on load
         inputEl.focus();
+        
+        // Copy code block content
+        function copyCode(btn) {
+            const codeEl = btn.parentElement.querySelector('code');
+            const text = codeEl.textContent || codeEl.innerText;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = 'COPIED';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = 'COPY';
+                    btn.classList.remove('copied');
+                }, 1500);
+            }).catch(() => {
+                btn.textContent = 'ERROR';
+                setTimeout(() => { btn.textContent = 'COPY'; }, 1500);
+            });
+        }
+        
+        // Expose to onclick handlers
+        window.copyCode = copyCode;
     </script>
 </body>
 </html>
