@@ -30,6 +30,8 @@
             overflow: hidden;
             background: var(--term-bg);
             font-family: var(--font-mono);
+            margin: 0;
+            padding: 0;
         }
         
         /* Scanline overlay */
@@ -68,11 +70,15 @@
         }
         
         .terminal-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             display: flex;
             flex-direction: column;
-            height: 100%;
             border: 1px solid var(--term-green);
-            position: relative;
+            box-sizing: border-box;
         }
         
         /* Corner brackets */
@@ -100,6 +106,7 @@
         /* Header */
         .terminal-header {
             display: flex;
+            flex-shrink: 0;
             justify-content: space-between;
             align-items: center;
             padding: 6px 12px;
@@ -186,6 +193,7 @@
         /* Info bar */
         .info-bar {
             display: flex;
+            flex-shrink: 0;
             justify-content: space-between;
             padding: 4px 12px;
             background: rgba(0, 255, 136, 0.03);
@@ -203,6 +211,8 @@
         .messages-area {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
+            min-height: 0;
             padding: 12px;
             background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, transparent 100%);
         }
@@ -408,6 +418,7 @@
         /* Input area */
         .input-area {
             display: flex;
+            flex-shrink: 0;
             padding: 10px;
             gap: 8px;
             background: linear-gradient(0deg, #0f120f 0%, #0a0c0a 100%);
@@ -469,6 +480,7 @@
         /* Controls bar */
         .controls-bar {
             display: flex;
+            flex-shrink: 0;
             justify-content: center;
             align-items: center;
             gap: 12px;

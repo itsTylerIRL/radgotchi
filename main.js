@@ -152,11 +152,32 @@ function getWorkArea() {
     return currentDisplay.workArea;
 }
 
-// Helper: clamp position inside work area
+// Helper: get movement bounds using full display bounds with overflow.
+// The visible pet is centered in a larger transparent window, so we allow
+// the window to extend off-screen so the pet can reach the screen edges.
+// Overflow is computed from the transparent padding around the visible content.
+function getMovementBounds(winWidth, winHeight) {
+    const [wx, wy] = mainWindow.getPosition();
+    const currentDisplay = screen.getDisplayNearestPoint({ x: wx, y: wy });
+    const bounds = currentDisplay.bounds;
+    // Visible pet content is roughly 2/3 of window width (container 160 / window 240)
+    // and ~60% of window height (face + status + padding centered in window).
+    // Overflow = transparent padding on each side so the pet itself can reach edges.
+    const overflowX = Math.round((winWidth - winWidth * 0.55) / 2);
+    const overflowY = Math.round((winHeight - winHeight * 0.45) / 2);
+    return {
+        minX: bounds.x - overflowX,
+        minY: bounds.y - overflowY,
+        maxX: bounds.x + bounds.width - winWidth + overflowX,
+        maxY: bounds.y + bounds.height - winHeight + overflowY,
+    };
+}
+
+// Helper: clamp position inside movement bounds
 function clampToWorkArea(newX, newY, winWidth, winHeight) {
-    const workArea = getWorkArea();
-    newX = Math.max(workArea.x, Math.min(newX, workArea.x + workArea.width - winWidth));
-    newY = Math.max(workArea.y, Math.min(newY, workArea.y + workArea.height - winHeight));
+    const b = getMovementBounds(winWidth, winHeight);
+    newX = Math.max(b.minX, Math.min(newX, b.maxX));
+    newY = Math.max(b.minY, Math.min(newY, b.maxY));
     return [newX, newY];
 }
 
@@ -173,43 +194,51 @@ function startBounce() {
         
         const [x, y] = mainWindow.getPosition();
         const [winWidth, winHeight] = mainWindow.getSize();
-        const workArea = getWorkArea();
+        const b = getMovementBounds(winWidth, winHeight);
         
         let newX = x + velocityX;
         let newY = y + velocityY;
         let bounced = false;
         const now = Date.now();
         
-        if (newX <= workArea.x) {
+        if (newX <= b.minX) {
             velocityX = Math.abs(velocityX);
-            newX = workArea.x;
+            newX = b.minX;
             bounced = true;
-        } else if (newX + winWidth >= workArea.x + workArea.width) {
+        } else if (newX >= b.maxX) {
             velocityX = -Math.abs(velocityX);
-            newX = workArea.x + workArea.width - winWidth;
+            newX = b.maxX;
             bounced = true;
         }
         
-        if (newY <= workArea.y) {
+        if (newY <= b.minY) {
             velocityY = Math.abs(velocityY);
-            newY = workArea.y;
+            newY = b.minY;
             bounced = true;
-        } else if (newY + winHeight >= workArea.y + workArea.height) {
+        } else if (newY >= b.maxY) {
             velocityY = -Math.abs(velocityY);
-            newY = workArea.y + workArea.height - winHeight;
+            newY = b.maxY;
             bounced = true;
         }
         
-        mainWindow.setPosition(Math.round(newX), Math.round(newY));
+        const roundX = Math.round(newX), roundY = Math.round(newY);
+        if (!Number.isFinite(roundX) || !Number.isFinite(roundY)) return;
+        mainWindow.setPosition(roundX, roundY);
         
-        // Safety net: detect OS-level position constraints
+        // Safety net: detect OS-level position constraints.
+        // Skip this when near our intended movement bounds, since macOS may
+        // clamp the position (e.g. won't allow above the menu bar) and that
+        // should not trigger an early bounce reversal.
         if (!bounced) {
             const [actualX, actualY] = mainWindow.getPosition();
-            if (Math.abs(actualX - Math.round(newX)) > 1) {
+            const margin = 10;
+            const nearBoundsX = (Math.round(newX) <= b.minX + margin) || (Math.round(newX) >= b.maxX - margin);
+            const nearBoundsY = (Math.round(newY) <= b.minY + margin) || (Math.round(newY) >= b.maxY - margin);
+            if (!nearBoundsX && Math.abs(actualX - Math.round(newX)) > 1) {
                 velocityX = -velocityX;
                 bounced = true;
             }
-            if (Math.abs(actualY - Math.round(newY)) > 1) {
+            if (!nearBoundsY && Math.abs(actualY - Math.round(newY)) > 1) {
                 velocityY = -velocityY;
                 bounced = true;
             }
@@ -286,7 +315,9 @@ function startFollow() {
         let newY = y + followVelY;
         [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
         
-        mainWindow.setPosition(Math.round(newX), Math.round(newY));
+        const roundX = Math.round(newX), roundY = Math.round(newY);
+        if (!Number.isFinite(roundX) || !Number.isFinite(roundY)) return;
+        mainWindow.setPosition(roundX, roundY);
     }, 16);
 }
 
@@ -295,11 +326,11 @@ function startFollow() {
 function pickWanderTarget() {
     if (!mainWindow) return;
     const [winWidth, winHeight] = mainWindow.getSize();
-    const workArea = getWorkArea();
+    const b = getMovementBounds(winWidth, winHeight);
     
-    // Pick a random point within the work area
-    wanderTargetX = workArea.x + Math.random() * (workArea.width - winWidth);
-    wanderTargetY = workArea.y + Math.random() * (workArea.height - winHeight);
+    // Pick a random point within the movement bounds
+    wanderTargetX = b.minX + Math.random() * (b.maxX - b.minX);
+    wanderTargetY = b.minY + Math.random() * (b.maxY - b.minY);
 }
 
 function startWander() {
@@ -327,7 +358,10 @@ function startWander() {
                 let newX = x + wanderVelX;
                 let newY = y + wanderVelY;
                 [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
-                mainWindow.setPosition(Math.round(newX), Math.round(newY));
+                const roundX = Math.round(newX), roundY = Math.round(newY);
+                if (Number.isFinite(roundX) && Number.isFinite(roundY)) {
+                    mainWindow.setPosition(roundX, roundY);
+                }
             }
             return;
         }
@@ -342,7 +376,7 @@ function startWander() {
         const dy = wanderTargetY - y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        if (distance < 15) {
+        if (distance === 0 || !Number.isFinite(distance) || distance < 15) {
             // Reached target — pause, then pick new target
             wanderPauseUntil = now + WANDER_PAUSE_MIN + Math.random() * (WANDER_PAUSE_MAX - WANDER_PAUSE_MIN);
             wanderNextRetarget = wanderPauseUntil; // Pick new target after pause
@@ -379,7 +413,9 @@ function startWander() {
         let newY = y + wanderVelY;
         [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
         
-        mainWindow.setPosition(Math.round(newX), Math.round(newY));
+        const roundX = Math.round(newX), roundY = Math.round(newY);
+        if (!Number.isFinite(roundX) || !Number.isFinite(roundY)) return;
+        mainWindow.setPosition(roundX, roundY);
     }, 16);
 }
 
