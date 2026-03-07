@@ -14,8 +14,8 @@ let lastMouseX = 0;
 let lastMouseY = 0;
 const DRAG_THRESHOLD = 5; // pixels to move before considered a drag
 
-// Click emotes 
-const clickEmotes = [
+// Click emotes — English
+const clickEmotesEN = [
     // Acknowledgment
     { mood: 'happy', status: 'CONTACT LOGGED', anim: 'rg-bounce' },
     { mood: 'excited', status: 'SIGNAL ACQUIRED', anim: 'rg-wiggle' },
@@ -48,9 +48,48 @@ const clickEmotes = [
     { mood: 'happy', status: 'FLAGGED FOR REVIEW', anim: 'rg-wiggle' },
 ];
 
+// Click emotes — Chinese (中文)
+const clickEmotesZH = [
+    // 确认类
+    { mood: 'happy', status: '接触已记录', anim: 'rg-bounce' },
+    { mood: 'excited', status: '信号已获取', anim: 'rg-wiggle' },
+    { mood: 'cool', status: '已确认', anim: 'rg-nod' },
+    { mood: 'grateful', status: '信任度：高', anim: 'rg-bounce' },
+    { mood: 'friend', status: '节点已验证', anim: 'rg-wiggle' },
+    { mood: 'happy', status: '响应已接受', anim: 'rg-pulse' },
+    { mood: 'excited', status: '连接已建立', anim: 'rg-shake' },
+    { mood: 'motivated', status: '监控中...', anim: 'rg-bounce' },
+    { mood: 'cool', status: '收到', anim: 'rg-nod' },
+    { mood: 'excited', status: '通道活跃', anim: 'rg-wiggle' },
+    { mood: 'happy', status: '资产追踪中', anim: 'rg-pulse' },
+    { mood: 'friend', status: '频道安全', anim: 'rg-bounce' },
+    // 分析类
+    { mood: 'excited', status: '规避机动', anim: 'rg-spin' },
+    { mood: 'cool', status: '模式检测', anim: 'rg-pulse' },
+    { mood: 'intense', status: '异常标记', anim: 'rg-shake' },
+    { mood: 'motivated', status: '交叉引用中', anim: 'rg-wiggle' },
+    { mood: 'smart', status: '解密中...', anim: 'rg-pulse' },
+    { mood: 'cool', status: '暗中运行', anim: 'rg-nod' },
+    { mood: 'excited', status: '实体已解析', anim: 'rg-bounce' },
+    { mood: 'intense', status: '关联已发现', anim: 'rg-spin' },
+    { mood: 'happy', status: '查询完成', anim: 'rg-bounce' },
+    { mood: 'smart', status: '数据索引中', anim: 'rg-nod' },
+    { mood: 'motivated', status: '图谱已更新', anim: 'rg-wiggle' },
+    { mood: 'cool', status: '监视中...', anim: 'rg-pulse' },
+    { mood: 'smart', status: '元数据已解析', anim: 'rg-nod' },
+    { mood: 'excited', status: '连接已映射', anim: 'rg-bounce' },
+    { mood: 'intense', status: '特征匹配', anim: 'rg-shake' },
+    { mood: 'happy', status: '已标记待审', anim: 'rg-wiggle' },
+];
+
+function getClickEmotes() {
+    return (window.RG && window.RG.language === 'zh') ? clickEmotesZH : clickEmotesEN;
+}
+
 function triggerClickEmote() {
     if (!window.RG || typeof window.RG.setMood !== 'function') return;
-    const emote = clickEmotes[Math.floor(Math.random() * clickEmotes.length)];
+    const emotes = getClickEmotes();
+    const emote = emotes[Math.floor(Math.random() * emotes.length)];
     window.RG.setMood(emote.mood, {
         duration: 1500,
         anim: emote.anim,
