@@ -1,11 +1,125 @@
-// Native Electron dragging is handled via CSS -webkit-app-region: drag
-// The face has no-drag so clicks work for pet interactions
+// Manual drag/click detection - drag anywhere to move, click to emote
 
 const container = document.getElementById('radgotchi-container');
 const faceImg = document.getElementById('radgotchi-face');
 const faceFlipWrapper = document.getElementById('face-flip-wrapper');
 const colorBtn = document.getElementById('color-picker-btn');
 const colorInput = document.getElementById('color-picker-input');
+
+// === DRAG / CLICK DETECTION ===
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let lastMouseX = 0;
+let lastMouseY = 0;
+const DRAG_THRESHOLD = 5; // pixels to move before considered a drag
+
+// Click emotes 
+const clickEmotes = [
+    // Acknowledgment
+    { mood: 'happy', status: 'CONTACT LOGGED', anim: 'rg-bounce' },
+    { mood: 'excited', status: 'SIGNAL ACQUIRED', anim: 'rg-wiggle' },
+    { mood: 'cool', status: 'ACKNOWLEDGED', anim: 'rg-nod' },
+    { mood: 'grateful', status: 'TRUST SCORE: HIGH', anim: 'rg-bounce' },
+    { mood: 'friend', status: 'NODE VERIFIED', anim: 'rg-wiggle' },
+    { mood: 'happy', status: 'PING ACCEPTED', anim: 'rg-pulse' },
+    { mood: 'excited', status: 'LINK ESTABLISHED', anim: 'rg-shake' },
+    { mood: 'motivated', status: 'MONITORING...', anim: 'rg-bounce' },
+    { mood: 'cool', status: 'COPY THAT', anim: 'rg-nod' },
+    { mood: 'excited', status: 'FEED ACTIVE', anim: 'rg-wiggle' },
+    { mood: 'happy', status: 'ASSET TRACKED', anim: 'rg-pulse' },
+    { mood: 'friend', status: 'CHANNEL SECURE', anim: 'rg-bounce' },
+    // Analysis emotes
+    { mood: 'excited', status: 'EVASIVE MANEUVERS', anim: 'rg-spin' },
+    { mood: 'cool', status: 'PATTERN DETECTED', anim: 'rg-pulse' },
+    { mood: 'intense', status: 'ANOMALY FLAGGED', anim: 'rg-shake' },
+    { mood: 'motivated', status: 'CROSS-REFERENCING', anim: 'rg-wiggle' },
+    { mood: 'smart', status: 'DECRYPTING...', anim: 'rg-pulse' },
+    { mood: 'cool', status: 'DARK MODE', anim: 'rg-nod' },
+    { mood: 'excited', status: 'ENTITY RESOLVED', anim: 'rg-bounce' },
+    { mood: 'intense', status: 'CORRELATION FOUND', anim: 'rg-spin' },
+    { mood: 'happy', status: 'QUERY COMPLETE', anim: 'rg-bounce' },
+    { mood: 'smart', status: 'INDEXING DATA', anim: 'rg-nod' },
+    { mood: 'motivated', status: 'GRAPH UPDATED', anim: 'rg-wiggle' },
+    { mood: 'cool', status: 'WATCHING...', anim: 'rg-pulse' },
+    { mood: 'smart', status: 'METADATA PARSED', anim: 'rg-nod' },
+    { mood: 'excited', status: 'CONNECTION MAPPED', anim: 'rg-bounce' },
+    { mood: 'intense', status: 'SIGNATURE MATCH', anim: 'rg-shake' },
+    { mood: 'happy', status: 'FLAGGED FOR REVIEW', anim: 'rg-wiggle' },
+];
+
+function triggerClickEmote() {
+    if (!window.RG || typeof window.RG.setMood !== 'function') return;
+    const emote = clickEmotes[Math.floor(Math.random() * clickEmotes.length)];
+    window.RG.setMood(emote.mood, {
+        duration: 1500,
+        anim: emote.anim,
+        status: emote.status,
+        priority: true
+    });
+}
+
+container.addEventListener('mousedown', (e) => {
+    // Ignore if clicking on color picker
+    if (e.target === colorBtn || e.target === colorInput) return;
+    
+    isDragging = false;
+    dragStartX = e.screenX;
+    dragStartY = e.screenY;
+    lastMouseX = e.screenX;
+    lastMouseY = e.screenY;
+    container.style.cursor = 'grabbing';
+    
+    e.preventDefault();
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (dragStartX === 0 && dragStartY === 0) return; // Not tracking
+    
+    const deltaFromStart = Math.sqrt(
+        Math.pow(e.screenX - dragStartX, 2) + 
+        Math.pow(e.screenY - dragStartY, 2)
+    );
+    
+    // Start dragging if moved past threshold
+    if (!isDragging && deltaFromStart > DRAG_THRESHOLD) {
+        isDragging = true;
+        if (window.electronAPI && window.electronAPI.startDrag) {
+            window.electronAPI.startDrag();
+        }
+    }
+    
+    // Send drag delta
+    if (isDragging && window.electronAPI && window.electronAPI.windowDrag) {
+        const deltaX = e.screenX - lastMouseX;
+        const deltaY = e.screenY - lastMouseY;
+        window.electronAPI.windowDrag({ deltaX, deltaY });
+    }
+    
+    lastMouseX = e.screenX;
+    lastMouseY = e.screenY;
+});
+
+window.addEventListener('mouseup', (e) => {
+    if (dragStartX === 0 && dragStartY === 0) return; // Wasn't tracking
+    
+    container.style.cursor = 'grab';
+    
+    if (isDragging) {
+        // Was dragging - stop drag
+        if (window.electronAPI && window.electronAPI.stopDrag) {
+            window.electronAPI.stopDrag();
+        }
+    } else {
+        // Was a click - trigger emote
+        triggerClickEmote();
+    }
+    
+    // Reset tracking
+    isDragging = false;
+    dragStartX = 0;
+    dragStartY = 0;
+});
 
 // === MOUSE TRACKING / EYE FOLLOW ===
 let isLookingLeft = false;
