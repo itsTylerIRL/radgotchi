@@ -55,5 +55,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     syncChatColor: (color) => ipcRenderer.send('sync-chat-color', color),
     
     // Expression-only mode (no text, just expression)
-    onSetExpressionOnly: (callback) => safeOn('set-expression-only', (_event, enabled) => callback(enabled))
+    onSetExpressionOnly: (callback) => safeOn('set-expression-only', (_event, enabled) => callback(enabled)),
+    
+    // XP System
+    addXp: (amount, source) => ipcRenderer.invoke('add-xp', { amount, source }),
+    onXpUpdate: (callback) => safeOn('xp-update', (_event, data) => callback(data))
 });

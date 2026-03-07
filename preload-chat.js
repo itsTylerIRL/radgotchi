@@ -14,5 +14,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onSetLanguage: (callback) => ipcRenderer.on('set-language', (_event, lang) => callback(lang)),
     onMovementModeChange: (callback) => ipcRenderer.on('movement-mode-change', (_event, mode) => callback(mode)),
     // Expression-only mode (no text, just expression)
-    setExpressionOnly: (enabled) => ipcRenderer.send('chat-set-expression-only', enabled)
+    setExpressionOnly: (enabled) => ipcRenderer.send('chat-set-expression-only', enabled),
+    // XP System
+    getXpStatus: () => ipcRenderer.invoke('get-xp-status'),
+    addXp: (amount, source) => ipcRenderer.invoke('add-xp', { amount, source }),
+    onXpUpdate: (callback) => ipcRenderer.on('xp-update', (_event, data) => callback(data))
 });

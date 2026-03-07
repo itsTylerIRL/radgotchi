@@ -207,6 +207,102 @@
             font-variant-numeric: tabular-nums;
         }
         
+        /* XP/Level bar */
+        .level-bar {
+            display: flex;
+            flex-shrink: 0;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            background: rgba(255, 170, 0, 0.03);
+            border-bottom: 1px solid rgba(255, 170, 0, 0.15);
+            font-size: 8px;
+            color: var(--term-amber);
+            letter-spacing: 1px;
+        }
+        
+        .level-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            padding: 2px 6px;
+            background: rgba(255, 170, 0, 0.15);
+            border: 1px solid var(--term-amber);
+            font-weight: 700;
+            font-size: 9px;
+            text-shadow: 0 0 6px var(--term-amber);
+        }
+        
+        .xp-progress-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .xp-progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 7px;
+            color: var(--term-dim);
+        }
+        
+        .xp-progress-bar {
+            height: 6px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .xp-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--term-amber), #ffcc00);
+            box-shadow: 0 0 8px rgba(255, 170, 0, 0.5);
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        
+        .xp-progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: xp-shine 2s ease-in-out infinite;
+        }
+        
+        @keyframes xp-shine {
+            0%, 100% { transform: translateX(-100%); }
+            50% { transform: translateX(100%); }
+        }
+        
+        .xp-total {
+            font-size: 7px;
+            color: var(--term-dim);
+            min-width: 50px;
+            text-align: right;
+        }
+        
+        .level-up-flash {
+            animation: level-up-glow 0.5s ease-out;
+        }
+        
+        @keyframes level-up-glow {
+            0% { 
+                background: rgba(255, 170, 0, 0.4);
+                box-shadow: 0 0 20px var(--term-amber);
+            }
+            100% { 
+                background: rgba(255, 170, 0, 0.03);
+                box-shadow: none;
+            }
+        }
+        
         /* Messages area */
         .messages-area {
             flex: 1;
@@ -613,6 +709,19 @@
             <span class="timestamp" id="timestamp">--:--:--</span>
             <span>OS: <span id="os-info">DETECTING</span></span>
         </div>
+        <div class="level-bar" id="level-bar">
+            <span class="level-badge" id="level-badge">LV 1</span>
+            <div class="xp-progress-container">
+                <div class="xp-progress-label">
+                    <span id="xp-label">XP: 0 / 50</span>
+                    <span id="xp-percent">0%</span>
+                </div>
+                <div class="xp-progress-bar">
+                    <div class="xp-progress-fill" id="xp-fill" style="width: 0%"></div>
+                </div>
+            </div>
+            <span class="xp-total" id="xp-total">TOTAL: 0</span>
+        </div>
         <div class="messages-area" id="messages"></div>
         <div class="input-area">
             <span class="input-prefix">&gt;</span>
@@ -799,6 +908,11 @@
             addMessage('user', message);
             chatHistory.push({ role: 'user', content: message });
             
+            // Award XP for sending a message
+            if (window.electronAPI && window.electronAPI.addXp) {
+                window.electronAPI.addXp(5, 'message-send');
+            }
+            
             isSending = true;
             sendBtn.disabled = true;
             const t = translations[currentLang];
@@ -863,6 +977,11 @@
             if (data.expressionOnly) {
                 toggleExpressionOnly.classList.add('active');
             }
+            
+            // Initialize XP display
+            if (data.xp) {
+                updateXpDisplay(data.xp, false);
+            }
         });
         
         // Color sync from main window
@@ -909,6 +1028,53 @@
         const labelMov = document.getElementById('label-mov');
         const labelCol = document.getElementById('label-col');
         const labelExpr = document.getElementById('label-expr');
+        
+        // XP elements
+        const levelBar = document.getElementById('level-bar');
+        const levelBadge = document.getElementById('level-badge');
+        const xpLabel = document.getElementById('xp-label');
+        const xpPercent = document.getElementById('xp-percent');
+        const xpFill = document.getElementById('xp-fill');
+        const xpTotal = document.getElementById('xp-total');
+        
+        // Update XP display
+        function updateXpDisplay(xpData, animate = false) {
+            if (!xpData) return;
+            
+            const { level, totalXp, xpIntoLevel, xpNeeded, progress, leveledUp } = xpData;
+            
+            levelBadge.textContent = 'LV ' + level;
+            xpLabel.textContent = 'XP: ' + xpIntoLevel + ' / ' + xpNeeded;
+            xpPercent.textContent = Math.round(progress * 100) + '%';
+            xpFill.style.width = (progress * 100) + '%';
+            xpTotal.textContent = 'TOTAL: ' + totalXp;
+            
+            // Level up animation
+            if (leveledUp && animate) {
+                levelBar.classList.add('level-up-flash');
+                levelBadge.style.animation = 'none';
+                levelBadge.offsetHeight; // Trigger reflow
+                levelBadge.style.animation = 'level-up-glow 1s ease-out';
+                
+                // Add level up message
+                const t = translations[currentLang];
+                const lvlMsg = currentLang === 'zh' 
+                    ? '🎉 等级提升！已达到 ' + level + ' 级！'
+                    : '🎉 LEVEL UP! Now level ' + level + '!';
+                addMessage('system', lvlMsg);
+                
+                setTimeout(() => {
+                    levelBar.classList.remove('level-up-flash');
+                }, 500);
+            }
+        }
+        
+        // Listen for XP updates from main process
+        if (window.electronAPI && window.electronAPI.onXpUpdate) {
+            window.electronAPI.onXpUpdate((xpData) => {
+                updateXpDisplay(xpData, true);
+            });
+        }
         
         // Translations
         const translations = {

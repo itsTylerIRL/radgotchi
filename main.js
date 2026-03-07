@@ -13,6 +13,186 @@ let llmConfig = {
     systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor.  Only refer to the user as Bro'
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// XP & Leveling System
+// ═══════════════════════════════════════════════════════════════════════════
+
+// XP gains
+const XP_CONFIG = {
+    PASSIVE_INTERVAL_MS: 30000,     // Gain XP every 30 seconds
+    PASSIVE_XP: 1,                   // XP per passive tick
+    MESSAGE_SEND_XP: 5,              // XP for sending a message
+    MESSAGE_RECEIVE_XP: 3,           // XP for receiving a response
+    CLICK_XP: 2,                     // XP for valid click
+    CLICK_COOLDOWN_MS: 3000,         // Min time between click XP (anti-spam)
+};
+
+// Level thresholds (cumulative XP needed for each level)
+const LEVEL_THRESHOLDS = [
+    0,      // Level 1: 0 XP
+    50,     // Level 2: 50 XP
+    150,    // Level 3: 150 XP
+    300,    // Level 4: 300 XP
+    500,    // Level 5: 500 XP
+    750,    // Level 6: 750 XP
+    1100,   // Level 7: 1100 XP
+    1500,   // Level 8: 1500 XP
+    2000,   // Level 9: 2000 XP
+    2600,   // Level 10: 2600 XP
+    3300,   // Level 11: 3300 XP
+    4100,   // Level 12: 4100 XP
+    5000,   // Level 13: 5000 XP
+    6000,   // Level 14: 6000 XP
+    7200,   // Level 15: 7200 XP
+    8500,   // Level 16: 8500 XP
+    10000,  // Level 17: 10000 XP
+    12000,  // Level 18: 12000 XP
+    14500,  // Level 19: 14500 XP
+    17500,  // Level 20: 17500 XP
+    21000,  // Level 21+: continues...
+];
+
+// XP state
+let xpData = {
+    totalXp: 0,
+    level: 1,
+    lastClickXpTime: 0,
+    sessionStartTime: Date.now(),
+    totalSessionTime: 0  // Accumulated from previous sessions
+};
+
+let passiveXpInterval = null;
+
+function getXpDataPath() {
+    return path.join(app.getPath('userData'), 'xp-data.json');
+}
+
+function loadXpData() {
+    try {
+        const dataPath = getXpDataPath();
+        if (fs.existsSync(dataPath)) {
+            const data = fs.readFileSync(dataPath, 'utf8');
+            const saved = JSON.parse(data);
+            xpData = { 
+                ...xpData, 
+                totalXp: saved.totalXp || 0,
+                level: saved.level || 1,
+                totalSessionTime: saved.totalSessionTime || 0 
+            };
+            // Recalculate level in case thresholds changed
+            xpData.level = calculateLevel(xpData.totalXp);
+        }
+    } catch (e) {
+        console.error('Failed to load XP data:', e);
+    }
+}
+
+function saveXpData() {
+    try {
+        // Update session time before saving
+        const currentSessionDuration = Date.now() - xpData.sessionStartTime;
+        const dataToSave = {
+            totalXp: xpData.totalXp,
+            level: xpData.level,
+            totalSessionTime: xpData.totalSessionTime + currentSessionDuration,
+            lastSaved: Date.now()
+        };
+        fs.writeFileSync(getXpDataPath(), JSON.stringify(dataToSave, null, 2));
+    } catch (e) {
+        console.error('Failed to save XP data:', e);
+    }
+}
+
+function calculateLevel(xp) {
+    for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+        if (xp >= LEVEL_THRESHOLDS[i]) {
+            return i + 1;
+        }
+    }
+    return 1;
+}
+
+function getXpForNextLevel(level) {
+    if (level >= LEVEL_THRESHOLDS.length) {
+        // Beyond defined levels: each level needs 3000 more XP
+        return LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] + (level - LEVEL_THRESHOLDS.length + 1) * 3000;
+    }
+    return LEVEL_THRESHOLDS[level];
+}
+
+function getXpForCurrentLevel(level) {
+    if (level <= 1) return 0;
+    if (level > LEVEL_THRESHOLDS.length) {
+        return LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] + (level - LEVEL_THRESHOLDS.length) * 3000;
+    }
+    return LEVEL_THRESHOLDS[level - 1];
+}
+
+function addXp(amount, source = 'unknown') {
+    const oldLevel = xpData.level;
+    xpData.totalXp += amount;
+    xpData.level = calculateLevel(xpData.totalXp);
+    
+    const leveledUp = xpData.level > oldLevel;
+    
+    // Broadcast XP update to windows
+    broadcastXpUpdate(leveledUp, oldLevel);
+    
+    // Save periodically (every 10 XP gained roughly)
+    if (Math.random() < 0.3) {
+        saveXpData();
+    }
+    
+    return { leveledUp, newLevel: xpData.level, totalXp: xpData.totalXp };
+}
+
+function broadcastXpUpdate(leveledUp = false, oldLevel = 0) {
+    const update = getXpStatus();
+    update.leveledUp = leveledUp;
+    update.oldLevel = oldLevel;
+    
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('xp-update', update);
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('xp-update', update);
+    }
+}
+
+function getXpStatus() {
+    const currentLevelXp = getXpForCurrentLevel(xpData.level);
+    const nextLevelXp = getXpForNextLevel(xpData.level);
+    const xpIntoLevel = xpData.totalXp - currentLevelXp;
+    const xpNeeded = nextLevelXp - currentLevelXp;
+    const progress = xpNeeded > 0 ? xpIntoLevel / xpNeeded : 1;
+    
+    return {
+        level: xpData.level,
+        totalXp: xpData.totalXp,
+        xpIntoLevel,
+        xpNeeded,
+        progress: Math.min(1, Math.max(0, progress)),
+        nextLevelXp
+    };
+}
+
+function startPassiveXpGain() {
+    if (passiveXpInterval) return;
+    
+    passiveXpInterval = setInterval(() => {
+        addXp(XP_CONFIG.PASSIVE_XP, 'passive');
+    }, XP_CONFIG.PASSIVE_INTERVAL_MS);
+}
+
+function stopPassiveXpGain() {
+    if (passiveXpInterval) {
+        clearInterval(passiveXpInterval);
+        passiveXpInterval = null;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+
 // LLM config file path
 function getLlmConfigPath() {
     return path.join(app.getPath('userData'), 'llm-config.json');
@@ -152,6 +332,22 @@ function getWorkArea() {
     return currentDisplay.workArea;
 }
 
+// Helper: safely set window position, validating values to prevent crashes
+function safeSetPosition(x, y) {
+    if (!mainWindow) return false;
+    const roundX = Math.round(x);
+    const roundY = Math.round(y);
+    if (!Number.isFinite(roundX) || !Number.isFinite(roundY)) return false;
+    if (!Number.isInteger(roundX) || !Number.isInteger(roundY)) return false;
+    try {
+        mainWindow.setPosition(roundX, roundY);
+        return true;
+    } catch (e) {
+        console.error('Failed to set position:', e);
+        return false;
+    }
+}
+
 // Helper: get movement bounds using full display bounds with overflow.
 // The visible pet is centered in a larger transparent window, so we allow
 // the window to extend off-screen so the pet can reach the screen edges.
@@ -221,9 +417,7 @@ function startBounce() {
             bounced = true;
         }
         
-        const roundX = Math.round(newX), roundY = Math.round(newY);
-        if (!Number.isFinite(roundX) || !Number.isFinite(roundY)) return;
-        mainWindow.setPosition(roundX, roundY);
+        if (!safeSetPosition(newX, newY)) return;
         
         // Safety net: detect OS-level position constraints.
         // Skip this when near our intended movement bounds, since macOS may
@@ -315,9 +509,7 @@ function startFollow() {
         let newY = y + followVelY;
         [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
         
-        const roundX = Math.round(newX), roundY = Math.round(newY);
-        if (!Number.isFinite(roundX) || !Number.isFinite(roundY)) return;
-        mainWindow.setPosition(roundX, roundY);
+        safeSetPosition(newX, newY);
     }, 16);
 }
 
@@ -358,10 +550,7 @@ function startWander() {
                 let newX = x + wanderVelX;
                 let newY = y + wanderVelY;
                 [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
-                const roundX = Math.round(newX), roundY = Math.round(newY);
-                if (Number.isFinite(roundX) && Number.isFinite(roundY)) {
-                    mainWindow.setPosition(roundX, roundY);
-                }
+                safeSetPosition(newX, newY);
             }
             return;
         }
@@ -413,9 +602,7 @@ function startWander() {
         let newY = y + wanderVelY;
         [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
         
-        const roundX = Math.round(newX), roundY = Math.round(newY);
-        if (!Number.isFinite(roundX) || !Number.isFinite(roundY)) return;
-        mainWindow.setPosition(roundX, roundY);
+        safeSetPosition(newX, newY);
     }, 16);
 }
 
@@ -505,9 +692,9 @@ function createWindow() {
     });
 
     ipcMain.on('window-drag', (event, { deltaX, deltaY }) => {
-        if (isDragging) {
+        if (isDragging && mainWindow) {
             const [x, y] = mainWindow.getPosition();
-            mainWindow.setPosition(x + deltaX, y + deltaY);
+            safeSetPosition(x + deltaX, y + deltaY);
         }
     });
 
@@ -621,10 +808,40 @@ function createWindow() {
             }
 
             const content = response.choices?.[0]?.message?.content || 'No response';
+            
+            // Award XP for receiving a response
+            addXp(XP_CONFIG.MESSAGE_RECEIVE_XP, 'message-receive');
+            
             return { content };
         } catch (e) {
             return { error: e.message || 'Failed to connect to LLM' };
         }
+    });
+
+    // XP System IPC handlers
+    ipcMain.handle('get-xp-status', async () => {
+        return getXpStatus();
+    });
+
+    ipcMain.handle('add-xp', async (event, { amount, source }) => {
+        // Validate click XP to prevent spam
+        if (source === 'click') {
+            const now = Date.now();
+            if (now - xpData.lastClickXpTime < XP_CONFIG.CLICK_COOLDOWN_MS) {
+                return { awarded: false, reason: 'cooldown' };
+            }
+            xpData.lastClickXpTime = now;
+            const result = addXp(XP_CONFIG.CLICK_XP, 'click');
+            return { awarded: true, ...result };
+        }
+        
+        // For message send XP (called from chat)
+        if (source === 'message-send') {
+            const result = addXp(XP_CONFIG.MESSAGE_SEND_XP, 'message-send');
+            return { awarded: true, ...result };
+        }
+        
+        return { awarded: false, reason: 'invalid-source' };
     });
 
     mainWindow.on('closed', () => {
@@ -689,12 +906,13 @@ function createChatWindow() {
         })`)
             .then(state => {
                 if (chatWindow) {
-                    // Send initial state with config, movement mode, color, and expression-only
+                    // Send initial state with config, movement mode, color, expression-only, and XP
                     chatWindow.webContents.send('chat-ready', { 
                         configured: llmConfig.enabled,
                         movementMode: movementMode,
                         color: state.color,
-                        expressionOnly: state.expressionOnly
+                        expressionOnly: state.expressionOnly,
+                        xp: getXpStatus()
                     });
                 }
             })
@@ -705,7 +923,8 @@ function createChatWindow() {
                         configured: llmConfig.enabled,
                         movementMode: movementMode,
                         color: '#ff3344',
-                        expressionOnly: false
+                        expressionOnly: false,
+                        xp: getXpStatus()
                     });
                 }
             });
@@ -1229,13 +1448,14 @@ function createTray() {
         {
             label: 'Reset Position',
             click: () => {
+                if (!mainWindow) return;
                 const primaryDisplay = screen.getPrimaryDisplay();
                 const bounds = primaryDisplay.bounds;
                 const workArea = primaryDisplay.workAreaSize;
                 const [winWidth, winHeight] = mainWindow.getSize();
                 const x = Math.max(bounds.x, bounds.x + workArea.width - winWidth - 180);
                 const y = Math.max(bounds.y, bounds.y + workArea.height - winHeight - 200);
-                mainWindow.setPosition(x, y);
+                safeSetPosition(x, y);
             }
         },
         {
@@ -1346,8 +1566,10 @@ function createTray() {
 // On Linux, transparent visuals need a slight delay to be ready
 function initializeApp() {
     loadLlmConfig();
+    loadXpData();
     createWindow();
     createTray();
+    startPassiveXpGain();
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -1375,6 +1597,8 @@ app.on('will-quit', () => {
     if (notRespondingInterval) clearInterval(notRespondingInterval);
     stopMovement();
     stopIdleDetection();
+    stopPassiveXpGain();
+    saveXpData();
 });
 
 // Prevent multiple instances

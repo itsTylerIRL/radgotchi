@@ -150,8 +150,13 @@ window.addEventListener('mouseup', (e) => {
             window.electronAPI.stopDrag();
         }
     } else {
-        // Was a click - trigger emote
+        // Was a click - trigger emote and award XP
         triggerClickEmote();
+        
+        // Award XP for click (with cooldown handled in main process)
+        if (window.electronAPI && window.electronAPI.addXp) {
+            window.electronAPI.addXp(2, 'click');
+        }
     }
     
     // Reset tracking
