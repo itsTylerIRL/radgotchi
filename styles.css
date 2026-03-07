@@ -39,7 +39,6 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    -webkit-app-region: drag;
     transform-origin: center center;
 }
 
@@ -76,7 +75,6 @@ body {
 }
 
 .radgotchi-face {
-    -webkit-app-region: no-drag;
     width: 100%;
     max-width: 120px;
     height: auto;
