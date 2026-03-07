@@ -15,6 +15,9 @@ if (isLinux) {
     app.disableHardwareAcceleration();
     app.commandLine.appendSwitch('disable-gpu');
     app.commandLine.appendSwitch('disable-software-rasterizer');
+    app.commandLine.appendSwitch('disable-gpu-sandbox');
+    app.commandLine.appendSwitch('no-sandbox');
+    app.commandLine.appendSwitch('in-process-gpu');
 }
 
 // System event tracking state
