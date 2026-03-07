@@ -128,6 +128,10 @@ function setMovementMode(mode) {
     if (mainWindow && mainWindow.webContents) {
         mainWindow.webContents.send('movement-mode-change', mode);
     }
+    // Sync to chat window
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('movement-mode-change', mode);
+    }
 }
 
 function stopMovement() {
@@ -680,6 +684,33 @@ ipcMain.on('chat-mood', (event, mood) => {
 ipcMain.on('sync-chat-color', (event, color) => {
     if (chatWindow && chatWindow.webContents) {
         chatWindow.webContents.send('set-color', color);
+    }
+});
+
+// IPC: Chat panel controls movement mode
+ipcMain.on('chat-set-movement', (event, mode) => {
+    if (['none', 'bounce', 'follow', 'wander'].includes(mode)) {
+        setMovementMode(mode);
+    }
+});
+
+// IPC: Chat panel controls color
+ipcMain.on('chat-set-color', (event, color) => {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('set-color', color);
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('set-color', color);
+    }
+});
+
+// IPC: Chat panel controls language
+ipcMain.on('chat-set-language', (event, lang) => {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('set-language', lang);
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('set-language', lang);
     }
 });
 
