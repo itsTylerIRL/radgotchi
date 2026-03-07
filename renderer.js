@@ -150,8 +150,9 @@ window.addEventListener('mouseup', (e) => {
             window.electronAPI.stopDrag();
         }
     } else {
-        // Was a click - trigger emote
+        // Was a click - trigger emote and show chat button
         triggerClickEmote();
+        showChatButton();
     }
     
     // Reset tracking
@@ -314,6 +315,11 @@ function updateThemeColor(color, smooth = false) {
     
     // Save preference
     localStorage.setItem('radgotchi-color', color);
+    
+    // Sync color to chat window
+    if (window.electronAPI && window.electronAPI.syncChatColor) {
+        window.electronAPI.syncChatColor(color);
+    }
 }
 
 // Listen for color changes from tray menu
@@ -434,6 +440,52 @@ if (window.electronAPI && window.electronAPI.onIdleChange) {
                 anim: 'bounce',
                 duration: 3000
             });
+        }
+    });
+}
+
+// === CHAT FUNCTIONALITY ===
+const chatBtn = document.getElementById('chat-btn');
+let chatButtonTimeout = null;
+
+// Show chat button briefly when clicking on radgotchi
+function showChatButton() {
+    if (chatButtonTimeout) {
+        clearTimeout(chatButtonTimeout);
+    }
+    chatBtn.classList.remove('hidden');
+    
+    // Auto-hide after 3 seconds if not interacted with
+    chatButtonTimeout = setTimeout(() => {
+        chatBtn.classList.add('hidden');
+    }, 3000);
+}
+
+// Open chat window (separate window)
+chatBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    chatBtn.classList.add('hidden');
+    
+    if (window.electronAPI && window.electronAPI.openChat) {
+        window.electronAPI.openChat();
+    }
+});
+
+// Listen for chat mood changes from the chat window
+if (window.electronAPI && window.electronAPI.onChatMood) {
+    window.electronAPI.onChatMood((mood) => {
+        if (!window.RG) return;
+        
+        switch (mood) {
+            case 'thinking':
+                window.RG.setMood('smart', { duration: 2000, status: 'PROCESSING...' });
+                break;
+            case 'success':
+                window.RG.setMood('happy', { duration: 2000, status: 'TX COMPLETE' });
+                break;
+            case 'error':
+                window.RG.setMood('sad', { duration: 2000, status: 'COMMS ERROR' });
+                break;
         }
     });
 }

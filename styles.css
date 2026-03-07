@@ -319,3 +319,206 @@ body {
     width: 0;
     height: 0;
 }
+
+/* === CHAT BUTTON & DIALOG === */
+
+.chat-btn {
+    -webkit-app-region: no-drag;
+    font-family: var(--rg-font);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--rg-color);
+    background: rgba(10, 10, 15, 0.9);
+    border: 1px solid var(--rg-color);
+    padding: 4px 12px;
+    margin-top: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-shadow: 0 0 4px var(--rg-glow);
+    box-shadow: 0 0 8px var(--rg-glow);
+}
+
+.chat-btn:hover {
+    background: var(--rg-color);
+    color: #000;
+    text-shadow: none;
+    box-shadow: 0 0 12px var(--rg-color);
+}
+
+.chat-btn.hidden {
+    display: none;
+}
+
+/* Chat dialog */
+.chat-dialog {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 280px;
+    max-height: 300px;
+    background: rgba(10, 10, 15, 0.95);
+    border: 1px solid var(--rg-color);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 16px var(--rg-glow);
+    z-index: 1000;
+    -webkit-app-region: no-drag;
+}
+
+.chat-dialog.hidden {
+    display: none;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--rg-color);
+    background: rgba(var(--rg-color), 0.1);
+    cursor: grab;
+}
+
+.chat-header:active {
+    cursor: grabbing;
+}
+
+.chat-title {
+    font-family: var(--rg-font);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: var(--rg-color);
+    text-shadow: 0 0 4px var(--rg-glow);
+}
+
+.chat-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--rg-color);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: all 0.2s ease;
+}
+
+.chat-close-btn:hover {
+    color: #fff;
+    text-shadow: 0 0 8px var(--rg-color);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    max-height: 180px;
+    min-height: 80px;
+}
+
+.chat-message {
+    font-family: var(--rg-font);
+    font-size: 11px;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    word-wrap: break-word;
+    line-height: 1.4;
+}
+
+.chat-message.user {
+    background: rgba(var(--rg-color), 0.15);
+    border-left: 2px solid var(--rg-color);
+    color: #ddd;
+    margin-left: 20px;
+}
+
+.chat-message.assistant {
+    background: rgba(100, 100, 120, 0.2);
+    border-left: 2px solid #888;
+    color: #ccc;
+    margin-right: 20px;
+}
+
+.chat-message.system {
+    background: rgba(255, 200, 0, 0.1);
+    border-left: 2px solid #ffc800;
+    color: #ffc800;
+    font-size: 9px;
+    text-align: center;
+    margin: 4px 0;
+}
+
+.chat-message.thinking {
+    color: #888;
+    font-style: italic;
+}
+
+.chat-input-container {
+    display: flex;
+    padding: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    gap: 6px;
+}
+
+.chat-input {
+    flex: 1;
+    font-family: var(--rg-font);
+    font-size: 11px;
+    background: rgba(30, 30, 40, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 6px 8px;
+    border-radius: 3px;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.chat-input:focus {
+    border-color: var(--rg-color);
+    box-shadow: 0 0 4px var(--rg-glow);
+}
+
+.chat-input::placeholder {
+    color: #666;
+}
+
+.chat-send-btn {
+    font-family: var(--rg-font);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--rg-color);
+    background: transparent;
+    border: 1px solid var(--rg-color);
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chat-send-btn:hover {
+    background: var(--rg-color);
+    color: #000;
+}
+
+.chat-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Scrollbar styling for chat */
+.chat-messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: var(--rg-color);
+    border-radius: 2px;
+}

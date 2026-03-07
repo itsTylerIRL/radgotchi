@@ -42,5 +42,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onSetLanguage: (callback) => safeOn('set-language', (_event, lang) => callback(lang)),
 
     // Mouse position for eye tracking
-    getMousePosition: () => ipcRenderer.invoke('get-mouse-position')
+    getMousePosition: () => ipcRenderer.invoke('get-mouse-position'),
+
+    // LLM Chat functionality
+    getLlmConfig: () => ipcRenderer.invoke('get-llm-config'),
+    saveLlmConfig: (config) => ipcRenderer.invoke('save-llm-config', config),
+    sendChatMessage: (messages) => ipcRenderer.invoke('send-chat-message', { messages }),
+    
+    // Chat window control
+    openChat: () => ipcRenderer.send('open-chat'),
+    onChatMood: (callback) => safeOn('chat-mood', (_event, mood) => callback(mood)),
+    syncChatColor: (color) => ipcRenderer.send('sync-chat-color', color)
 });

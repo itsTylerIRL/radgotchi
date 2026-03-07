@@ -1,7 +1,47 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, powerMonitor, dialog } = require('electron');
 const path = require('path');
 const os = require('os');
+const fs = require('fs');
 const { exec } = require('child_process');
+
+// LLM Configuration
+let llmConfig = {
+    enabled: false,
+    apiUrl: 'http://localhost:11434/v1/chat/completions',
+    apiKey: '',
+    model: 'llama2',
+    systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor.  Only refer to the user as Bro'
+};
+
+// LLM config file path
+function getLlmConfigPath() {
+    return path.join(app.getPath('userData'), 'llm-config.json');
+}
+
+// Load LLM config from disk
+function loadLlmConfig() {
+    try {
+        const configPath = getLlmConfigPath();
+        if (fs.existsSync(configPath)) {
+            const data = fs.readFileSync(configPath, 'utf8');
+            llmConfig = { ...llmConfig, ...JSON.parse(data) };
+        }
+    } catch (e) {
+        console.error('Failed to load LLM config:', e);
+    }
+}
+
+// Save LLM config to disk
+function saveLlmConfig(config) {
+    try {
+        llmConfig = { ...llmConfig, ...config };
+        fs.writeFileSync(getLlmConfigPath(), JSON.stringify(llmConfig, null, 2));
+        return true;
+    } catch (e) {
+        console.error('Failed to save LLM config:', e);
+        return false;
+    }
+}
 
 // Platform-specific GPU/transparency configuration
 const isLinux = process.platform === 'linux';
@@ -30,6 +70,7 @@ let notRespondingInterval = null;
 
 let mainWindow;
 let tray;
+let chatWindow = null;
 let isAlwaysOnTop = true;
 let isDragging = false;
 
@@ -470,6 +511,82 @@ function createWindow() {
         };
     });
 
+    // LLM Configuration IPC
+    ipcMain.handle('get-llm-config', async () => {
+        return llmConfig;
+    });
+
+    ipcMain.handle('save-llm-config', async (event, config) => {
+        return saveLlmConfig(config);
+    });
+
+    // Chat with LLM IPC
+    ipcMain.handle('send-chat-message', async (event, { messages }) => {
+        if (!llmConfig.enabled || !llmConfig.apiUrl) {
+            return { error: 'LLM not configured. Set up in tray menu → Chat Settings.' };
+        }
+
+        try {
+            const https = require('https');
+            const http = require('http');
+            const url = new URL(llmConfig.apiUrl);
+            const protocol = url.protocol === 'https:' ? https : http;
+
+            const requestBody = JSON.stringify({
+                model: llmConfig.model,
+                messages: [
+                    { role: 'system', content: llmConfig.systemPrompt },
+                    ...messages
+                ],
+                max_tokens: 200,
+                temperature: 0.8
+            });
+
+            const response = await new Promise((resolve, reject) => {
+                const req = protocol.request({
+                    hostname: url.hostname,
+                    port: url.port || (url.protocol === 'https:' ? 443 : 80),
+                    path: url.pathname,
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Content-Length': Buffer.byteLength(requestBody),
+                        ...(llmConfig.apiKey ? { 'Authorization': `Bearer ${llmConfig.apiKey}` } : {})
+                    },
+                    timeout: 30000
+                }, (res) => {
+                    let data = '';
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', () => {
+                        try {
+                            resolve(JSON.parse(data));
+                        } catch (e) {
+                            reject(new Error('Invalid JSON response'));
+                        }
+                    });
+                });
+
+                req.on('error', reject);
+                req.on('timeout', () => {
+                    req.destroy();
+                    reject(new Error('Request timeout'));
+                });
+
+                req.write(requestBody);
+                req.end();
+            });
+
+            if (response.error) {
+                return { error: response.error.message || 'API error' };
+            }
+
+            const content = response.choices?.[0]?.message?.content || 'No response';
+            return { content };
+        } catch (e) {
+            return { error: e.message || 'Failed to connect to LLM' };
+        }
+    });
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
@@ -480,6 +597,91 @@ function createWindow() {
     // Start idle detection
     startIdleDetection();
 }
+
+// === Chat Window ===
+function createChatWindow() {
+    if (chatWindow) {
+        chatWindow.focus();
+        return;
+    }
+
+    // Position chat window near Radgotchi but offset
+    let chatX, chatY;
+    if (mainWindow) {
+        const [mainX, mainY] = mainWindow.getPosition();
+        chatX = mainX + 50;
+        chatY = mainY + 150;
+    } else {
+        const primaryDisplay = screen.getPrimaryDisplay();
+        chatX = primaryDisplay.bounds.width - 400;
+        chatY = primaryDisplay.bounds.height - 450;
+    }
+
+    chatWindow = new BrowserWindow({
+        width: 320,
+        height: 380,
+        x: chatX,
+        y: chatY,
+        frame: false,
+        transparent: false,
+        backgroundColor: '#0a0a0f',
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        resizable: true,
+        minWidth: 280,
+        minHeight: 250,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload-chat.js'),
+            contextIsolation: true,
+            nodeIntegration: false
+        }
+    });
+
+    chatWindow.loadFile('chat.html');
+    chatWindow.setVisibleOnAllWorkspaces(true);
+
+    // Send config status once loaded
+    chatWindow.webContents.on('did-finish-load', () => {
+        chatWindow.webContents.send('chat-ready', { configured: llmConfig.enabled });
+        // Send current color to chat window
+        mainWindow.webContents.executeJavaScript('localStorage.getItem("radgotchi-color") || "#ff3344"')
+            .then(color => {
+                if (chatWindow) chatWindow.webContents.send('set-color', color);
+            })
+            .catch(() => {});
+    });
+
+    chatWindow.on('closed', () => {
+        chatWindow = null;
+    });
+}
+
+// IPC: Open chat window
+ipcMain.on('open-chat', () => {
+    createChatWindow();
+});
+
+// IPC: Close chat window
+ipcMain.on('close-chat', () => {
+    if (chatWindow) {
+        chatWindow.close();
+        chatWindow = null;
+    }
+});
+
+// IPC: Chat mood changes (forward to main window for animation)
+ipcMain.on('chat-mood', (event, mood) => {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('chat-mood', mood);
+    }
+});
+
+// Forward color changes to chat window
+ipcMain.on('sync-chat-color', (event, color) => {
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('set-color', color);
+    }
+});
 
 // === System Event Monitoring ===
 function getCpuUsage() {
@@ -744,6 +946,142 @@ const colorPresets = [
     { label: 'White', color: '#ffffff' }
 ];
 
+// Chat Settings Dialog Window
+let settingsWindow = null;
+
+function showChatSettingsDialog() {
+    if (settingsWindow) {
+        settingsWindow.focus();
+        return;
+    }
+
+    settingsWindow = new BrowserWindow({
+        width: 450,
+        height: 420,
+        parent: mainWindow,
+        modal: false,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        title: 'Chat Settings',
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        }
+    });
+
+    // Build inline HTML for settings dialog
+    const settingsHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+            font-size: 13px;
+        }
+        h2 { color: #ff3344; margin-bottom: 15px; font-size: 16px; }
+        .field { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #aaa; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            padding: 8px 10px;
+            background: #252540;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 12px;
+        }
+        input:focus, textarea:focus { outline: none; border-color: #ff3344; }
+        textarea { resize: vertical; min-height: 60px; }
+        .checkbox-field { display: flex; align-items: center; gap: 10px; }
+        .checkbox-field input { width: auto; }
+        .button-row { display: flex; gap: 10px; margin-top: 20px; }
+        button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .btn-save { background: #ff3344; color: #fff; }
+        .btn-save:hover { background: #ff5566; }
+        .btn-cancel { background: #333; color: #aaa; }
+        .btn-cancel:hover { background: #444; }
+        .hint { font-size: 10px; color: #666; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <h2>🔗 LLM Chat Settings</h2>
+    <div class="field checkbox-field">
+        <input type="checkbox" id="enabled">
+        <label for="enabled" style="margin: 0;">Enable Chat (requires local LLM)</label>
+    </div>
+    <div class="field">
+        <label>API Endpoint URL</label>
+        <input type="text" id="apiUrl" placeholder="http://localhost:11434/v1/chat/completions">
+        <div class="hint">OpenAI-compatible endpoint (Ollama, LM Studio, LocalAI, etc.)</div>
+    </div>
+    <div class="field">
+        <label>API Key (optional)</label>
+        <input type="password" id="apiKey" placeholder="Leave empty if not required">
+    </div>
+    <div class="field">
+        <label>Model Name</label>
+        <input type="text" id="model" placeholder="llama2">
+    </div>
+    <div class="field">
+        <label>System Prompt</label>
+        <textarea id="systemPrompt" rows="3"></textarea>
+    </div>
+    <div class="button-row">
+        <button class="btn-cancel" onclick="window.close()">Cancel</button>
+        <button class="btn-save" onclick="saveSettings()">Save</button>
+    </div>
+    <script>
+        async function loadSettings() {
+            const config = await window.electronAPI.getLlmConfig();
+            document.getElementById('enabled').checked = config.enabled;
+            document.getElementById('apiUrl').value = config.apiUrl || '';
+            document.getElementById('apiKey').value = config.apiKey || '';
+            document.getElementById('model').value = config.model || '';
+            document.getElementById('systemPrompt').value = config.systemPrompt || '';
+        }
+        async function saveSettings() {
+            const config = {
+                enabled: document.getElementById('enabled').checked,
+                apiUrl: document.getElementById('apiUrl').value.trim(),
+                apiKey: document.getElementById('apiKey').value,
+                model: document.getElementById('model').value.trim(),
+                systemPrompt: document.getElementById('systemPrompt').value
+            };
+            await window.electronAPI.saveLlmConfig(config);
+            window.close();
+        }
+        loadSettings();
+    </script>
+</body>
+</html>`;
+
+    settingsWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(settingsHtml));
+    settingsWindow.setMenu(null);
+
+    settingsWindow.on('closed', () => {
+        settingsWindow = null;
+    });
+}
+
 function createTray() {
     const iconPath = getAssetPath('radbro.png');
     let trayIcon;
@@ -860,6 +1198,13 @@ function createTray() {
                 }
             ]
         },
+        {
+            label: 'Chat Settings',
+            click: () => {
+                // Open a dialog to configure LLM settings
+                showChatSettingsDialog();
+            }
+        },
         { type: 'separator' },
         {
             label: 'Show/Hide',
@@ -906,6 +1251,7 @@ function createTray() {
 
 // On Linux, transparent visuals need a slight delay to be ready
 function initializeApp() {
+    loadLlmConfig();
     createWindow();
     createTray();
 
@@ -933,7 +1279,7 @@ app.on('will-quit', () => {
     if (systemEventInterval) clearInterval(systemEventInterval);
     if (windowCountInterval) clearInterval(windowCountInterval);
     if (notRespondingInterval) clearInterval(notRespondingInterval);
-    stopBounce();
+    stopMovement();
     stopIdleDetection();
 });
 
