@@ -11,17 +11,18 @@ let llmConfig = {
     apiKey: '',
     model: 'llama2',
     systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor. Only refer to the user as Bro. You remember your conversations and are aware of your current level, rank, and stats. Reference your progression naturally when relevant.',
-    // Profile pictures for chat
-    broPfp: {
-        collection: 'radbro',  // 'radbro' or 'schizo'
-        tokenId: '',
-        imageUrl: ''
-    },
+    // Profile picture for operator (user) - Bro avatar uses real-time pet sprite
     operatorPfp: {
         collection: 'radbro',  // 'radbro' or 'schizo'
         tokenId: '',
         imageUrl: ''
     }
+};
+
+// Current pet sprite state (for chat window bro avatar)
+let currentSpriteState = {
+    sprite: 'AWAKE.png',
+    color: '#00ff9d'
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1512,10 +1513,9 @@ function createWindow() {
 
     ipcMain.handle('save-llm-config', async (event, config) => {
         const result = saveLlmConfig(config);
-        // Notify chat window of PFP changes
+        // Notify chat window of PFP changes (operator only - bro uses pet sprite)
         if (chatWindow && chatWindow.webContents) {
             chatWindow.webContents.send('pfp-update', {
-                broPfp: llmConfig.broPfp || null,
                 operatorPfp: llmConfig.operatorPfp || null
             });
         }
@@ -1919,15 +1919,17 @@ function createChatWindow() {
             expressionOnly: localStorage.getItem("radgotchi-expression-only") === "true"
         })`)
             .then(state => {
+                // Update sprite state color
+                currentSpriteState.color = state.color;
                 if (chatWindow) {
-                    // Send initial state with config, movement mode, color, expression-only, XP, and PFPs
+                    // Send initial state with config, movement mode, color, expression-only, XP, sprite state and PFP
                     chatWindow.webContents.send('chat-ready', { 
                         configured: llmConfig.enabled,
                         movementMode: movementMode,
                         color: state.color,
                         expressionOnly: state.expressionOnly,
                         xp: getXpStatus(),
-                        broPfp: llmConfig.broPfp || null,
+                        spriteState: currentSpriteState,
                         operatorPfp: llmConfig.operatorPfp || null
                     });
                 }
@@ -1941,7 +1943,7 @@ function createChatWindow() {
                         color: '#ff3344',
                         expressionOnly: false,
                         xp: getXpStatus(),
-                        broPfp: llmConfig.broPfp || null,
+                        spriteState: currentSpriteState,
                         operatorPfp: llmConfig.operatorPfp || null
                     });
                 }
@@ -1980,8 +1982,17 @@ ipcMain.on('chat-mood', (event, mood) => {
 
 // Forward color changes to chat window
 ipcMain.on('sync-chat-color', (event, color) => {
+    currentSpriteState.color = color;
     if (chatWindow && chatWindow.webContents) {
         chatWindow.webContents.send('set-color', color);
+    }
+});
+
+// IPC: Sprite state update (from main window when mood changes)
+ipcMain.on('sprite-update', (event, sprite) => {
+    currentSpriteState.sprite = sprite;
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('sprite-update', currentSpriteState);
     }
 });
 
@@ -1994,6 +2005,7 @@ ipcMain.on('chat-set-movement', (event, mode) => {
 
 // IPC: Chat panel controls color
 ipcMain.on('chat-set-color', (event, color) => {
+    currentSpriteState.color = color;
     if (mainWindow && mainWindow.webContents) {
         mainWindow.webContents.send('set-color', color);
     }
@@ -2734,71 +2746,29 @@ function showChatSettingsDialog() {
             color: var(--term-dim);
         }
         
-        /* PFP Section */
+        /* PFP Section - Compact inline layout */
         .pfp-section {
-            margin-top: 12px;
-            padding-top: 12px;
+            margin-top: 8px;
+            padding-top: 8px;
             border-top: 1px solid var(--term-border);
         }
         
-        .pfp-section-title {
+        .pfp-row-inline {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .pfp-label {
             font-size: 9px;
             color: var(--term-green);
-            letter-spacing: 2px;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-        }
-        
-        .pfp-section-title::before {
-            content: '◆ ';
-            color: var(--term-dim);
-        }
-        
-        .pfp-row {
-            display: flex;
-            gap: 12px;
-        }
-        
-        .pfp-config {
-            flex: 1;
-            background: var(--term-panel);
-            border: 1px solid var(--term-border);
-            padding: 10px;
-            display: flex;
-            flex-direction: row;
-            gap: 12px;
-        }
-        
-        .pfp-config-left {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        
-        .pfp-config-title {
-            font-size: 8px;
-            color: var(--term-dim);
             letter-spacing: 1px;
-            margin-bottom: 8px;
-            text-transform: uppercase;
+            white-space: nowrap;
         }
         
-        .pfp-controls {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        
-        .pfp-control-row {
-            display: flex;
-            gap: 4px;
-            align-items: center;
-        }
-        
-        .pfp-control-row select {
-            flex: 1;
-            padding: 6px;
+        .pfp-row-inline select {
+            padding: 5px 8px;
             background: var(--term-bg);
             border: 1px solid var(--term-border);
             color: var(--term-green);
@@ -2807,22 +2777,26 @@ function showChatSettingsDialog() {
             cursor: pointer;
         }
         
-        .pfp-control-row select:focus {
+        .pfp-row-inline select:focus {
             border-color: var(--term-green);
             outline: none;
         }
         
-        .pfp-control-row input {
-            flex: 1;
-            padding: 6px;
+        .pfp-row-inline input {
+            padding: 5px 8px;
             font-size: 9px;
             background: var(--term-bg);
             border: 1px solid var(--term-border);
             color: var(--term-green);
         }
         
+        .pfp-row-inline input:focus {
+            border-color: var(--term-green);
+            outline: none;
+        }
+        
         .pfp-fetch-btn {
-            padding: 6px 10px;
+            padding: 5px 10px;
             background: var(--term-panel);
             border: 1px solid var(--term-dim);
             color: var(--term-dim);
@@ -2831,7 +2805,6 @@ function showChatSettingsDialog() {
             cursor: pointer;
             transition: all 0.2s;
             white-space: nowrap;
-            width: 100%;
         }
         
         .pfp-fetch-btn:hover {
@@ -2840,40 +2813,21 @@ function showChatSettingsDialog() {
             box-shadow: 0 0 8px color-mix(in srgb, var(--term-green) 30%, transparent);
         }
         
-        .pfp-status {
-            font-size: 7px;
-            min-height: 10px;
-            margin-top: 4px;
-        }
-        
-        .pfp-status.success { color: var(--term-green); }
-        .pfp-status.error { color: var(--term-red); }
-        .pfp-status.loading { color: var(--term-dim); }
-        
-        .pfp-preview {
-            width: 72px;
-            height: 72px;
-            border: 2px solid var(--term-border);
+        .pfp-preview-small {
+            width: 28px;
+            height: 28px;
+            border: 2px solid var(--term-cyan);
             background: rgba(0, 0, 0, 0.4);
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
             flex-shrink: 0;
-            border-radius: 4px;
+            border-radius: 3px;
+            box-shadow: 0 0 8px color-mix(in srgb, var(--term-cyan) 25%, transparent);
         }
         
-        .pfp-config:first-child .pfp-preview {
-            border-color: var(--term-green);
-            box-shadow: 0 0 12px color-mix(in srgb, var(--term-green) 25%, transparent);
-        }
-        
-        .pfp-config:last-child .pfp-preview {
-            border-color: var(--term-cyan);
-            box-shadow: 0 0 12px color-mix(in srgb, var(--term-cyan) 25%, transparent);
-        }
-        
-        .pfp-preview img {
+        .pfp-preview-small img {
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -2884,6 +2838,16 @@ function showChatSettingsDialog() {
             color: var(--term-dim);
             text-align: center;
         }
+        
+        .pfp-status-inline {
+            font-size: 7px;
+            color: var(--term-dim);
+            white-space: nowrap;
+        }
+        
+        .pfp-status-inline.success { color: var(--term-green); }
+        .pfp-status-inline.error { color: var(--term-red); }
+        .pfp-status-inline.loading { color: var(--term-dim); }
         
         /* Footer buttons */
         .button-row {
@@ -2972,54 +2936,18 @@ function showChatSettingsDialog() {
             </div>
             
             <div class="pfp-section">
-                <div class="pfp-section-title">PROFILE PICTURES</div>
-                <div class="pfp-row">
-                    <div class="pfp-config">
-                        <div class="pfp-config-left">
-                            <div class="pfp-config-title">BRO (ASSISTANT)</div>
-                            <div class="pfp-controls">
-                                <div class="pfp-control-row">
-                                    <select id="broCollection">
-                                        <option value="radbro">RADBRO</option>
-                                        <option value="schizo">SCHIZO</option>
-                                    </select>
-                                </div>
-                                <div class="pfp-control-row">
-                                    <input type="text" id="broTokenId" placeholder="Token #">
-                                </div>
-                                <div class="pfp-control-row">
-                                    <button type="button" class="pfp-fetch-btn" onclick="fetchPfp('bro')">FETCH</button>
-                                </div>
-                            </div>
-                            <div class="pfp-status" id="broStatus"></div>
-                        </div>
-                        <div class="pfp-preview" id="broPfpPreview">
-                            <span class="pfp-preview-placeholder">NO PFP</span>
-                        </div>
+                <div class="pfp-row-inline">
+                    <label class="pfp-label">OPERATOR PFP</label>
+                    <select id="operatorCollection">
+                        <option value="radbro">RADBRO</option>
+                        <option value="schizo">SCHIZO</option>
+                    </select>
+                    <input type="text" id="operatorTokenId" placeholder="Token #" style="width: 70px;">
+                    <button type="button" class="pfp-fetch-btn" onclick="fetchPfp('operator')">FETCH</button>
+                    <div class="pfp-preview-small" id="operatorPfpPreview">
+                        <span class="pfp-preview-placeholder">?</span>
                     </div>
-                    <div class="pfp-config">
-                        <div class="pfp-config-left">
-                            <div class="pfp-config-title">OPERATOR (YOU)</div>
-                            <div class="pfp-controls">
-                                <div class="pfp-control-row">
-                                    <select id="operatorCollection">
-                                        <option value="radbro">RADBRO</option>
-                                        <option value="schizo">SCHIZO</option>
-                                    </select>
-                                </div>
-                                <div class="pfp-control-row">
-                                    <input type="text" id="operatorTokenId" placeholder="Token #">
-                                </div>
-                                <div class="pfp-control-row">
-                                    <button type="button" class="pfp-fetch-btn" onclick="fetchPfp('operator')">FETCH</button>
-                                </div>
-                            </div>
-                            <div class="pfp-status" id="operatorStatus"></div>
-                        </div>
-                        <div class="pfp-preview" id="operatorPfpPreview">
-                            <span class="pfp-preview-placeholder">NO PFP</span>
-                        </div>
-                    </div>
+                    <span class="pfp-status-inline" id="operatorStatus"></span>
                 </div>
             </div>
         </div>
@@ -3031,8 +2959,7 @@ function showChatSettingsDialog() {
     </div>
     
     <script>
-        // PFP state
-        let broPfpData = { collection: 'radbro', tokenId: '', imageUrl: '' };
+        // PFP state (operator only - bro uses pet sprite)
         let operatorPfpData = { collection: 'radbro', tokenId: '', imageUrl: '' };
         
         // API base URLs
@@ -3061,22 +2988,21 @@ function showChatSettingsDialog() {
             return url; // Not an IPFS URL, return as-is
         }
         
-        // Fetch PFP from API
+        // Fetch PFP from API (operator only)
         async function fetchPfp(role) {
-            const prefix = role === 'bro' ? 'bro' : 'operator';
-            const collection = document.getElementById(prefix + 'Collection').value;
-            const tokenId = document.getElementById(prefix + 'TokenId').value.trim();
-            const statusEl = document.getElementById(prefix + 'Status');
-            const previewEl = document.getElementById(prefix + 'PfpPreview');
+            const collection = document.getElementById('operatorCollection').value;
+            const tokenId = document.getElementById('operatorTokenId').value.trim();
+            const statusEl = document.getElementById('operatorStatus');
+            const previewEl = document.getElementById('operatorPfpPreview');
             
             if (!tokenId) {
                 statusEl.textContent = 'Enter a token ID';
-                statusEl.className = 'pfp-status error';
+                statusEl.className = 'pfp-status-inline error';
                 return;
             }
             
             statusEl.textContent = 'Fetching metadata...';
-            statusEl.className = 'pfp-status loading';
+            statusEl.className = 'pfp-status-inline loading';
             
             try {
                 const apiUrl = API_URLS[collection] + tokenId;
@@ -3110,18 +3036,14 @@ function showChatSettingsDialog() {
                 previewEl.innerHTML = '<img src="' + imageUrl + '" alt="PFP" onerror="this.parentElement.innerHTML=\\'<span class=pfp-preview-placeholder>LOAD ERR</span>\\'">';
                 
                 // Store the data
-                if (role === 'bro') {
-                    broPfpData = { collection, tokenId, imageUrl };
-                } else {
-                    operatorPfpData = { collection, tokenId, imageUrl };
-                }
+                operatorPfpData = { collection, tokenId, imageUrl };
                 
                 statusEl.textContent = 'Loaded: #' + tokenId;
-                statusEl.className = 'pfp-status success';
+                statusEl.className = 'pfp-status-inline success';
             } catch (err) {
                 console.error('Fetch error:', err);
                 statusEl.textContent = err.message || 'Failed to fetch';
-                statusEl.className = 'pfp-status error';
+                statusEl.className = 'pfp-status-inline error';
                 previewEl.innerHTML = '<span class="pfp-preview-placeholder">ERROR</span>';
             }
         }
@@ -3135,18 +3057,6 @@ function showChatSettingsDialog() {
             document.getElementById('model').value = config.model || '';
             document.getElementById('systemPrompt').value = config.systemPrompt || '';
             
-            // Load BRO PFP
-            if (config.broPfp && config.broPfp.tokenId) {
-                broPfpData = { ...broPfpData, ...config.broPfp };
-                document.getElementById('broCollection').value = broPfpData.collection || 'radbro';
-                document.getElementById('broTokenId').value = broPfpData.tokenId || '';
-                if (broPfpData.imageUrl) {
-                    document.getElementById('broPfpPreview').innerHTML = '<img src="' + broPfpData.imageUrl + '" alt="PFP">';
-                    document.getElementById('broStatus').textContent = 'Loaded: #' + broPfpData.tokenId;
-                    document.getElementById('broStatus').className = 'pfp-status success';
-                }
-            }
-            
             // Load OPERATOR PFP
             if (config.operatorPfp && config.operatorPfp.tokenId) {
                 operatorPfpData = { ...operatorPfpData, ...config.operatorPfp };
@@ -3155,7 +3065,7 @@ function showChatSettingsDialog() {
                 if (operatorPfpData.imageUrl) {
                     document.getElementById('operatorPfpPreview').innerHTML = '<img src="' + operatorPfpData.imageUrl + '" alt="PFP">';
                     document.getElementById('operatorStatus').textContent = 'Loaded: #' + operatorPfpData.tokenId;
-                    document.getElementById('operatorStatus').className = 'pfp-status success';
+                    document.getElementById('operatorStatus').className = 'pfp-status-inline success';
                 }
             }
         }
@@ -3168,11 +3078,6 @@ function showChatSettingsDialog() {
                 apiKey: document.getElementById('apiKey').value,
                 model: document.getElementById('model').value.trim(),
                 systemPrompt: document.getElementById('systemPrompt').value,
-                broPfp: {
-                    collection: document.getElementById('broCollection').value,
-                    tokenId: document.getElementById('broTokenId').value.trim(),
-                    imageUrl: broPfpData.imageUrl || ''
-                },
                 operatorPfp: {
                     collection: document.getElementById('operatorCollection').value,
                     tokenId: document.getElementById('operatorTokenId').value.trim(),

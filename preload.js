@@ -54,6 +54,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onChatMood: (callback) => safeOn('chat-mood', (_event, mood) => callback(mood)),
     syncChatColor: (color) => ipcRenderer.send('sync-chat-color', color),
     
+    // Sprite state update (send current sprite to chat window for bro avatar)
+    updateSprite: (sprite) => ipcRenderer.send('sprite-update', sprite),
+    
     // Sleep mode (pauses XP and shows sleep animation)
     onSetSleep: (callback) => safeOn('set-sleep', (_event, sleeping) => callback(sleeping)),
     onSleepAnimation: (callback) => safeOn('sleep-animation', (_event, animation) => callback(animation)),

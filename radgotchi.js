@@ -329,6 +329,11 @@ const RG = (function() {
         
         if (faces[mood]) {
             faceEl.src = faces[mood];
+            // Notify chat window of sprite change for bro avatar
+            if (window.electronAPI && window.electronAPI.updateSprite) {
+                const spriteName = faces[mood].split('/').pop();
+                window.electronAPI.updateSprite(spriteName);
+            }
         }
 
         // Update status text

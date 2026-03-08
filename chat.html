@@ -828,20 +828,23 @@
         /* Message with avatar layout */
         .message-wrapper {
             display: flex;
-            gap: 8px;
+            gap: 10px;
             margin-bottom: 16px;
             position: relative;
-            padding: 0 32px; /* Space for vertical labels */
+            padding: 12px 32px 0 32px; /* Top padding for timestamp, sides for labels */
+            align-items: center;
         }
         
         .message-wrapper.user {
             flex-direction: row-reverse;
         }
         
+        .message-wrapper.assistant {
+            padding-left: 32px;
+        }
+        
         .message-wrapper .message {
-            margin-bottom: 0;
-            margin-left: 0;
-            margin-right: 0;
+            margin: 0;
             flex: 1;
             min-width: 0;
         }
@@ -855,28 +858,68 @@
             overflow: hidden;
             flex-shrink: 0;
             background: rgba(0, 0, 0, 0.4);
-            margin-top: 10px;
             box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+            align-self: center;
+            margin: 0;
+            padding: 0;
+            line-height: 0;
         }
         
         .message-wrapper.user .message-avatar {
             border-color: var(--term-cyan);
             box-shadow: 0 0 10px color-mix(in srgb, var(--term-cyan) 30%, transparent);
+            margin-top: 0;
         }
         
         .message-wrapper.user .message-avatar img {
             transform: scaleX(-1);
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
         }
         
+        /* Bro avatar - sprite based, not squeezed */
         .message-wrapper.assistant .message-avatar {
-            border-color: var(--term-green);
-            box-shadow: 0 0 10px color-mix(in srgb, var(--term-green) 30%, transparent);
+            width: auto;
+            min-width: 40px;
+            height: auto;
+            min-height: 36px;
+            border: none;
+            background: transparent;
+            box-shadow: none;
+            overflow: visible;
+            flex-shrink: 0;
+        }
+        
+        .message-wrapper.assistant .message-avatar.sprite-avatar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .message-wrapper.assistant .message-avatar.sprite-avatar img {
+            width: auto;
+            height: 40px;
+            max-height: 48px;
+            object-fit: contain;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            /* Sprite color filter - matches main window pet style */
+            filter: 
+                invert(1) sepia(1) saturate(8) hue-rotate(var(--sprite-hue, 100deg)) brightness(1.1)
+                drop-shadow(0 0 2px var(--term-green))
+                drop-shadow(0 0 4px var(--term-green))
+                contrast(1.1);
         }
         
         .message-avatar img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: block;
+            margin: 0;
+            padding: 0;
         }
         
         .message-avatar-placeholder {
@@ -1508,9 +1551,14 @@
         let chatHistory = [];
         let isSending = false;
         
-        // Profile picture state
-        let broPfp = null;
+        // Profile picture state (operator only - bro uses pet sprite)
         let operatorPfp = null;
+        
+        // Sprite state for bro avatar (real-time pet sprite render)
+        let spriteState = {
+            sprite: 'AWAKE.png',
+            color: '#00ff88'
+        };
         
         // Initialize audio context on first interaction (browser autoplay policy)
         let audioInitialized = false;
@@ -1644,6 +1692,70 @@
             return html;
         }
         
+        // Calculate hue rotation from hex color (for sprite filter)
+        function getHueRotation(hexColor) {
+            // Convert hex to RGB
+            const hex = hexColor.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16) / 255;
+            const g = parseInt(hex.substr(2, 2), 16) / 255;
+            const b = parseInt(hex.substr(4, 2), 16) / 255;
+            
+            // Convert RGB to HSL
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            let h = 0;
+            
+            if (max !== min) {
+                const d = max - min;
+                switch (max) {
+                    case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+                    case g: h = ((b - r) / d + 2) / 6; break;
+                    case b: h = ((r - g) / d + 4) / 6; break;
+                }
+            }
+            
+            // Base hue for the filter (green ~120deg) → target hue
+            const baseHue = 120; // The sepia filter produces a yellow-orange, invert makes it cyan
+            const targetHue = h * 360;
+            let hueRotate = targetHue - baseHue;
+            if (hueRotate < 0) hueRotate += 360;
+            return hueRotate;
+        }
+        
+        // Create sprite-based bro avatar element
+        function createBroSpriteAvatar() {
+            const avatarEl = document.createElement('div');
+            avatarEl.className = 'message-avatar sprite-avatar';
+            
+            const img = document.createElement('img');
+            img.src = 'assets/gotchi/' + spriteState.sprite;
+            img.alt = 'Bro';
+            img.draggable = false;
+            img.onerror = function() {
+                // Fallback to placeholder on error
+                this.parentElement.innerHTML = '<span class="message-avatar-placeholder">BR</span>';
+            };
+            
+            // Apply hue rotation based on current color
+            const hueRotate = getHueRotation(spriteState.color);
+            avatarEl.style.setProperty('--sprite-hue', hueRotate + 'deg');
+            
+            avatarEl.appendChild(img);
+            return avatarEl;
+        }
+        
+        // Update all bro sprite avatars with new sprite or color
+        function updateBroAvatars() {
+            const hueRotate = getHueRotation(spriteState.color);
+            document.querySelectorAll('.message-wrapper.assistant .message-avatar.sprite-avatar').forEach(avatar => {
+                avatar.style.setProperty('--sprite-hue', hueRotate + 'deg');
+                const img = avatar.querySelector('img');
+                if (img) {
+                    img.src = 'assets/gotchi/' + spriteState.sprite;
+                }
+            });
+        }
+        
         // Generate session ID
         sessionIdEl.textContent = 'RG-' + Math.random().toString(36).substr(2, 4).toUpperCase();
         
@@ -1714,21 +1826,27 @@
                 wrapperEl.className = `message-wrapper ${role}`;
                 
                 // Create avatar element
-                const avatarEl = document.createElement('div');
-                avatarEl.className = 'message-avatar';
+                let avatarEl;
                 
-                // Get PFP for this role
-                const pfp = role === 'user' ? operatorPfp : broPfp;
-                if (pfp && pfp.imageUrl) {
-                    const img = document.createElement('img');
-                    img.src = pfp.imageUrl;
-                    img.alt = role === 'user' ? 'Operator' : 'Bro';
-                    img.onerror = function() {
-                        this.parentElement.innerHTML = '<span class="message-avatar-placeholder">?</span>';
-                    };
-                    avatarEl.appendChild(img);
+                if (role === 'assistant') {
+                    // Bro uses real-time sprite avatar
+                    avatarEl = createBroSpriteAvatar();
                 } else {
-                    avatarEl.innerHTML = '<span class="message-avatar-placeholder">' + (role === 'user' ? 'OP' : 'BR') + '</span>';
+                    // Operator uses PFP
+                    avatarEl = document.createElement('div');
+                    avatarEl.className = 'message-avatar';
+                    
+                    if (operatorPfp && operatorPfp.imageUrl) {
+                        const img = document.createElement('img');
+                        img.src = operatorPfp.imageUrl;
+                        img.alt = 'Operator';
+                        img.onerror = function() {
+                            this.parentElement.innerHTML = '<span class="message-avatar-placeholder">?</span>';
+                        };
+                        avatarEl.appendChild(img);
+                    } else {
+                        avatarEl.innerHTML = '<span class="message-avatar-placeholder">OP</span>';
+                    }
                 }
                 
                 // Create message element
@@ -1824,20 +1942,8 @@
             const streamWrapperEl = document.createElement('div');
             streamWrapperEl.className = 'message-wrapper assistant';
             
-            // Create avatar for streaming message
-            const streamAvatarEl = document.createElement('div');
-            streamAvatarEl.className = 'message-avatar';
-            if (broPfp && broPfp.imageUrl) {
-                const img = document.createElement('img');
-                img.src = broPfp.imageUrl;
-                img.alt = 'Bro';
-                img.onerror = function() {
-                    this.parentElement.innerHTML = '<span class="message-avatar-placeholder">BR</span>';
-                };
-                streamAvatarEl.appendChild(img);
-            } else {
-                streamAvatarEl.innerHTML = '<span class="message-avatar-placeholder">BR</span>';
-            }
+            // Create sprite-based avatar for streaming message
+            const streamAvatarEl = createBroSpriteAvatar();
             
             const streamMsgEl = document.createElement('div');
             streamMsgEl.className = 'message assistant thinking';
@@ -1935,9 +2041,10 @@
             
             const t = translations[currentLang];
             
-            // Initialize PFP state BEFORE loading history so avatars show
-            if (data.broPfp) {
-                broPfp = data.broPfp;
+            // Initialize sprite state BEFORE loading history so bro avatars show correctly
+            if (data.spriteState) {
+                spriteState.sprite = data.spriteState.sprite || 'AWAKE.png';
+                spriteState.color = data.spriteState.color || '#00ff88';
             }
             if (data.operatorPfp) {
                 operatorPfp = data.operatorPfp;
@@ -2010,19 +2117,8 @@
             }
         });
         
-        // Listen for PFP updates from settings
+        // Listen for PFP updates from settings (operator only)
         window.electronAPI.onPfpUpdate((data) => {
-            if (data.broPfp) {
-                broPfp = data.broPfp;
-                // Update existing bro avatars
-                document.querySelectorAll('.message-wrapper.assistant .message-avatar').forEach(avatar => {
-                    if (broPfp.imageUrl) {
-                        avatar.innerHTML = '<img src="' + broPfp.imageUrl + '" alt="BRO">';
-                    } else {
-                        avatar.innerHTML = '<span class="message-avatar-placeholder">BR</span>';
-                    }
-                });
-            }
             if (data.operatorPfp) {
                 operatorPfp = data.operatorPfp;
                 // Update existing operator avatars
@@ -2036,11 +2132,28 @@
             }
         });
         
+        // Listen for sprite state updates (for bro avatar real-time rendering)
+        if (window.electronAPI.onSpriteUpdate) {
+            window.electronAPI.onSpriteUpdate((data) => {
+                if (data.sprite) {
+                    spriteState.sprite = data.sprite;
+                }
+                if (data.color) {
+                    spriteState.color = data.color;
+                }
+                // Update all bro avatars with new sprite/color
+                updateBroAvatars();
+            });
+        }
+        
         // Color sync from main window
         function applyColor(color) {
             document.documentElement.style.setProperty('--term-green', color);
             document.documentElement.style.setProperty('--term-dim', color + '88');
             document.documentElement.style.setProperty('--term-grid', color + '08');
+            // Update sprite state color and refresh bro avatars
+            spriteState.color = color;
+            updateBroAvatars();
         }
         
         if (window.electronAPI && window.electronAPI.onSetColor) {

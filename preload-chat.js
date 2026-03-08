@@ -46,6 +46,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveChatMessage: (role, content) => ipcRenderer.send('save-chat-message', { role, content }),
     clearChatHistory: () => ipcRenderer.invoke('clear-chat-history'),
     onActivityLogUpdate: (callback) => ipcRenderer.on('activity-log-update', (_event, entry) => callback(entry)),
-    // PFP Updates
+    // PFP Updates (operator only)
     onPfpUpdate: (callback) => ipcRenderer.on('pfp-update', (_event, data) => callback(data)),
+    // Sprite state updates (for bro avatar)
+    onSpriteUpdate: (callback) => ipcRenderer.on('sprite-update', (_event, data) => callback(data)),
 });
