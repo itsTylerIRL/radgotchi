@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, powerMonitor, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, powerMonitor, dialog, shell } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -3192,58 +3192,10 @@ function createTray() {
             }
         },
         {
-            label: 'Movement',
-            submenu: [
-                {
-                    label: 'None',
-                    type: 'radio',
-                    checked: movementMode === 'none',
-                    click: () => setMovementMode('none')
-                },
-                {
-                    label: 'Bounce (DVD)',
-                    type: 'radio',
-                    checked: movementMode === 'bounce',
-                    click: () => setMovementMode('bounce')
-                },
-                {
-                    label: 'Follow Cursor',
-                    type: 'radio',
-                    checked: movementMode === 'follow',
-                    click: () => setMovementMode('follow')
-                },
-                {
-                    label: 'Wander',
-                    type: 'radio',
-                    checked: movementMode === 'wander',
-                    click: () => setMovementMode('wander')
-                }
-            ]
-        },
-        {
-            label: 'Color',
-            submenu: colorSubmenu
-        },
-        {
-            label: 'Language',
-            submenu: [
-                {
-                    label: 'English',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('set-language', 'en');
-                        }
-                    }
-                },
-                {
-                    label: '中文',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('set-language', 'zh');
-                        }
-                    }
-                }
-            ]
+            label: 'RAD Terminal',
+            click: () => {
+                createChatWindow();
+            }
         },
         {
             label: 'Chat Settings',
@@ -3274,6 +3226,13 @@ function createTray() {
             label: 'Quit',
             click: () => {
                 app.quit();
+            }
+        },
+        { type: 'separator' },
+        {
+            label: 'Say Thanks',
+            click: () => {
+                shell.openExternal('https://tylerirl.com/guest-book');
             }
         }
     ]);
