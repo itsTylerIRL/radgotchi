@@ -72,11 +72,17 @@ const LEVEL_THRESHOLDS = [
 const RANKS = [
     { minLevel: 1, name: 'TRAINEE', nameZh: '实习生' },
     { minLevel: 3, name: 'ANALYST', nameZh: '分析员' },
-    { minLevel: 6, name: 'AGENT', nameZh: '特工' },
-    { minLevel: 10, name: 'HANDLER', nameZh: '处理者' },
-    { minLevel: 15, name: 'DIRECTOR', nameZh: '主管' },
-    { minLevel: 20, name: 'EXECUTIVE', nameZh: '执行官' },
-    { minLevel: 25, name: 'OVERSEER', nameZh: '监察官' },
+    { minLevel: 5, name: 'OPERATIVE', nameZh: '行动员' },
+    { minLevel: 8, name: 'AGENT', nameZh: '特工' },
+    { minLevel: 11, name: 'SPECIALIST', nameZh: '专家' },
+    { minLevel: 14, name: 'HANDLER', nameZh: '处理者' },
+    { minLevel: 17, name: 'CONTROLLER', nameZh: '控制者' },
+    { minLevel: 20, name: 'DIRECTOR', nameZh: '主管' },
+    { minLevel: 24, name: 'EXECUTIVE', nameZh: '执行官' },
+    { minLevel: 28, name: 'OVERSEER', nameZh: '监察官' },
+    { minLevel: 33, name: 'SENTINEL', nameZh: '哨兵' },
+    { minLevel: 40, name: 'ARCHITECT', nameZh: '架构师' },
+    { minLevel: 50, name: 'PHANTOM', nameZh: '幻影' },
 ];
 
 function getRank(level) {

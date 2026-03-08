@@ -374,7 +374,12 @@
             }
         }
         
-        /* Rank badge */
+        /* Rank badge with tooltip */
+        .rank-container {
+            position: relative;
+            display: inline-block;
+        }
+        
         .rank-badge {
             font-size: 7px;
             color: var(--term-cyan);
@@ -382,6 +387,80 @@
             border: 1px solid var(--term-cyan);
             padding: 1px 4px;
             letter-spacing: 0.5px;
+            cursor: help;
+        }
+        
+        .rank-tooltip {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 6px;
+            z-index: 1000;
+            background: #0a0c0a;
+            border: 1px solid var(--term-cyan);
+            padding: 8px 10px;
+            min-width: 140px;
+            box-shadow: 0 4px 12px rgba(0, 212, 255, 0.2);
+        }
+        
+        .rank-container:hover .rank-tooltip {
+            display: block;
+        }
+        
+        .rank-tooltip::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 6px solid var(--term-cyan);
+        }
+        
+        .rank-tooltip-title {
+            font-size: 7px;
+            color: var(--term-dim);
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            text-align: center;
+            border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+            padding-bottom: 4px;
+        }
+        
+        .rank-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 7px;
+        }
+        
+        .rank-list-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            color: var(--term-dim);
+        }
+        
+        .rank-list-item.current {
+            color: var(--term-cyan);
+            font-weight: 700;
+        }
+        
+        .rank-list-item.locked {
+            opacity: 0.4;
+        }
+        
+        .rank-list-item .rank-name {
+            flex: 1;
+        }
+        
+        .rank-list-item .rank-level {
+            color: var(--term-amber);
+            min-width: 30px;
+            text-align: right;
         }
         
         /* Needs bars (hunger/energy) */
@@ -999,7 +1078,13 @@
         </div>
         <div class="level-bar" id="level-bar">
             <span class="level-badge" id="level-badge">LV 1</span>
-            <span class="rank-badge" id="rank-badge">TRAINEE</span>
+            <div class="rank-container">
+                <span class="rank-badge" id="rank-badge">TRAINEE</span>
+                <div class="rank-tooltip" id="rank-tooltip">
+                    <div class="rank-tooltip-title" id="rank-tooltip-title">CLEARANCE LEVELS</div>
+                    <ul class="rank-list" id="rank-list"></ul>
+                </div>
+            </div>
             <div class="xp-progress-container">
                 <div class="xp-progress-label">
                     <span id="xp-label">XP: 0 / 50</span>
@@ -1379,6 +1464,25 @@
         const levelBar = document.getElementById('level-bar');
         const levelBadge = document.getElementById('level-badge');
         const rankBadge = document.getElementById('rank-badge');
+        const rankList = document.getElementById('rank-list');
+        const rankTooltipTitle = document.getElementById('rank-tooltip-title');
+        
+        // Ranks data (mirrors main.js)
+        const RANKS = [
+            { name: 'TRAINEE', nameZh: '见习员', minLevel: 1 },
+            { name: 'ANALYST', nameZh: '分析员', minLevel: 3 },
+            { name: 'OPERATIVE', nameZh: '行动员', minLevel: 5 },
+            { name: 'AGENT', nameZh: '特工', minLevel: 8 },
+            { name: 'SPECIALIST', nameZh: '专家', minLevel: 11 },
+            { name: 'HANDLER', nameZh: '指挥官', minLevel: 14 },
+            { name: 'CONTROLLER', nameZh: '控制者', minLevel: 17 },
+            { name: 'DIRECTOR', nameZh: '主管', minLevel: 20 },
+            { name: 'EXECUTIVE', nameZh: '执行官', minLevel: 24 },
+            { name: 'OVERSEER', nameZh: '监察官', minLevel: 28 },
+            { name: 'SENTINEL', nameZh: '哨兵', minLevel: 33 },
+            { name: 'ARCHITECT', nameZh: '架构师', minLevel: 40 },
+            { name: 'PHANTOM', nameZh: '幻影', minLevel: 50 }
+        ];
         const xpLabel = document.getElementById('xp-label');
         const xpPercent = document.getElementById('xp-percent');
         const xpFill = document.getElementById('xp-fill');
@@ -1422,6 +1526,34 @@
             return hours + 'h ' + minutes + 'm';
         }
         
+        // Populate rank tooltip with all ranks
+        function populateRankTooltip(currentLevel) {
+            rankList.innerHTML = '';
+            rankTooltipTitle.textContent = currentLang === 'zh' ? '等级列表' : 'CLEARANCE LEVELS';
+            
+            RANKS.forEach((rankData, index) => {
+                const li = document.createElement('li');
+                li.className = 'rank-list-item';
+                
+                const name = currentLang === 'zh' ? rankData.nameZh : rankData.name;
+                const levelText = 'L' + rankData.minLevel;
+                
+                // Check if this is current rank
+                const nextRank = RANKS[index + 1];
+                const isCurrent = currentLevel >= rankData.minLevel && (!nextRank || currentLevel < nextRank.minLevel);
+                const isLocked = currentLevel < rankData.minLevel;
+                
+                if (isCurrent) {
+                    li.classList.add('current');
+                } else if (isLocked) {
+                    li.classList.add('locked');
+                }
+                
+                li.innerHTML = '<span class="rank-name">' + name + '</span><span class="rank-level">' + levelText + '</span>';
+                rankList.appendChild(li);
+            });
+        }
+        
         // Update XP display
         function updateXpDisplay(xpData, animate = false) {
             if (!xpData) return;
@@ -1439,6 +1571,7 @@
             // Update rank
             if (rank) {
                 rankBadge.textContent = currentLang === 'zh' ? rankZh : rank;
+                populateRankTooltip(level);
             }
             
             // Update stats
