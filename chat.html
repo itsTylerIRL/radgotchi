@@ -303,6 +303,45 @@
             }
         }
         
+        .level-down-flash {
+            animation: level-down-glow 0.5s ease-out;
+        }
+        
+        @keyframes level-down-glow {
+            0% { 
+                background: rgba(255, 50, 50, 0.4);
+                box-shadow: 0 0 20px #ff3232;
+            }
+            100% { 
+                background: rgba(255, 170, 0, 0.03);
+                box-shadow: none;
+            }
+        }
+        
+        .xp-loss-flash {
+            animation: xp-loss-blink 0.3s ease-out;
+        }
+        
+        @keyframes xp-loss-blink {
+            0%, 100% { color: var(--term-dim); }
+            50% { color: #ff5050; }
+        }
+        
+        .attention-warning {
+            animation: attention-pulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes attention-pulse {
+            0%, 100% { 
+                background: rgba(255, 170, 0, 0.03);
+                border-color: var(--term-amber);
+            }
+            50% { 
+                background: rgba(255, 50, 50, 0.2);
+                border-color: #ff5050;
+            }
+        }
+        
         /* Messages area */
         .messages-area {
             flex: 1;
@@ -1041,7 +1080,7 @@
         function updateXpDisplay(xpData, animate = false) {
             if (!xpData) return;
             
-            const { level, totalXp, xpIntoLevel, xpNeeded, progress, leveledUp } = xpData;
+            const { level, totalXp, xpIntoLevel, xpNeeded, progress, leveledUp, leveledDown, xpLost, source } = xpData;
             
             levelBadge.textContent = 'LV ' + level;
             xpLabel.textContent = 'XP: ' + xpIntoLevel + ' / ' + xpNeeded;
@@ -1057,7 +1096,6 @@
                 levelBadge.style.animation = 'level-up-glow 1s ease-out';
                 
                 // Add level up message
-                const t = translations[currentLang];
                 const lvlMsg = currentLang === 'zh' 
                     ? '🎉 等级提升！已达到 ' + level + ' 级！'
                     : '🎉 LEVEL UP! Now level ' + level + '!';
@@ -1067,12 +1105,56 @@
                     levelBar.classList.remove('level-up-flash');
                 }, 500);
             }
+            
+            // Level down animation (from decay)
+            if (leveledDown && animate) {
+                levelBar.classList.add('level-down-flash');
+                
+                const lvlMsg = currentLang === 'zh' 
+                    ? '📉 等级下降！降至 ' + level + ' 级...'
+                    : '📉 LEVEL DOWN! Dropped to level ' + level + '...';
+                addMessage('system', lvlMsg);
+                
+                setTimeout(() => {
+                    levelBar.classList.remove('level-down-flash');
+                }, 500);
+            }
+            
+            // XP loss indicator (subtle flash for decay)
+            if (xpLost && animate && source && (source === 'idle-decay' || source === 'attention-neglect')) {
+                xpTotal.classList.add('xp-loss-flash');
+                setTimeout(() => {
+                    xpTotal.classList.remove('xp-loss-flash');
+                }, 300);
+            }
         }
         
         // Listen for XP updates from main process
         if (window.electronAPI && window.electronAPI.onXpUpdate) {
             window.electronAPI.onXpUpdate((xpData) => {
                 updateXpDisplay(xpData, true);
+            });
+        }
+        
+        // Attention event listener
+        if (window.electronAPI && window.electronAPI.onAttentionEvent) {
+            window.electronAPI.onAttentionEvent((data) => {
+                if (data.active) {
+                    // Show attention warning in chat
+                    levelBar.classList.add('attention-warning');
+                    const msg = currentLang === 'zh' 
+                        ? '⚠️ 连接不稳定！确认信号！(每30秒损失XP)'
+                        : '⚠️ LINK UNSTABLE! Confirm signal! (Losing XP every 30s)';
+                    addMessage('system', msg);
+                } else {
+                    levelBar.classList.remove('attention-warning');
+                    if (data.resolved) {
+                        const msg = currentLang === 'zh' 
+                            ? '✅ 握手确认！连接已恢复！'
+                            : '✅ HANDSHAKE CONFIRMED! Link restored!';
+                        addMessage('system', msg);
+                    }
+                }
             });
         }
         

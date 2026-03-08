@@ -17,14 +17,30 @@ let llmConfig = {
 // XP & Leveling System
 // ═══════════════════════════════════════════════════════════════════════════
 
-// XP gains
+// XP gains and losses
 const XP_CONFIG = {
+    // Gains
     PASSIVE_INTERVAL_MS: 30000,     // Gain XP every 30 seconds
     PASSIVE_XP: 1,                   // XP per passive tick
     MESSAGE_SEND_XP: 5,              // XP for sending a message
     MESSAGE_RECEIVE_XP: 3,           // XP for receiving a response
     CLICK_XP: 2,                     // XP for valid click
     CLICK_COOLDOWN_MS: 3000,         // Min time between click XP (anti-spam)
+    ATTENTION_RESOLVE_XP: 5,         // Bonus XP for resolving attention event
+    
+    // Idle decay (curved - longer idle = more loss)
+    IDLE_DECAY_START_MS: 180000,     // Start losing XP after 3 min idle (after sleep triggers at 2 min)
+    IDLE_DECAY_INTERVAL_MS: 60000,   // Check decay every 60 seconds
+    IDLE_DECAY_BASE: 1,              // Base XP loss per interval
+    IDLE_DECAY_CURVE: 0.5,           // Exponential curve factor (higher = steeper)
+    IDLE_DECAY_MAX: 10,              // Max XP loss per interval
+    
+    // Attention events (random events requiring interaction)
+    ATTENTION_CHECK_INTERVAL_MS: 120000,  // Check for random event every 2 min
+    ATTENTION_CHANCE: 0.15,              // 15% chance per check
+    ATTENTION_XP_LOSS: 2,                // XP lost per tick while unresolved
+    ATTENTION_TICK_MS: 30000,            // Lose XP every 30 sec while active
+    ATTENTION_MIN_LEVEL: 2,              // Don't trigger until level 2
 };
 
 // Level thresholds (cumulative XP needed for each level)
@@ -61,7 +77,17 @@ let xpData = {
     totalSessionTime: 0  // Accumulated from previous sessions
 };
 
+// Attention event state
+let attentionEvent = {
+    active: false,
+    startTime: 0,
+    lossInterval: null
+};
+
+// Intervals
 let passiveXpInterval = null;
+let idleDecayInterval = null;
+let attentionCheckInterval = null;
 
 function getXpDataPath() {
     return path.join(app.getPath('userData'), 'xp-data.json');
@@ -189,6 +215,153 @@ function stopPassiveXpGain() {
         clearInterval(passiveXpInterval);
         passiveXpInterval = null;
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// XP Decay & Attention Events
+// ═══════════════════════════════════════════════════════════════════════════
+
+function removeXp(amount, source = 'unknown') {
+    const oldLevel = xpData.level;
+    xpData.totalXp = Math.max(0, xpData.totalXp - amount);  // Don't go below 0
+    xpData.level = calculateLevel(xpData.totalXp);
+    
+    const leveledDown = xpData.level < oldLevel;
+    
+    // Broadcast XP update to windows
+    const update = getXpStatus();
+    update.xpLost = amount;
+    update.source = source;
+    update.leveledDown = leveledDown;
+    update.oldLevel = oldLevel;
+    
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('xp-update', update);
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('xp-update', update);
+    }
+    
+    return { leveledDown, newLevel: xpData.level, totalXp: xpData.totalXp };
+}
+
+// Idle decay - curved XP loss (longer idle = more loss)
+let idleStartTime = 0;
+
+function startIdleDecay() {
+    if (idleDecayInterval) return;
+    
+    idleStartTime = Date.now();
+    
+    idleDecayInterval = setInterval(() => {
+        if (!isUserIdle) {
+            stopIdleDecay();
+            return;
+        }
+        
+        const idleDuration = Date.now() - idleStartTime;
+        
+        // Only start decay after the threshold
+        if (idleDuration < XP_CONFIG.IDLE_DECAY_START_MS) return;
+        
+        // Calculate decay amount on a curve
+        // Minutes idle beyond threshold
+        const minutesIdle = (idleDuration - XP_CONFIG.IDLE_DECAY_START_MS) / 60000;
+        
+        // Curved decay: base * (1 + minutes^curve)
+        let decayAmount = Math.floor(
+            XP_CONFIG.IDLE_DECAY_BASE * (1 + Math.pow(minutesIdle, XP_CONFIG.IDLE_DECAY_CURVE))
+        );
+        decayAmount = Math.min(decayAmount, XP_CONFIG.IDLE_DECAY_MAX);
+        
+        if (decayAmount > 0 && xpData.totalXp > 0) {
+            removeXp(decayAmount, 'idle-decay');
+        }
+    }, XP_CONFIG.IDLE_DECAY_INTERVAL_MS);
+}
+
+function stopIdleDecay() {
+    if (idleDecayInterval) {
+        clearInterval(idleDecayInterval);
+        idleDecayInterval = null;
+    }
+    idleStartTime = 0;
+}
+
+// Attention events - random events requiring interaction
+function startAttentionEventChecks() {
+    if (attentionCheckInterval) return;
+    
+    attentionCheckInterval = setInterval(() => {
+        // Don't trigger if already active, user is idle, or below min level
+        if (attentionEvent.active || isUserIdle || xpData.level < XP_CONFIG.ATTENTION_MIN_LEVEL) {
+            return;
+        }
+        
+        // Random chance to trigger
+        if (Math.random() < XP_CONFIG.ATTENTION_CHANCE) {
+            triggerAttentionEvent();
+        }
+    }, XP_CONFIG.ATTENTION_CHECK_INTERVAL_MS);
+}
+
+function stopAttentionEventChecks() {
+    if (attentionCheckInterval) {
+        clearInterval(attentionCheckInterval);
+        attentionCheckInterval = null;
+    }
+}
+
+function triggerAttentionEvent() {
+    if (attentionEvent.active) return;
+    
+    attentionEvent.active = true;
+    attentionEvent.startTime = Date.now();
+    
+    // Notify renderer to start vibrating
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('attention-event', { active: true });
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('attention-event', { active: true });
+    }
+    
+    // Start XP loss interval
+    attentionEvent.lossInterval = setInterval(() => {
+        if (!attentionEvent.active) {
+            clearInterval(attentionEvent.lossInterval);
+            return;
+        }
+        
+        removeXp(XP_CONFIG.ATTENTION_XP_LOSS, 'attention-neglect');
+    }, XP_CONFIG.ATTENTION_TICK_MS);
+}
+
+function resolveAttentionEvent() {
+    if (!attentionEvent.active) return false;
+    
+    // Clear the loss interval
+    if (attentionEvent.lossInterval) {
+        clearInterval(attentionEvent.lossInterval);
+        attentionEvent.lossInterval = null;
+    }
+    
+    attentionEvent.active = false;
+    const duration = Date.now() - attentionEvent.startTime;
+    attentionEvent.startTime = 0;
+    
+    // Notify renderer to stop vibrating
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('attention-event', { active: false, resolved: true });
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('attention-event', { active: false, resolved: true });
+    }
+    
+    // Award bonus XP for resolving
+    addXp(XP_CONFIG.ATTENTION_RESOLVE_XP, 'attention-resolve');
+    
+    return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -627,12 +800,28 @@ function startIdleDetection() {
                     movementMode = 'none';
                 }
                 mainWindow.webContents.send('idle-change', { idle: true });
+                
+                // Start XP decay while idle
+                startIdleDecay();
+                
+                // Cancel any active attention event (don't punish idle users)
+                if (attentionEvent.active) {
+                    if (attentionEvent.lossInterval) {
+                        clearInterval(attentionEvent.lossInterval);
+                        attentionEvent.lossInterval = null;
+                    }
+                    attentionEvent.active = false;
+                    mainWindow.webContents.send('attention-event', { active: false, cancelled: true });
+                }
             } else {
                 // User returned — restore previous mode
                 if (modeBeforeIdle !== 'none') {
                     setMovementMode(modeBeforeIdle);
                 }
                 mainWindow.webContents.send('idle-change', { idle: false });
+                
+                // Stop XP decay
+                stopIdleDecay();
             }
         }
     }, 5000); // Check every 5 seconds
@@ -827,6 +1016,15 @@ function createWindow() {
         // Validate click XP to prevent spam
         if (source === 'click') {
             const now = Date.now();
+            
+            // Check if this click resolves an attention event
+            if (attentionEvent.active) {
+                resolveAttentionEvent();
+                // Still apply cooldown for next click XP
+                xpData.lastClickXpTime = now;
+                return { awarded: true, attentionResolved: true };
+            }
+            
             if (now - xpData.lastClickXpTime < XP_CONFIG.CLICK_COOLDOWN_MS) {
                 return { awarded: false, reason: 'cooldown' };
             }
@@ -844,6 +1042,11 @@ function createWindow() {
         return { awarded: false, reason: 'invalid-source' };
     });
 
+    // Attention event status check
+    ipcMain.handle('get-attention-status', async () => {
+        return { active: attentionEvent.active };
+    });
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
@@ -853,6 +1056,9 @@ function createWindow() {
     
     // Start idle detection
     startIdleDetection();
+    
+    // Start attention event checks
+    startAttentionEventChecks();
 }
 
 // === Chat Window ===
@@ -1598,6 +1804,9 @@ app.on('will-quit', () => {
     stopMovement();
     stopIdleDetection();
     stopPassiveXpGain();
+    stopIdleDecay();
+    stopAttentionEventChecks();
+    if (attentionEvent.lossInterval) clearInterval(attentionEvent.lossInterval);
     saveXpData();
 });
 

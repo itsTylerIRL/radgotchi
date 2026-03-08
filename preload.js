@@ -59,5 +59,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     // XP System
     addXp: (amount, source) => ipcRenderer.invoke('add-xp', { amount, source }),
-    onXpUpdate: (callback) => safeOn('xp-update', (_event, data) => callback(data))
+    onXpUpdate: (callback) => safeOn('xp-update', (_event, data) => callback(data)),
+    
+    // Attention events (requires interaction to stop XP loss)
+    onAttentionEvent: (callback) => safeOn('attention-event', (_event, data) => callback(data))
 });

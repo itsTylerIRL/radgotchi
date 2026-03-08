@@ -457,6 +457,45 @@ if (window.electronAPI && window.electronAPI.onIdleChange) {
     });
 }
 
+// Attention event listener - pet needs attention or loses XP
+let attentionActive = false;
+if (window.electronAPI && window.electronAPI.onAttentionEvent) {
+    window.electronAPI.onAttentionEvent((data) => {
+        attentionActive = data.active;
+        
+        if (data.active) {
+            // Start vibrating - needs attention!
+            container.classList.add('rg-attention-needed');
+            faceFlipWrapper.classList.add('rg-vibrate');
+            
+            if (window.RG) {
+                const lang = (window.RG && window.RG.language === 'zh') ? 'zh' : 'en';
+                const statusText = lang === 'zh' ? '连接不稳定！确认信号！' : 'LINK UNSTABLE! CONFIRM SIGNAL!';
+                window.RG.setMood('intense', { 
+                    priority: true, 
+                    status: statusText,
+                    duration: 0 // Stay until resolved
+                });
+            }
+        } else {
+            // Stop vibrating
+            container.classList.remove('rg-attention-needed');
+            faceFlipWrapper.classList.remove('rg-vibrate');
+            
+            if (data.resolved && window.RG) {
+                const lang = (window.RG && window.RG.language === 'zh') ? 'zh' : 'en';
+                const statusText = lang === 'zh' ? '连接已恢复' : 'HANDSHAKE CONFIRMED';
+                window.RG.setMood('grateful', { 
+                    priority: true, 
+                    status: statusText,
+                    anim: 'bounce',
+                    duration: 2500
+                });
+            }
+        }
+    });
+}
+
 // === CHAT FUNCTIONALITY ===
 
 // Right-click on pet opens chat

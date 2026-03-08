@@ -195,6 +195,39 @@ body {
     50% { transform: translateY(2px) rotate(-3deg); }
 }
 
+/* Attention needed - urgent vibration */
+@keyframes rg-vibrate {
+    0%, 100% { transform: translateX(0); }
+    10% { transform: translateX(-3px) rotate(-1deg); }
+    20% { transform: translateX(3px) rotate(1deg); }
+    30% { transform: translateX(-3px) rotate(-1deg); }
+    40% { transform: translateX(3px) rotate(1deg); }
+    50% { transform: translateX(-2px); }
+    60% { transform: translateX(2px); }
+    70% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+    90% { transform: translateX(-1px); }
+}
+
+.rg-vibrate {
+    animation: rg-vibrate 0.3s linear infinite !important;
+}
+
+.rg-attention-needed {
+    filter: drop-shadow(0 0 10px rgba(255, 50, 50, 0.8)) 
+            drop-shadow(0 0 20px rgba(255, 50, 50, 0.5));
+}
+
+.rg-attention-needed .status {
+    color: #ff3344 !important;
+    animation: rg-attention-blink 0.5s ease-in-out infinite;
+}
+
+@keyframes rg-attention-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 /* Click ripple particle */
 .rg-click-ripple {
     position: absolute;
