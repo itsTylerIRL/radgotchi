@@ -13,8 +13,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setLanguage: (lang) => ipcRenderer.send('chat-set-language', lang),
     onSetLanguage: (callback) => ipcRenderer.on('set-language', (_event, lang) => callback(lang)),
     onMovementModeChange: (callback) => ipcRenderer.on('movement-mode-change', (_event, mode) => callback(mode)),
-    // Expression-only mode (no text, just expression)
-    setExpressionOnly: (enabled) => ipcRenderer.send('chat-set-expression-only', enabled),
+    // Sleep mode (pauses XP and shows sleep animation)
+    setSleep: (sleeping) => ipcRenderer.send('chat-set-sleep', sleeping),
+    onSetSleep: (callback) => ipcRenderer.on('set-sleep', (_event, sleeping) => callback(sleeping)),
     // XP System
     getXpStatus: () => ipcRenderer.invoke('get-xp-status'),
     addXp: (amount, source) => ipcRenderer.invoke('add-xp', { amount, source }),

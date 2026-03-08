@@ -42,9 +42,6 @@ const RG = (function() {
 
     // === Language Support ===
     let currentLang = localStorage.getItem('radgotchi-lang') || 'en';
-    
-    // === Expression-Only Mode (no text, just expression) ===
-    let expressionOnly = localStorage.getItem('radgotchi-expression-only') === 'true';
 
     // === Status Text Messages — English (themed) ===
     const statusTextEN = {
@@ -160,6 +157,7 @@ const RG = (function() {
     let idleStep = 0;
     let routineTimer = null;
     let sleepZTimer = null;
+    let isSleeping = false;
 
     // === Idle Routines ===
     const idleRoutines = [
@@ -325,6 +323,9 @@ const RG = (function() {
         mood = newMood;
 
         // Update sprite (flip direction is on wrapper, not affected by img src change)
+        // Don't change face/status if sleeping
+        if (isSleeping) return;
+        
         if (faces[mood]) {
             faceEl.src = faces[mood];
         }
@@ -332,13 +333,8 @@ const RG = (function() {
         // Update status text
         const st = getStatusText();
         const text = opts.status || pick(st[mood] || st.awake);
-        if (expressionOnly) {
-            statusEl.textContent = '';
-            statusEl.style.display = 'none';
-        } else {
-            statusEl.textContent = text;
-            statusEl.style.display = '';
-        }
+        statusEl.textContent = text;
+        statusEl.style.display = '';
 
         // Apply animation
         clearAnimations();
@@ -799,34 +795,41 @@ const RG = (function() {
         currentLang = lang;
         localStorage.setItem('radgotchi-lang', lang);
         // Refresh status text to reflect new language immediately
-        const st = getStatusText();
-        if (!expressionOnly) {
+        if (!isSleeping) {
+            const st = getStatusText();
             statusEl.textContent = pick(st[mood] || st.awake);
         }
     }
     
-    // === Expression-Only Setter ===
+    // === Sleep Mode ===
     
-    function setExpressionOnly(enabled) {
-        expressionOnly = enabled;
-        localStorage.setItem('radgotchi-expression-only', enabled ? 'true' : 'false');
-        if (enabled) {
-            statusEl.textContent = '';
-            statusEl.style.display = 'none';
-        } else {
+    function setSleep(sleeping) {
+        isSleeping = sleeping;
+        if (sleeping) {
+            // Enter sleep mode - show sleep animation
+            faceEl.src = faces['sleep'];
             const st = getStatusText();
-            statusEl.textContent = pick(st[mood] || st.awake);
-            statusEl.style.display = '';
+            statusEl.textContent = pick(st.sleep);
+            container.classList.add('sleeping');
+        } else {
+            // Wake up - return to normal
+            container.classList.remove('sleeping');
+            faceEl.src = faces['awake'];
+            const st = getStatusText();
+            statusEl.textContent = pick(st.awake);
         }
+    }
+    
+    function setSleepAnimation(animation) {
+        if (!isSleeping) return;
+        if (faces[animation]) {
+            faceEl.src = faces[animation];
+        }
+        const st = getStatusText();
+        statusEl.textContent = pick(st[animation] || st.sleep);
     }
 
     // === Initialization ===
-    
-    // Apply expression-only mode on startup if saved
-    if (expressionOnly) {
-        statusEl.textContent = '';
-        statusEl.style.display = 'none';
-    }
 
     // === Public API ===
 
@@ -836,11 +839,12 @@ const RG = (function() {
         handleSystemEvent: handleSystemEvent,
         setMood: setMood,
         setLanguage: setLanguage,
-        setExpressionOnly: setExpressionOnly,
+        setSleep: setSleep,
+        setSleepAnimation: setSleepAnimation,
         get mood() { return mood; },
         get petCount() { return petCount; },
         get language() { return currentLang; },
-        get expressionOnly() { return expressionOnly; }
+        get isSleeping() { return isSleeping; }
     };
 
 })();

@@ -306,6 +306,26 @@ body {
     }
 }
 
+/* Sleep mode - dim the pet and slow breathing */
+#radgotchi-container.sleeping .radgotchi-face {
+    filter: 
+        invert(1) sepia(1) saturate(4) hue-rotate(-10deg) brightness(0.6)
+        drop-shadow(0 0 2px var(--rg-color))
+        drop-shadow(0 0 6px var(--rg-glow))
+        contrast(0.9);
+    animation: rg-sleep-bob 4s ease-in-out infinite;
+}
+
+#radgotchi-container.sleeping .radgotchi-status {
+    opacity: 0.6;
+    animation: rg-sleep-status 3s ease-in-out infinite;
+}
+
+@keyframes rg-sleep-status {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 0.3; }
+}
+
 /* Status text */
 .radgotchi-status {
     -webkit-app-region: no-drag;

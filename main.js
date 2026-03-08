@@ -159,6 +159,10 @@ let attentionEvent = {
     lossInterval: null
 };
 
+// Sleep mode state
+let isSleeping = false;
+let sleepAnimationInterval = null;
+
 // Intervals
 let passiveXpInterval = null;
 let idleDecayInterval = null;
@@ -279,6 +283,9 @@ function getXpForCurrentLevel(level) {
 }
 
 function addXp(amount, source = 'unknown') {
+    // Don't gain XP while sleeping
+    if (isSleeping) return { leveledUp: false, newLevel: xpData.level, totalXp: xpData.totalXp };
+    
     // Apply needs penalty if hunger or energy is low
     let finalAmount = amount;
     if (petNeeds.hunger < NEEDS_CONFIG.XP_PENALTY_THRESHOLD || 
@@ -388,6 +395,9 @@ function stopPassiveXpGain() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function removeXp(amount, source = 'unknown') {
+    // Don't lose XP while sleeping
+    if (isSleeping) return { leveledDown: false, newLevel: xpData.level, totalXp: xpData.totalXp };
+    
     const oldLevel = xpData.level;
     xpData.totalXp = Math.max(0, xpData.totalXp - amount);  // Don't go below 0
     xpData.level = calculateLevel(xpData.totalXp);
@@ -459,8 +469,8 @@ function startAttentionEventChecks() {
     if (attentionCheckInterval) return;
     
     attentionCheckInterval = setInterval(() => {
-        // Don't trigger if already active, user is idle, or below min level
-        if (attentionEvent.active || isUserIdle || xpData.level < XP_CONFIG.ATTENTION_MIN_LEVEL) {
+        // Don't trigger if already active, user is idle, sleeping, or below min level
+        if (attentionEvent.active || isUserIdle || isSleeping || xpData.level < XP_CONFIG.ATTENTION_MIN_LEVEL) {
             return;
         }
         
@@ -1276,6 +1286,11 @@ function createWindow() {
 
     // Chat with LLM IPC
     ipcMain.handle('send-chat-message', async (event, { messages }) => {
+        // Wake up pet if sleeping
+        if (isSleeping) {
+            stopSleepMode();
+        }
+        
         if (!llmConfig.enabled || !llmConfig.apiUrl) {
             return { error: 'LLM not configured. Set up in tray menu → Chat Settings.' };
         }
@@ -1567,10 +1582,69 @@ ipcMain.on('chat-set-language', (event, lang) => {
     }
 });
 
-// IPC: Chat panel controls expression-only mode (no text, just expression)
-ipcMain.on('chat-set-expression-only', (event, enabled) => {
+// Sleep mode animations
+const SLEEP_ANIMATIONS = ['sleep', 'sleep2'];
+let sleepAnimationIndex = 0;
+
+function startSleepMode() {
+    if (isSleeping) return;
+    isSleeping = true;
+    
+    // Clear any active attention event
+    if (attentionEvent.active) {
+        if (attentionEvent.lossInterval) {
+            clearInterval(attentionEvent.lossInterval);
+            attentionEvent.lossInterval = null;
+        }
+        attentionEvent.active = false;
+        // Notify windows that attention event ended
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('attention-event', { active: false });
+        }
+        if (chatWindow && chatWindow.webContents) {
+            chatWindow.webContents.send('attention-event', { active: false });
+        }
+    }
+    
+    // Start rotating sleep animations
+    sleepAnimationIndex = 0;
     if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('set-expression-only', enabled);
+        mainWindow.webContents.send('set-sleep', true);
+        mainWindow.webContents.send('sleep-animation', SLEEP_ANIMATIONS[sleepAnimationIndex]);
+    }
+    
+    sleepAnimationInterval = setInterval(() => {
+        sleepAnimationIndex = (sleepAnimationIndex + 1) % SLEEP_ANIMATIONS.length;
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('sleep-animation', SLEEP_ANIMATIONS[sleepAnimationIndex]);
+        }
+    }, 3000); // Rotate every 3 seconds
+}
+
+function stopSleepMode() {
+    if (!isSleeping) return;
+    isSleeping = false;
+    
+    if (sleepAnimationInterval) {
+        clearInterval(sleepAnimationInterval);
+        sleepAnimationInterval = null;
+    }
+    
+    // Notify windows
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('set-sleep', false);
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('set-sleep', false);
+    }
+}
+
+// IPC: Chat panel controls sleep mode
+ipcMain.on('chat-set-sleep', (event, sleeping) => {
+    if (sleeping) {
+        startSleepMode();
+    } else {
+        stopSleepMode();
     }
 });
 

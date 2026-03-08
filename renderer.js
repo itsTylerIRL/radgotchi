@@ -411,11 +411,20 @@ if (window.electronAPI && window.electronAPI.onSetLanguage) {
     });
 }
 
-// Expression-only mode listener (chat panel → renderer → RG module)
-if (window.electronAPI && window.electronAPI.onSetExpressionOnly) {
-    window.electronAPI.onSetExpressionOnly((enabled) => {
-        if (window.RG && typeof window.RG.setExpressionOnly === 'function') {
-            window.RG.setExpressionOnly(enabled);
+// Sleep mode listener (chat panel → renderer → RG module)
+if (window.electronAPI && window.electronAPI.onSetSleep) {
+    window.electronAPI.onSetSleep((sleeping) => {
+        if (window.RG && typeof window.RG.setSleep === 'function') {
+            window.RG.setSleep(sleeping);
+        }
+    });
+}
+
+// Sleep animation listener
+if (window.electronAPI && window.electronAPI.onSleepAnimation) {
+    window.electronAPI.onSleepAnimation((animation) => {
+        if (window.RG && typeof window.RG.setSleepAnimation === 'function') {
+            window.RG.setSleepAnimation(animation);
         }
     });
 }

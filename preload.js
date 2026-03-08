@@ -54,8 +54,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onChatMood: (callback) => safeOn('chat-mood', (_event, mood) => callback(mood)),
     syncChatColor: (color) => ipcRenderer.send('sync-chat-color', color),
     
-    // Expression-only mode (no text, just expression)
-    onSetExpressionOnly: (callback) => safeOn('set-expression-only', (_event, enabled) => callback(enabled)),
+    // Sleep mode (pauses XP and shows sleep animation)
+    onSetSleep: (callback) => safeOn('set-sleep', (_event, sleeping) => callback(sleeping)),
+    onSleepAnimation: (callback) => safeOn('sleep-animation', (_event, animation) => callback(animation)),
     
     // XP System
     addXp: (amount, source) => ipcRenderer.invoke('add-xp', { amount, source }),

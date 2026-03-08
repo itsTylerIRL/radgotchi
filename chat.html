@@ -526,6 +526,22 @@
             text-align: right;
         }
         
+        /* Sleep mode - dim XP and needs bars */
+        .terminal-container.sleeping .level-bar {
+            opacity: 0.35;
+            filter: grayscale(0.5);
+        }
+        
+        .terminal-container.sleeping .needs-bar {
+            opacity: 0.35;
+            filter: grayscale(0.5);
+        }
+        
+        .terminal-container.sleeping .level-bar *,
+        .terminal-container.sleeping .needs-bar * {
+            animation: none !important;
+        }
+        
         /* Stats panel */
         .stats-panel {
             display: none;
@@ -932,6 +948,32 @@
             cursor: not-allowed;
         }
         
+        /* Language toggle button (fixed width) */
+        .lang-toggle-btn {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--term-green);
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.5);
+            padding: 8px 0;
+            width: 36px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .lang-toggle-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: var(--term-green);
+        }
+        
+        .lang-toggle-btn.active {
+            background: var(--term-green);
+            color: #000;
+        }
+        
         /* Controls bar */
         .controls-bar {
             display: flex;
@@ -1154,6 +1196,7 @@
             <span class="input-prefix">&gt;</span>
             <input type="text" class="message-input" id="input" placeholder="ENTER QUERY..." autocomplete="off">
             <button class="send-btn" id="send-btn">XMIT</button>
+            <button class="lang-toggle-btn" id="toggle-lang">中文</button>
         </div>
         <div class="controls-bar">
             <div class="control-group">
@@ -1182,19 +1225,15 @@
                 </select>
             </div>
             <span class="control-divider"></span>
-            <button class="control-toggle" id="toggle-expression-only" title="Expression only (no text)">
+            <button class="control-toggle" id="toggle-sleep" title="Sleep mode (ZZZ)">
                 <span class="toggle-indicator"></span>
-                <span class="toggle-label" id="label-expr">EXPR</span>
-            </button>
-            <span class="control-divider"></span>
-            <button class="control-toggle" id="toggle-lang">
-                <span class="toggle-indicator"></span>
-                <span class="toggle-label">中文</span>
+                <span class="toggle-label" id="label-sleep">ZZZ</span>
             </button>
         </div>
     </div>
     
     <script>
+        const terminalContainer = document.querySelector('.terminal-container');
         const messagesEl = document.getElementById('messages');
         const inputEl = document.getElementById('input');
         const sendBtn = document.getElementById('send-btn');
@@ -1331,6 +1370,15 @@
             const message = inputEl.value.trim();
             if (!message || isSending) return;
             
+            // Wake up pet if sleeping
+            if (toggleSleep.classList.contains('active')) {
+                toggleSleep.classList.remove('active');
+                terminalContainer.classList.remove('sleeping');
+                if (window.electronAPI && window.electronAPI.setSleep) {
+                    window.electronAPI.setSleep(false);
+                }
+            }
+            
             inputEl.value = '';
             addMessage('user', message);
             chatHistory.push({ role: 'user', content: message });
@@ -1451,10 +1499,10 @@
         const selectMovement = document.getElementById('select-movement');
         const selectColor = document.getElementById('select-color');
         const toggleLang = document.getElementById('toggle-lang');
-        const toggleExpressionOnly = document.getElementById('toggle-expression-only');
+        const toggleSleep = document.getElementById('toggle-sleep');
         const labelMov = document.getElementById('label-mov');
         const labelCol = document.getElementById('label-col');
-        const labelExpr = document.getElementById('label-expr');
+        const labelSleep = document.getElementById('label-sleep');
         const toggleStats = document.getElementById('toggle-stats');
         const togglePomo = document.getElementById('toggle-pomo');
         const labelStats = document.getElementById('label-stats');
@@ -1814,7 +1862,7 @@
                 system: 'SYSTEM',
                 mov: 'MOV',
                 col: 'COL',
-                expr: 'EXPR',
+                sleep: 'ZZZ',
                 stats: 'STAT',
                 pomo: 'POMO',
                 hunger: 'PWR',
@@ -1850,7 +1898,7 @@
                 system: '系统',
                 mov: '动作',
                 col: '颜色',
-                expr: '表情',
+                sleep: '睡眠',
                 stats: '统计',
                 pomo: '番茄',
                 hunger: '能量',
@@ -1885,10 +1933,10 @@
             // Update control labels
             labelMov.textContent = t.mov;
             labelCol.textContent = t.col;
-            labelExpr.textContent = t.expr;
+            labelSleep.textContent = t.sleep;
             labelStats.textContent = t.stats;
             labelPomo.textContent = t.pomo;
-            toggleLang.querySelector('.toggle-label').textContent = t.langToggle;
+            toggleLang.textContent = t.langToggle;
             
             // Update needs labels
             document.getElementById('label-hunger').textContent = t.hunger;
@@ -1946,12 +1994,13 @@
             }
         });
         
-        // Expression-only toggle (hides status text, shows only face)
-        toggleExpressionOnly.addEventListener('click', () => {
-            toggleExpressionOnly.classList.toggle('active');
-            const enabled = toggleExpressionOnly.classList.contains('active');
-            if (window.electronAPI && window.electronAPI.setExpressionOnly) {
-                window.electronAPI.setExpressionOnly(enabled);
+        // Sleep mode toggle (pauses XP gain/loss and shows sleep animation)
+        toggleSleep.addEventListener('click', () => {
+            toggleSleep.classList.toggle('active');
+            const sleeping = toggleSleep.classList.contains('active');
+            terminalContainer.classList.toggle('sleeping', sleeping);
+            if (window.electronAPI && window.electronAPI.setSleep) {
+                window.electronAPI.setSleep(sleeping);
             }
         });
         
@@ -1959,6 +2008,7 @@
         toggleLang.addEventListener('click', () => {
             toggleLang.classList.toggle('active');
             const newLang = toggleLang.classList.contains('active') ? 'zh' : 'en';
+            toggleLang.textContent = newLang === 'zh' ? 'EN' : '中文';
             updateLanguage(newLang);
             if (window.electronAPI && window.electronAPI.setLanguage) {
                 window.electronAPI.setLanguage(newLang);
@@ -1977,10 +2027,25 @@
             window.electronAPI.onSetLanguage((lang) => {
                 if (lang === 'zh' && !toggleLang.classList.contains('active')) {
                     toggleLang.classList.add('active');
+                    toggleLang.textContent = 'EN';
                 } else if (lang === 'en' && toggleLang.classList.contains('active')) {
                     toggleLang.classList.remove('active');
+                    toggleLang.textContent = '中文';
                 }
                 updateLanguage(lang);
+            });
+        }
+        
+        // Listen for sleep mode changes from main process (e.g., woken up by message)
+        if (window.electronAPI && window.electronAPI.onSetSleep) {
+            window.electronAPI.onSetSleep((sleeping) => {
+                if (sleeping && !toggleSleep.classList.contains('active')) {
+                    toggleSleep.classList.add('active');
+                    terminalContainer.classList.add('sleeping');
+                } else if (!sleeping && toggleSleep.classList.contains('active')) {
+                    toggleSleep.classList.remove('active');
+                    terminalContainer.classList.remove('sleeping');
+                }
             });
         }
     </script>
