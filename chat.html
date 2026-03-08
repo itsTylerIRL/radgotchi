@@ -760,6 +760,18 @@
             letter-spacing: 1px;
         }
         
+        .message.system.sleep-timer {
+            background: rgba(100, 100, 150, 0.1);
+            border-color: rgba(150, 150, 200, 0.4);
+            color: rgba(180, 180, 220, 0.8);
+            animation: sleep-timer-pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes sleep-timer-pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 0.4; }
+        }
+        
         /* Markdown styles */
         .message code {
             font-family: var(--font-mono);
@@ -1244,6 +1256,68 @@
         let chatHistory = [];
         let isSending = false;
         
+        // Sleep timer state
+        let sleepTimerEl = null;
+        let sleepTimerInterval = null;
+        let sleepStartTime = null;
+        
+        // Sleep timer messages (themed)
+        const sleepMessages = {
+            en: {
+                start: 'DORMANT CYCLE INITIATED',
+                elapsed: 'STASIS DURATION',
+                end: 'SYSTEM REACTIVATED'
+            },
+            zh: {
+                start: '休眠周期已启动',
+                elapsed: '休眠时长',
+                end: '系统已重新激活'
+            }
+        };
+        
+        function formatSleepTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            if (hours > 0) {
+                return hours.toString().padStart(2, '0') + ':' + 
+                       minutes.toString().padStart(2, '0') + ':' + 
+                       seconds.toString().padStart(2, '0');
+            }
+            return minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+        }
+        
+        function startSleepTimer() {
+            if (sleepTimerInterval) return;
+            sleepStartTime = Date.now();
+            const msgs = sleepMessages[currentLang];
+            sleepTimerEl = addMessage('system', msgs.start + ' // ' + msgs.elapsed + ': 00:00');
+            sleepTimerEl.classList.add('sleep-timer');
+            
+            sleepTimerInterval = setInterval(() => {
+                if (!sleepTimerEl) return;
+                const elapsed = Date.now() - sleepStartTime;
+                const msgs = sleepMessages[currentLang];
+                sleepTimerEl.textContent = msgs.start + ' // ' + msgs.elapsed + ': ' + formatSleepTime(elapsed);
+            }, 1000);
+        }
+        
+        function stopSleepTimer() {
+            if (sleepTimerInterval) {
+                clearInterval(sleepTimerInterval);
+                sleepTimerInterval = null;
+            }
+            if (sleepTimerEl && sleepStartTime) {
+                const elapsed = Date.now() - sleepStartTime;
+                const msgs = sleepMessages[currentLang];
+                sleepTimerEl.textContent = msgs.end + ' // ' + msgs.elapsed + ': ' + formatSleepTime(elapsed);
+                sleepTimerEl.classList.remove('sleep-timer');
+                sleepTimerEl = null;
+            }
+            sleepStartTime = null;
+        }
+        
         // Simple markdown parser
         function parseMarkdown(text) {
             // Escape HTML first
@@ -1374,6 +1448,7 @@
             if (toggleSleep.classList.contains('active')) {
                 toggleSleep.classList.remove('active');
                 terminalContainer.classList.remove('sleeping');
+                stopSleepTimer();
                 if (window.electronAPI && window.electronAPI.setSleep) {
                     window.electronAPI.setSleep(false);
                 }
@@ -1999,6 +2074,13 @@
             toggleSleep.classList.toggle('active');
             const sleeping = toggleSleep.classList.contains('active');
             terminalContainer.classList.toggle('sleeping', sleeping);
+            
+            if (sleeping) {
+                startSleepTimer();
+            } else {
+                stopSleepTimer();
+            }
+            
             if (window.electronAPI && window.electronAPI.setSleep) {
                 window.electronAPI.setSleep(sleeping);
             }
@@ -2042,9 +2124,11 @@
                 if (sleeping && !toggleSleep.classList.contains('active')) {
                     toggleSleep.classList.add('active');
                     terminalContainer.classList.add('sleeping');
+                    startSleepTimer();
                 } else if (!sleeping && toggleSleep.classList.contains('active')) {
                     toggleSleep.classList.remove('active');
                     terminalContainer.classList.remove('sleeping');
+                    stopSleepTimer();
                 }
             });
         }

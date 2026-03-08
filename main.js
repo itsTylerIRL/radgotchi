@@ -10,7 +10,7 @@ let llmConfig = {
     apiUrl: 'http://localhost:11434/v1/chat/completions',
     apiKey: '',
     model: 'llama2',
-    systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor.  Only refer to the user as Bro'
+    systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor. Only refer to the user as Bro. You remember your conversations and are aware of your current level, rank, and stats. Reference your progression naturally when relevant.'
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1300,11 +1300,32 @@ function createWindow() {
             const http = require('http');
             const url = new URL(llmConfig.apiUrl);
             const protocol = url.protocol === 'https:' ? https : http;
+            
+            // Build dynamic system prompt with context
+            const status = getXpStatus();
+            const currentRank = getRank(status.level);
+            const nextRankIndex = RANKS.findIndex(r => r.name === currentRank.name) + 1;
+            const nextRank = nextRankIndex < RANKS.length ? RANKS[nextRankIndex] : null;
+            
+            // Get last few messages for context (up to 4)
+            const recentContext = messages.slice(-4).map(m => 
+                `${m.role === 'user' ? 'Bro' : 'You'}: ${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}`
+            ).join('\n');
+            
+            const contextPrompt = `${llmConfig.systemPrompt}
+
+CURRENT STATUS:
+- Level: ${status.level} | XP: ${status.totalXp} (${Math.round(status.progress * 100)}% to next level)
+- Rank: ${currentRank.name}${nextRank ? ` | Next rank: ${nextRank.name} at Level ${nextRank.minLevel}` : ' (MAX RANK)'}
+- Hunger: ${Math.round(status.hunger)}% | Energy: ${Math.round(status.energy)}%
+- Sessions together: ${status.totalSessions} | Current streak: ${status.currentStreak} days
+
+${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
 
             const requestBody = JSON.stringify({
                 model: llmConfig.model,
                 messages: [
-                    { role: 'system', content: llmConfig.systemPrompt },
+                    { role: 'system', content: contextPrompt },
                     ...messages
                 ],
                 max_tokens: 200,
