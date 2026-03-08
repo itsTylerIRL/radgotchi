@@ -800,6 +800,11 @@ function broadcastNeeds() {
 function startPomodoro(mode = 'work') {
     if (pomodoroState.active) return false;
     
+    // Wake up if sleeping when starting pomodoro
+    if (isSleeping) {
+        stopSleepMode();
+    }
+    
     const isLongBreak = mode === 'break' && pomodoroState.pomosCompleted > 0 && 
                         pomodoroState.pomosCompleted % 4 === 0;
     
@@ -810,6 +815,11 @@ function startPomodoro(mode = 'work') {
                              isLongBreak ? POMODORO_CONFIG.LONG_BREAK_MS :
                              POMODORO_CONFIG.BREAK_DURATION_MS;
     pomodoroState.interrupted = false;
+    
+    // Start work animation for focus mode
+    if (mode === 'work') {
+        startWorkAnimation();
+    }
     
     // Start the completion check interval
     pomodoroInterval = setInterval(() => {
@@ -836,6 +846,9 @@ function stopPomodoro() {
         pomodoroInterval = null;
     }
     
+    // Stop work animation
+    stopWorkAnimation();
+    
     pomodoroState.active = false;
     pomodoroState.interrupted = true;
     
@@ -848,6 +861,9 @@ function completePomodoro() {
         clearInterval(pomodoroInterval);
         pomodoroInterval = null;
     }
+    
+    // Stop work animation
+    stopWorkAnimation();
     
     const completedMode = pomodoroState.mode;
     
@@ -1996,6 +2012,46 @@ ipcMain.handle('clear-chat-history', async () => {
 // Sleep mode animations
 const SLEEP_ANIMATIONS = ['sleep', 'sleep2'];
 let sleepAnimationIndex = 0;
+
+// Work mode animations (pomodoro focus)
+const WORK_ANIMATIONS = ['smart', 'intense', 'debug', 'upload', 'upload1', 'upload2'];
+let workAnimationIndex = 0;
+let workAnimationInterval = null;
+
+function startWorkAnimation() {
+    // Clear any existing work animation
+    if (workAnimationInterval) {
+        clearInterval(workAnimationInterval);
+    }
+    
+    workAnimationIndex = 0;
+    
+    // Send initial work state
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('set-work', true);
+        mainWindow.webContents.send('work-animation', WORK_ANIMATIONS[workAnimationIndex]);
+    }
+    
+    // Cycle through work animations every 4 seconds
+    workAnimationInterval = setInterval(() => {
+        workAnimationIndex = (workAnimationIndex + 1) % WORK_ANIMATIONS.length;
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('work-animation', WORK_ANIMATIONS[workAnimationIndex]);
+        }
+    }, 4000);
+}
+
+function stopWorkAnimation() {
+    if (workAnimationInterval) {
+        clearInterval(workAnimationInterval);
+        workAnimationInterval = null;
+    }
+    
+    // Return to normal state
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('set-work', false);
+    }
+}
 
 function startSleepMode() {
     if (isSleeping) return;

@@ -58,6 +58,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onSetSleep: (callback) => safeOn('set-sleep', (_event, sleeping) => callback(sleeping)),
     onSleepAnimation: (callback) => safeOn('sleep-animation', (_event, animation) => callback(animation)),
     
+    // Work mode (pomodoro focus animation)
+    onSetWork: (callback) => safeOn('set-work', (_event, working) => callback(working)),
+    onWorkAnimation: (callback) => safeOn('work-animation', (_event, animation) => callback(animation)),
+    
     // XP System
     addXp: (amount, source) => ipcRenderer.invoke('add-xp', { amount, source }),
     onXpUpdate: (callback) => safeOn('xp-update', (_event, data) => callback(data)),

@@ -429,6 +429,24 @@ if (window.electronAPI && window.electronAPI.onSleepAnimation) {
     });
 }
 
+// Work mode listener (pomodoro focus)
+if (window.electronAPI && window.electronAPI.onSetWork) {
+    window.electronAPI.onSetWork((working) => {
+        if (window.RG && typeof window.RG.setWork === 'function') {
+            window.RG.setWork(working);
+        }
+    });
+}
+
+// Work animation listener
+if (window.electronAPI && window.electronAPI.onWorkAnimation) {
+    window.electronAPI.onWorkAnimation((animation) => {
+        if (window.RG && typeof window.RG.setWorkAnimation === 'function') {
+            window.RG.setWorkAnimation(animation);
+        }
+    });
+}
+
 // System event listener
 if (window.electronAPI && window.electronAPI.onSystemEvent) {
     window.electronAPI.onSystemEvent((event) => {

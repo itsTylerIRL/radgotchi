@@ -326,6 +326,43 @@ body {
     50% { opacity: 0.3; }
 }
 
+/* Work mode (Pomodoro focus) - intense processing look */
+#radgotchi-container.working .radgotchi-face {
+    filter: 
+        invert(1) sepia(1) saturate(5) hue-rotate(-10deg) brightness(1.1)
+        drop-shadow(0 0 4px var(--rg-color))
+        drop-shadow(0 0 12px var(--rg-glow))
+        contrast(1.1);
+    animation: rg-work-pulse 2s ease-in-out infinite;
+}
+
+#radgotchi-container.working .radgotchi-status {
+    animation: rg-work-typing 0.8s steps(3) infinite;
+}
+
+@keyframes rg-work-pulse {
+    0%, 100% { 
+        transform: scale(1);
+        filter: invert(1) sepia(1) saturate(5) hue-rotate(-10deg) brightness(1.1)
+            drop-shadow(0 0 4px var(--rg-color))
+            drop-shadow(0 0 12px var(--rg-glow))
+            contrast(1.1);
+    }
+    50% { 
+        transform: scale(1.02);
+        filter: invert(1) sepia(1) saturate(6) hue-rotate(-10deg) brightness(1.2)
+            drop-shadow(0 0 6px var(--rg-color))
+            drop-shadow(0 0 18px var(--rg-glow))
+            contrast(1.15);
+    }
+}
+
+@keyframes rg-work-typing {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
 /* Status text */
 .radgotchi-status {
     -webkit-app-region: no-drag;

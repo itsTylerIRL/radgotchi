@@ -378,55 +378,64 @@ const SoundSystem = (function() {
             createNoise(now, 0.15, 0.08);
         },
 
-        // English mode activation - synthesized eagle screech (patriotic!)
-        eagleScreech: function() {
+        // English mode activation - Star-Spangled Banner intro
+        starSpangledBanner: function() {
             if (!enabled) return;
             const ctx = getContext();
             if (!ctx) return;
             const now = ctx.currentTime;
             
-            // High pitched descending screech
-            const osc1 = ctx.createOscillator();
-            const osc2 = ctx.createOscillator();
-            const gain1 = ctx.createGain();
-            const gain2 = ctx.createGain();
+            // "Oh say can you see" melody in Bb major (electronic/chiptune style)
+            // F4 - D4 - Bb3 - D4 - F4
+            const melody = [
+                { freq: 349.23, time: 0,     dur: 0.2 },   // Oh (F4)
+                { freq: 293.66, time: 0.2,   dur: 0.15 },  // say (D4)
+                { freq: 233.08, time: 0.35,  dur: 0.15 },  // can (Bb3)
+                { freq: 293.66, time: 0.5,   dur: 0.15 },  // you (D4)
+                { freq: 349.23, time: 0.65,  dur: 0.25 }   // see (F4)
+            ];
             
-            // Primary screech - high frequency sweep down then up
-            osc1.type = 'sawtooth';
-            osc1.frequency.setValueAtTime(2000, now);
-            osc1.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
-            osc1.frequency.exponentialRampToValueAtTime(2400, now + 0.35);
-            osc1.frequency.exponentialRampToValueAtTime(1800, now + 0.5);
+            // Main melody - square wave for that patriotic 8-bit feel
+            melody.forEach(note => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(note.freq, now + note.time);
+                
+                gain.gain.setValueAtTime(0, now + note.time);
+                gain.gain.linearRampToValueAtTime(0.2, now + note.time + 0.02);
+                gain.gain.setValueAtTime(0.18, now + note.time + note.dur * 0.7);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + note.time + note.dur);
+                
+                osc.connect(gain);
+                gain.connect(masterGain);
+                osc.start(now + note.time);
+                osc.stop(now + note.time + note.dur + 0.05);
+            });
             
-            // Harmonic layer
-            osc2.type = 'square';
-            osc2.frequency.setValueAtTime(1600, now);
-            osc2.frequency.exponentialRampToValueAtTime(1000, now + 0.12);
-            osc2.frequency.exponentialRampToValueAtTime(2000, now + 0.3);
+            // Harmony layer - sine wave octave below for fullness
+            melody.forEach(note => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(note.freq / 2, now + note.time);
+                
+                gain.gain.setValueAtTime(0, now + note.time);
+                gain.gain.linearRampToValueAtTime(0.1, now + note.time + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + note.time + note.dur);
+                
+                osc.connect(gain);
+                gain.connect(masterGain);
+                osc.start(now + note.time);
+                osc.stop(now + note.time + note.dur + 0.05);
+            });
             
-            // Sharp attack, warbling sustain
-            gain1.gain.setValueAtTime(0, now);
-            gain1.gain.linearRampToValueAtTime(0.2, now + 0.02);
-            gain1.gain.setValueAtTime(0.15, now + 0.15);
-            gain1.gain.linearRampToValueAtTime(0.2, now + 0.25);
-            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-            
-            gain2.gain.setValueAtTime(0, now);
-            gain2.gain.linearRampToValueAtTime(0.08, now + 0.02);
-            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-            
-            osc1.connect(gain1);
-            osc2.connect(gain2);
-            gain1.connect(masterGain);
-            gain2.connect(masterGain);
-            
-            osc1.start(now);
-            osc2.start(now);
-            osc1.stop(now + 0.7);
-            osc2.stop(now + 0.5);
-            
-            // Breath noise for realism
-            createNoise(now, 0.25, 0.06);
+            // Subtle snare-like hits on downbeats for marching feel
+            createNoise(now, 0.05, 0.04);
+            createNoise(now + 0.35, 0.04, 0.03);
+            createNoise(now + 0.65, 0.06, 0.04);
         }
     };
 

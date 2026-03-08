@@ -1036,6 +1036,106 @@
             color: var(--term-green);
         }
         
+        /* Terminal-style collapsible color picker */
+        .color-picker-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .color-picker-trigger {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            padding: 2px 4px;
+            border: 1px solid var(--term-dim);
+            background: rgba(0, 0, 0, 0.4);
+            transition: all 0.15s ease;
+        }
+        
+        .color-picker-trigger:hover {
+            border-color: var(--term-green);
+        }
+        
+        .color-picker-wrapper.open .color-picker-trigger {
+            border-color: var(--term-green);
+            box-shadow: 0 0 6px rgba(0, 255, 136, 0.3);
+        }
+        
+        .color-swatch-bar {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 4px;
+            background: rgba(10, 12, 10, 0.95);
+            border: 1px solid var(--term-green);
+            box-shadow: 0 0 12px rgba(0, 255, 136, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.5);
+            margin-bottom: 4px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(4px);
+            transition: all 0.15s ease;
+            z-index: 100;
+        }
+        
+        .color-picker-wrapper.open .color-swatch-bar {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .color-swatch {
+            width: 12px;
+            height: 12px;
+            cursor: pointer;
+            border: 1px solid rgba(0, 0, 0, 0.5);
+            transition: all 0.15s ease;
+            position: relative;
+        }
+        
+        .color-swatch:hover {
+            transform: scale(1.3);
+            z-index: 10;
+            box-shadow: 0 0 8px currentColor;
+        }
+        
+        .color-swatch.active {
+            border: 1px solid #fff;
+            box-shadow: 0 0 6px currentColor, inset 0 0 2px rgba(255,255,255,0.5);
+        }
+        
+        .color-swatch::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 50%, rgba(0,0,0,0.2) 100%);
+            pointer-events: none;
+        }
+        
+        .active-color-preview {
+            width: 10px;
+            height: 10px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .color-picker-arrow {
+            font-size: 6px;
+            color: var(--term-dim);
+            transition: transform 0.15s ease;
+        }
+        
+        .color-picker-wrapper.open .color-picker-arrow {
+            transform: rotate(180deg);
+        }
+        
         .control-toggle {
             display: flex;
             align-items: center;
@@ -1114,8 +1214,8 @@
                 <button class="header-btn" id="toggle-stats" title="Show stats">
                     <span id="label-stats">STAT</span>
                 </button>
-                <button class="header-btn" id="toggle-pomo" title="Start Pomodoro">
-                    <span id="label-pomo">POMO</span>
+                <button class="header-btn" id="toggle-pomo" title="Start Work">
+                    <span id="label-pomo">WORK</span>
                 </button>
             </div>
             <div class="header-right">
@@ -1221,28 +1321,34 @@
         </div>
         <div class="controls-bar">
             <div class="control-group">
+                <span class="control-label" id="label-col">COL</span>
+                <div class="color-picker-wrapper" id="color-picker-wrapper">
+                    <div class="color-picker-trigger" id="color-picker-trigger">
+                        <div class="active-color-preview" id="active-color-preview" style="background:#ff3344"></div>
+                        <span class="color-picker-arrow">▲</span>
+                    </div>
+                    <div class="color-swatch-bar" id="color-swatch-bar">
+                        <div class="color-swatch active" data-color="#ff3344" data-name="RED" data-name-zh="红" style="background:#ff3344" title="RED"></div>
+                        <div class="color-swatch" data-color="#00ffff" data-name="CYAN" data-name-zh="青" style="background:#00ffff" title="CYAN"></div>
+                        <div class="color-swatch" data-color="#39ff14" data-name="GREEN" data-name-zh="绿" style="background:#39ff14" title="GREEN"></div>
+                        <div class="color-swatch" data-color="#bf00ff" data-name="PURPLE" data-name-zh="紫" style="background:#bf00ff" title="PURPLE"></div>
+                        <div class="color-swatch" data-color="#ff1493" data-name="PINK" data-name-zh="粉" style="background:#ff1493" title="PINK"></div>
+                        <div class="color-swatch" data-color="#ff6600" data-name="ORANGE" data-name-zh="橙" style="background:#ff6600" title="ORANGE"></div>
+                        <div class="color-swatch" data-color="#ffd700" data-name="YELLOW" data-name-zh="黄" style="background:#ffd700" title="YELLOW"></div>
+                        <div class="color-swatch" data-color="#00bfff" data-name="BLUE" data-name-zh="蓝" style="background:#00bfff" title="BLUE"></div>
+                        <div class="color-swatch" data-color="#00ff00" data-name="LIME" data-name-zh="草绿" style="background:#00ff00" title="LIME"></div>
+                        <div class="color-swatch" data-color="#ffffff" data-name="WHITE" data-name-zh="白" style="background:#ffffff" title="WHITE"></div>
+                    </div>
+                </div>
+            </div>
+            <span class="control-divider"></span>
+            <div class="control-group">
                 <span class="control-label" id="label-mov">MOV</span>
                 <select class="control-select" id="select-movement">
                     <option value="none">NONE</option>
                     <option value="bounce">BOUNCE</option>
                     <option value="follow">FOLLOW</option>
                     <option value="wander">WANDER</option>
-                </select>
-            </div>
-            <span class="control-divider"></span>
-            <div class="control-group">
-                <span class="control-label" id="label-col">COL</span>
-                <select class="control-select" id="select-color">
-                    <option value="#ff3344">RED</option>
-                    <option value="#00ffff">CYAN</option>
-                    <option value="#39ff14">GREEN</option>
-                    <option value="#bf00ff">PURPLE</option>
-                    <option value="#ff1493">PINK</option>
-                    <option value="#ff6600">ORANGE</option>
-                    <option value="#ffd700">YELLOW</option>
-                    <option value="#00bfff">BLUE</option>
-                    <option value="#00ff00">LIME</option>
-                    <option value="#ffffff">WHITE</option>
                 </select>
             </div>
             <span class="control-divider"></span>
@@ -1673,7 +1779,12 @@
             
             // Preselect color from current state
             if (data.color) {
-                selectColor.value = data.color;
+                const activeSwatch = document.querySelector(`.color-swatch[data-color="${data.color}"]`);
+                if (activeSwatch) {
+                    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+                    activeSwatch.classList.add('active');
+                    activeColorPreview.style.background = data.color;
+                }
                 applyColor(data.color);
             }
             
@@ -1723,7 +1834,10 @@
         
         // Control elements
         const selectMovement = document.getElementById('select-movement');
-        const selectColor = document.getElementById('select-color');
+        const colorPickerWrapper = document.getElementById('color-picker-wrapper');
+        const colorPickerTrigger = document.getElementById('color-picker-trigger');
+        const colorSwatchBar = document.getElementById('color-swatch-bar');
+        const activeColorPreview = document.getElementById('active-color-preview');
         const toggleLang = document.getElementById('toggle-lang');
         const toggleSleep = document.getElementById('toggle-sleep');
         const labelMov = document.getElementById('label-mov');
@@ -2112,7 +2226,7 @@
                     if (typeof SoundSystem !== 'undefined') SoundSystem.play('pomodoroStart');
                     const msg = currentLang === 'zh' 
                         ? '🍅 番茄钟开始！专注25分钟...'
-                        : '🍅 POMODORO STARTED! Focus for 25 minutes...';
+                        : '🍅 WORK STARTED! Focus for 25 minutes...';
                     pomodoroMsgEl = addMessage('system', msg, false, null, true);
                 }
             }
@@ -2124,7 +2238,7 @@
                 window.electronAPI.pomodoroStop();
                 const msg = currentLang === 'zh' 
                     ? '⏹️ 番茄钟已停止'
-                    : '⏹️ POMODORO STOPPED';
+                    : '⏹️ WORK STOPPED';
                 // Update existing message if it exists
                 if (pomodoroMsgEl) {
                     pomodoroMsgEl.textContent = msg;
@@ -2258,8 +2372,10 @@
             Array.from(selectMovement.options).forEach(opt => {
                 opt.textContent = t.movOptions[opt.value];
             });
-            Array.from(selectColor.options).forEach(opt => {
-                opt.textContent = t.colOptions[opt.value];
+            // Update color swatch labels
+            document.querySelectorAll('.color-swatch').forEach(swatch => {
+                const name = t.colOptions[swatch.dataset.color];
+                swatch.title = name;
             });
             
             // Update copy buttons
@@ -2290,9 +2406,36 @@
             }
         });
         
-        // Color select
-        selectColor.addEventListener('change', () => {
-            const color = selectColor.value;
+        // Color picker toggle
+        colorPickerTrigger.addEventListener('click', () => {
+            colorPickerWrapper.classList.toggle('open');
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('selectChange');
+        });
+        
+        // Close picker when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!colorPickerWrapper.contains(e.target)) {
+                colorPickerWrapper.classList.remove('open');
+            }
+        });
+        
+        // Color swatch bar click
+        colorSwatchBar.addEventListener('click', (e) => {
+            const swatch = e.target.closest('.color-swatch');
+            if (!swatch) return;
+            
+            const color = swatch.dataset.color;
+            
+            // Update active state
+            document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+            swatch.classList.add('active');
+            
+            // Update preview color
+            activeColorPreview.style.background = color;
+            
+            // Close the picker
+            colorPickerWrapper.classList.remove('open');
+            
             if (typeof SoundSystem !== 'undefined') SoundSystem.play('selectChange');
             applyColor(color);
             if (window.electronAPI && window.electronAPI.setColor) {
@@ -2344,9 +2487,9 @@
             toggleLang.classList.toggle('active');
             const newLang = toggleLang.classList.contains('active') ? 'zh' : 'en';
             toggleLang.textContent = newLang === 'zh' ? 'EN' : '中文';
-            // Play gong for Chinese, eagle screech for English
+            // Play gong for Chinese, Star-Spangled Banner for English
             if (typeof SoundSystem !== 'undefined') {
-                SoundSystem.play(newLang === 'zh' ? 'gong' : 'eagleScreech');
+                SoundSystem.play(newLang === 'zh' ? 'gong' : 'starSpangledBanner');
             }
             updateLanguage(newLang);
             if (window.electronAPI && window.electronAPI.setLanguage) {

@@ -9,8 +9,8 @@ const path = require('path');
 const { createCanvas, loadImage } = require('canvas');
 
 // Configuration
-const OUTPUT_DIR = path.join(__dirname, 'demo-assets');
-const ASSETS_DIR = path.join(__dirname, 'assets');
+const OUTPUT_DIR = __dirname;  // Script is in assets/demo/, outputs here
+const ASSETS_DIR = path.join(__dirname, '..', 'gotchi');  // Sprites are in assets/gotchi/
 const CYAN_COLOR = { r: 0, g: 255, b: 255 };
 
 // README sections mapped to relevant sprites and descriptions

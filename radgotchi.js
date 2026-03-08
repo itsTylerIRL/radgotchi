@@ -13,31 +13,31 @@ const RG = (function() {
 
     // === Sprite Paths (25 states) ===
     const faces = {
-        awake: 'assets/AWAKE.png',
-        happy: 'assets/HAPPY.png',
-        excited: 'assets/EXCITED.png',
-        cool: 'assets/COOL.png',
-        grateful: 'assets/GRATEFUL.png',
-        motivated: 'assets/MOTIVATED.png',
-        friend: 'assets/FRIEND.png',
-        look_l: 'assets/LOOK_L.png',
-        look_r: 'assets/LOOK_R.png',
-        look_l_happy: 'assets/LOOK_L_HAPPY.png',
-        look_r_happy: 'assets/LOOK_R_HAPPY.png',
-        smart: 'assets/SMART.png',
-        intense: 'assets/INTENSE.png',
-        debug: 'assets/DEBUG.png',
-        bored: 'assets/BORED.png',
-        sad: 'assets/SAD.png',
-        angry: 'assets/ANGRY.png',
-        lonely: 'assets/LONELY.png',
-        demotivated: 'assets/DEMOTIVATED.png',
-        broken: 'assets/BROKEN.png',
-        sleep: 'assets/SLEEP.png',
-        sleep2: 'assets/SLEEP2.png',
-        upload: 'assets/UPLOAD.png',
-        upload1: 'assets/UPLOAD1.png',
-        upload2: 'assets/UPLOAD2.png'
+        awake: 'assets/gotchi/AWAKE.png',
+        happy: 'assets/gotchi/HAPPY.png',
+        excited: 'assets/gotchi/EXCITED.png',
+        cool: 'assets/gotchi/COOL.png',
+        grateful: 'assets/gotchi/GRATEFUL.png',
+        motivated: 'assets/gotchi/MOTIVATED.png',
+        friend: 'assets/gotchi/FRIEND.png',
+        look_l: 'assets/gotchi/LOOK_L.png',
+        look_r: 'assets/gotchi/LOOK_R.png',
+        look_l_happy: 'assets/gotchi/LOOK_L_HAPPY.png',
+        look_r_happy: 'assets/gotchi/LOOK_R_HAPPY.png',
+        smart: 'assets/gotchi/SMART.png',
+        intense: 'assets/gotchi/INTENSE.png',
+        debug: 'assets/gotchi/DEBUG.png',
+        bored: 'assets/gotchi/BORED.png',
+        sad: 'assets/gotchi/SAD.png',
+        angry: 'assets/gotchi/ANGRY.png',
+        lonely: 'assets/gotchi/LONELY.png',
+        demotivated: 'assets/gotchi/DEMOTIVATED.png',
+        broken: 'assets/gotchi/BROKEN.png',
+        sleep: 'assets/gotchi/SLEEP.png',
+        sleep2: 'assets/gotchi/SLEEP2.png',
+        upload: 'assets/gotchi/UPLOAD.png',
+        upload1: 'assets/gotchi/UPLOAD1.png',
+        upload2: 'assets/gotchi/UPLOAD2.png'
     };
 
     // === Language Support ===
@@ -158,6 +158,7 @@ const RG = (function() {
     let routineTimer = null;
     let sleepZTimer = null;
     let isSleeping = false;
+    let isWorking = false;
 
     // === Idle Routines ===
     const idleRoutines = [
@@ -323,8 +324,8 @@ const RG = (function() {
         mood = newMood;
 
         // Update sprite (flip direction is on wrapper, not affected by img src change)
-        // Don't change face/status if sleeping
-        if (isSleeping) return;
+        // Don't change face/status if sleeping or in work mode (pomodoro)
+        if (isSleeping || isWorking) return;
         
         if (faces[mood]) {
             faceEl.src = faces[mood];
@@ -835,6 +836,38 @@ const RG = (function() {
         const st = getStatusText();
         statusEl.textContent = pick(st[animation] || st.sleep);
     }
+    
+    // === Work Mode (Pomodoro Focus) ===
+    
+    function setWork(working) {
+        isWorking = working;
+        if (working) {
+            // Ensure not sleeping
+            if (isSleeping) {
+                setSleep(false);
+            }
+            // Enter work mode - show first work animation
+            container.classList.add('working');
+            faceEl.src = faces['smart'];
+            const st = getStatusText();
+            statusEl.textContent = pick(st.smart);
+        } else {
+            // Exit work mode - return to normal
+            container.classList.remove('working');
+            faceEl.src = faces['happy'];  // Happy after completing work
+            const st = getStatusText();
+            statusEl.textContent = pick(st.happy);
+        }
+    }
+    
+    function setWorkAnimation(animation) {
+        if (!isWorking) return;
+        if (faces[animation]) {
+            faceEl.src = faces[animation];
+        }
+        const st = getStatusText();
+        statusEl.textContent = pick(st[animation] || st.smart);
+    }
 
     // === Initialization ===
 
@@ -848,10 +881,13 @@ const RG = (function() {
         setLanguage: setLanguage,
         setSleep: setSleep,
         setSleepAnimation: setSleepAnimation,
+        setWork: setWork,
+        setWorkAnimation: setWorkAnimation,
         get mood() { return mood; },
         get petCount() { return petCount; },
         get language() { return currentLang; },
-        get isSleeping() { return isSleeping; }
+        get isSleeping() { return isSleeping; },
+        get isWorking() { return isWorking; }
     };
 
 })();

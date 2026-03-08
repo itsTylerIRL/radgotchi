@@ -13,7 +13,7 @@
     "build:linux": "electron-builder --linux",
     "build:portable": "electron-builder --win portable",
     "clean": "rimraf dist",
-    "demo": "node generate-demo.js"
+    "demo": "node assets/demo/generate-demo.js"
   },
   "repository": {
     "type": "git",

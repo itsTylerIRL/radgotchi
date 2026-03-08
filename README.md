@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/AWAKE.png" alt="Radgotchi" width="100">
+  <img src="assets/gotchi/AWAKE.png" alt="Radgotchi" width="100">
 </p>
 
 <h1 align="center">RADGOTCHI</h1>
@@ -15,14 +15,14 @@
 </p>
 
 <p align="center">
-  <img src="assets/AWAKE.png" alt="Radgotchi" width="80">
-  <img src="assets/HAPPY.png" alt="Happy" width="80">
-  <img src="assets/EXCITED.png" alt="Excited" width="80">
-  <img src="assets/COOL.png" alt="Cool" width="80">
+  <img src="assets/gotchi/AWAKE.png" alt="Radgotchi" width="80">
+  <img src="assets/gotchi/HAPPY.png" alt="Happy" width="80">
+  <img src="assets/gotchi/EXCITED.png" alt="Excited" width="80">
+  <img src="assets/gotchi/COOL.png" alt="Cool" width="80">
 </p>
 
 <p align="center">
-  <img src="demo-assets/showcase.png" alt="Radgotchi Demo Showcase" width="600">
+  <img src="assets/demo/showcase.png" alt="Radgotchi Demo Showcase" width="600">
 </p>
 
 <p align="center">
@@ -46,7 +46,7 @@ Radgotchi operates as a persistent desktop intelligence asset, continuously moni
 Your asset maintains situational awareness through an advanced mood state engine. Each state corresponds to specific environmental triggers, ensuring the visual representation matches current operational status.
 
 <p align="center">
-  <img src="demo-assets/behavioral-intelligence-preview.png" alt="Behavioral Intelligence" width="400">
+  <img src="assets/demo/behavioral-intelligence-preview.png" alt="Behavioral Intelligence" width="400">
 </p>
 
 | Capability | Description |
@@ -60,7 +60,7 @@ Your asset maintains situational awareness through an advanced mood state engine
 The asset continuously ingests system health data, translating raw metrics into behavioral responses. High-severity conditions trigger visual and auditory alerts.
 
 <p align="center">
-  <img src="demo-assets/system-telemetry.png" alt="System Telemetry" width="400">
+  <img src="assets/demo/system-telemetry.png" alt="System Telemetry" width="400">
 </p>
 
 | Feed | Response Behavior |
@@ -76,7 +76,7 @@ The asset continuously ingests system health data, translating raw metrics into 
 Select from four distinct movement behaviors to match your workflow. Each mode offers different levels of autonomy and screen utilization.
 
 <p align="center">
-  <img src="demo-assets/movement-protocols-preview.png" alt="Movement Protocols" width="400">
+  <img src="assets/demo/movement-protocols-preview.png" alt="Movement Protocols" width="400">
 </p>
 
 | Mode | Behavior |
@@ -91,7 +91,7 @@ Select from four distinct movement behaviors to match your workflow. Each mode o
 The integrated communication interface provides direct access to local language models. All traffic remains local—no external API calls unless explicitly configured.
 
 <p align="center">
-  <img src="demo-assets/sigint-terminal.png" alt="SIGINT Terminal" width="400">
+  <img src="assets/demo/sigint-terminal.png" alt="SIGINT Terminal" width="400">
 </p>
 
 | Feature | Status |
@@ -107,7 +107,7 @@ The integrated communication interface provides direct access to local language 
 All sound effects are generated procedurally via the Web Audio API—no external audio files required. Toggle mute from the command center or terminal interface.
 
 <p align="center">
-  <img src="demo-assets/audio-subsystem.png" alt="Audio Subsystem" width="400">
+  <img src="assets/demo/audio-subsystem.png" alt="Audio Subsystem" width="400">
 </p>
 
 | Component | Specification |
@@ -121,7 +121,7 @@ All sound effects are generated procedurally via the Web Audio API—no external
 Operational engagement is rewarded through a comprehensive progression framework. Sustained activity unlocks increasingly prestigious clearance designations.
 
 <p align="center">
-  <img src="demo-assets/clearance-system.png" alt="Clearance System" width="400">
+  <img src="assets/demo/clearance-system.png" alt="Clearance System" width="400">
 </p>
 
 | Mechanic | Description |
@@ -135,7 +135,7 @@ Operational engagement is rewarded through a comprehensive progression framework
 Like any field asset, Radgotchi requires periodic care. Neglecting vital signs results in XP penalties; attentive operation yields bonus rewards.
 
 <p align="center">
-  <img src="demo-assets/asset-maintenance-preview.png" alt="Asset Maintenance" width="400">
+  <img src="assets/demo/asset-maintenance-preview.png" alt="Asset Maintenance" width="400">
 </p>
 
 | Need | Mechanism |
@@ -150,7 +150,7 @@ Like any field asset, Radgotchi requires periodic care. Neglecting vital signs r
 Integrated Pomodoro timer for sustained operational focus. Complete work cycles to earn XP bonuses and maintain peak productivity.
 
 <p align="center">
-  <img src="demo-assets/focus-operations.png" alt="Focus Operations" width="400">
+  <img src="assets/demo/focus-operations.png" alt="Focus Operations" width="400">
 </p>
 
 | Parameter | Value |
@@ -165,7 +165,7 @@ Integrated Pomodoro timer for sustained operational focus. Complete work cycles 
 The leveling system tracks cumulative engagement across all operational vectors—interactions, messages, sessions, and uptime. Advance through 13 clearance ranks from TRAINEE to PHANTOM.
 
 <p align="center">
-  <img src="demo-assets/progression-engine.png" alt="Progression Engine" width="400">
+  <img src="assets/demo/progression-engine.png" alt="Progression Engine" width="400">
 </p>
 
 | Metric | Range |
@@ -188,7 +188,7 @@ Full interface localization ensures global accessibility. All status messages, i
 Pixel-perfect rendering ensures your asset looks sharp at any scale. The floating window maintains transparency with always-on-top priority.
 
 <p align="center">
-  <img src="demo-assets/visual-themes.png" alt="Visual Themes" width="400">
+  <img src="assets/demo/visual-themes.png" alt="Visual Themes" width="400">
 </p>
 
 | Feature | Implementation |
@@ -433,7 +433,7 @@ All interface elements and status messages localize automatically.
 Enable low-power display mode via terminal toggle. Reduces visual activity and prevents energy loss over time.
 
 <p align="center">
-  <img src="demo-assets/sleepy-mode-preview.png" alt="Sleepy Mode" width="400">
+  <img src="assets/demo/sleepy-mode-preview.png" alt="Sleepy Mode" width="400">
 </p>
 
 ### Style Variables
