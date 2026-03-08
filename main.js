@@ -1851,8 +1851,8 @@ function createChatWindow() {
     }
 
     chatWindow = new BrowserWindow({
-        width: 360,
-        height: 380,
+        width: 480,
+        height: 420,
         x: chatX,
         y: chatY,
         frame: false,
@@ -1861,8 +1861,8 @@ function createChatWindow() {
         alwaysOnTop: true,
         skipTaskbar: true,
         resizable: true,
-        minWidth: 320,
-        minHeight: 250,
+        minWidth: 360,
+        minHeight: 300,
         webPreferences: {
             preload: path.join(__dirname, 'preload-chat.js'),
             contextIsolation: true,
@@ -1875,6 +1875,9 @@ function createChatWindow() {
 
     // Send config status once loaded
     chatWindow.webContents.on('did-finish-load', () => {
+        // Reset zoom to 100% each time
+        chatWindow.webContents.setZoomFactor(1);
+        
         // Get current color and expression-only state from main window
         mainWindow.webContents.executeJavaScript(`({
             color: localStorage.getItem("radgotchi-color") || "#ff3344",
@@ -2356,14 +2359,17 @@ function showChatSettingsDialog() {
     }
 
     settingsWindow = new BrowserWindow({
-        width: 450,
-        height: 420,
+        width: 420,
+        height: 520,
+        minWidth: 380,
+        minHeight: 450,
         parent: mainWindow,
         modal: false,
-        resizable: false,
+        resizable: true,
         minimizable: false,
         maximizable: false,
-        title: 'Chat Settings',
+        title: 'COMMS CONFIG',
+        backgroundColor: '#0a0a0f',
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -2378,76 +2384,275 @@ function showChatSettingsDialog() {
 <head>
     <meta charset="UTF-8">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        
+        :root {
+            --term-green: #00ff9d;
+            --term-dim: #00aa66;
+            --term-red: #ff3344;
+            --term-bg: #0a0a0f;
+            --term-panel: #0d1117;
+            --term-border: #1a3a2a;
+        }
+        
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        
         body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #1a1a2e;
-            color: #eee;
-            padding: 20px;
-            font-size: 13px;
+            font-family: 'Share Tech Mono', 'Consolas', 'Monaco', monospace;
+            background: var(--term-bg);
+            color: var(--term-green);
+            padding: 0;
+            font-size: 12px;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
         }
-        h2 { color: #ff3344; margin-bottom: 15px; font-size: 16px; }
-        .field { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; color: #aaa; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
-        input[type="text"], input[type="password"], textarea {
+        
+        /* Scanline effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            padding: 8px 10px;
-            background: #252540;
-            border: 1px solid #444;
-            color: #fff;
-            border-radius: 4px;
-            font-family: inherit;
-            font-size: 12px;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 1000;
         }
-        input:focus, textarea:focus { outline: none; border-color: #ff3344; }
-        textarea { resize: vertical; min-height: 60px; }
-        .checkbox-field { display: flex; align-items: center; gap: 10px; }
-        .checkbox-field input { width: auto; }
-        .button-row { display: flex; gap: 10px; margin-top: 20px; }
-        button {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
+        
+        .terminal-container {
+            padding: 15px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 30px);
+        }
+        
+        /* Header bar */
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--term-panel);
+            border: 1px solid var(--term-border);
+            margin-bottom: 15px;
+        }
+        
+        .classification {
+            color: var(--term-red);
+            font-weight: bold;
+            font-size: 10px;
+            letter-spacing: 2px;
+        }
+        
+        .title {
+            color: var(--term-green);
+            font-size: 11px;
+            letter-spacing: 3px;
+        }
+        
+        .encrypted {
+            color: var(--term-dim);
+            font-size: 9px;
             letter-spacing: 1px;
         }
-        .btn-save { background: #ff3344; color: #fff; }
-        .btn-save:hover { background: #ff5566; }
-        .btn-cancel { background: #333; color: #aaa; }
-        .btn-cancel:hover { background: #444; }
-        .hint { font-size: 10px; color: #666; margin-top: 4px; }
+        
+        /* Form styling */
+        .field {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--term-dim);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        label::before {
+            content: '█ ';
+            color: var(--term-green);
+        }
+        
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--term-panel);
+            border: 1px solid var(--term-border);
+            color: var(--term-green);
+            font-family: inherit;
+            font-size: 12px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        input:focus, textarea:focus {
+            border-color: var(--term-green);
+            box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
+        }
+        
+        input::placeholder, textarea::placeholder {
+            color: #335544;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 70px;
+            flex: 1;
+        }
+        
+        .field-grow {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .checkbox-field {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            background: var(--term-panel);
+            border: 1px solid var(--term-border);
+        }
+        
+        .checkbox-field input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--term-green);
+            cursor: pointer;
+        }
+        
+        .checkbox-field label {
+            margin: 0;
+            font-size: 11px;
+            color: var(--term-green);
+        }
+        
+        .checkbox-field label::before {
+            content: '';
+        }
+        
+        .hint {
+            font-size: 9px;
+            color: #335544;
+            margin-top: 5px;
+            letter-spacing: 1px;
+        }
+        
+        .hint::before {
+            content: '// ';
+            color: var(--term-dim);
+        }
+        
+        /* Buttons */
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid var(--term-border);
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid var(--term-border);
+            background: var(--term-panel);
+            color: var(--term-dim);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            border-color: var(--term-green);
+            color: var(--term-green);
+            box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
+        }
+        
+        .btn-save {
+            background: rgba(0, 255, 157, 0.1);
+            border-color: var(--term-green);
+            color: var(--term-green);
+        }
+        
+        .btn-save:hover {
+            background: rgba(0, 255, 157, 0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 157, 0.3);
+        }
+        
+        .btn-cancel:hover {
+            border-color: var(--term-red);
+            color: var(--term-red);
+        }
+        
+        /* Status indicator */
+        .status-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: var(--term-panel);
+            border: 1px solid var(--term-border);
+            margin-top: 15px;
+            font-size: 9px;
+        }
+        
+        .status-item {
+            color: var(--term-dim);
+        }
+        
+        .status-value {
+            color: var(--term-green);
+        }
     </style>
 </head>
 <body>
-    <h2>🔗 LLM Chat Settings</h2>
-    <div class="field checkbox-field">
-        <input type="checkbox" id="enabled">
-        <label for="enabled" style="margin: 0;">Enable Chat (requires local LLM)</label>
-    </div>
+    <div class="terminal-container">
+        <div class="header-bar">
+            <span class="classification">RB//WR</span>
+            <span class="title">COMMS CONFIG</span>
+            <span class="encrypted">█ ENCRYPTED</span>
+        </div>
+        
+        <div class="field checkbox-field">
+            <input type="checkbox" id="enabled">
+            <label for="enabled">ENABLE COMMS LINK (REQUIRES LOCAL LLM)</label>
+        </div>
     <div class="field">
-        <label>API Endpoint URL</label>
+        <label>ENDPOINT URL</label>
         <input type="text" id="apiUrl" placeholder="http://localhost:11434/v1/chat/completions">
-        <div class="hint">OpenAI-compatible endpoint (Ollama, LM Studio, LocalAI, etc.)</div>
+        <div class="hint">OpenAI-compatible endpoint (Ollama, LM Studio, LocalAI)</div>
     </div>
     <div class="field">
-        <label>API Key (optional)</label>
+        <label>API KEY</label>
         <input type="password" id="apiKey" placeholder="Leave empty if not required">
     </div>
     <div class="field">
-        <label>Model Name</label>
+        <label>MODEL DESIGNATION</label>
         <input type="text" id="model" placeholder="llama2">
     </div>
-    <div class="field">
-        <label>System Prompt</label>
+    <div class="field field-grow">
+        <label>SYSTEM DIRECTIVE</label>
         <textarea id="systemPrompt" rows="3"></textarea>
     </div>
     <div class="button-row">
-        <button class="btn-cancel" onclick="window.close()">Cancel</button>
-        <button class="btn-save" onclick="saveSettings()">Save</button>
+        <button class="btn-cancel" onclick="window.close()">ABORT</button>
+        <button class="btn-save" onclick="saveSettings()">COMMIT</button>
+    </div>
     </div>
     <script>
         async function loadSettings() {
@@ -2476,6 +2681,33 @@ function showChatSettingsDialog() {
 
     settingsWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(settingsHtml));
     settingsWindow.setMenu(null);
+    
+    // Sync theme color after content loads
+    settingsWindow.webContents.on('did-finish-load', () => {
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.executeJavaScript(`localStorage.getItem("radgotchi-color") || "#00ff9d"`)
+                .then(color => {
+                    if (settingsWindow && settingsWindow.webContents) {
+                        settingsWindow.webContents.executeJavaScript(`
+                            const hex = '${color}'.replace('#', '');
+                            document.documentElement.style.setProperty('--term-green', '${color}');
+                            // Calculate dim color (reduce brightness)
+                            const r = Math.round(parseInt(hex.substr(0,2), 16) * 0.65);
+                            const g = Math.round(parseInt(hex.substr(2,2), 16) * 0.65);
+                            const b = Math.round(parseInt(hex.substr(4,2), 16) * 0.65);
+                            const dim = '#' + r.toString(16).padStart(2,'0') + g.toString(16).padStart(2,'0') + b.toString(16).padStart(2,'0');
+                            document.documentElement.style.setProperty('--term-dim', dim);
+                            // Border color (darker version)
+                            const br = Math.round(parseInt(hex.substr(0,2), 16) * 0.25);
+                            const bg = Math.round(parseInt(hex.substr(2,2), 16) * 0.25);
+                            const bb = Math.round(parseInt(hex.substr(4,2), 16) * 0.25);
+                            document.documentElement.style.setProperty('--term-border', '#' + br.toString(16).padStart(2,'0') + bg.toString(16).padStart(2,'0') + bb.toString(16).padStart(2,'0'));
+                        `).catch(() => {});
+                    }
+                })
+                .catch(() => {});
+        }
+    });
 
     settingsWindow.on('closed', () => {
         settingsWindow = null;
@@ -2621,12 +2853,6 @@ function createTray() {
             label: 'Dev Tools',
             click: () => {
                 mainWindow.webContents.openDevTools({ mode: 'detach' });
-            }
-        },
-        {
-            label: 'Update from GitHub',
-            click: () => {
-                performUpdate();
             }
         },
         { type: 'separator' },

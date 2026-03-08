@@ -35,7 +35,12 @@
 
 ## System Capabilities
 
+Radgotchi operates as a persistent desktop intelligence asset, continuously monitoring system telemetry and user engagement patterns. The following subsystems work in concert to create a responsive companion that adapts to your operational environment in real time.
+
 ### Behavioral Intelligence
+
+Your asset maintains situational awareness through an advanced mood state engine. Each state corresponds to specific environmental triggers, ensuring the visual representation matches current operational status.
+
 | Capability | Description |
 |------------|-------------|
 | **Mood States** | 25+ expressive states with hand-crafted pixel art |
@@ -43,6 +48,9 @@
 | **Adaptive Response** | Smooth state transitions based on system events |
 
 ### System Telemetry
+
+The asset continuously ingests system health data, translating raw metrics into behavioral responses. High-severity conditions trigger visual and auditory alerts.
+
 | Feed | Response Behavior |
 |------|-------------------|
 | **CPU Load** | Elevated alertness during high utilization, spike detection |
@@ -52,6 +60,9 @@
 | **User Presence** | Idle detection (2min) triggers sleep mode; returns on activity |
 
 ### Movement Protocols
+
+Select from four distinct movement behaviors to match your workflow. Each mode offers different levels of autonomy and screen utilization.
+
 | Mode | Behavior |
 |------|----------|
 | `STATIC` | Fixed position, manual repositioning only |
@@ -60,6 +71,9 @@
 | `WANDER` | Autonomous exploration with rest intervals |
 
 ### SIGINT Terminal
+
+The integrated communication interface provides direct access to local language models. All traffic remains local—no external API calls unless explicitly configured.
+
 | Feature | Status |
 |---------|--------|
 | **Local LLM Integration** | Ollama, LM Studio, LocalAI, OpenAI-compatible |
@@ -69,6 +83,9 @@
 | **Markdown Render** | Code blocks, formatting, copy functionality |
 
 ### Audio Subsystem
+
+All sound effects are generated procedurally via the Web Audio API—no external audio files required. Toggle mute from the command center or terminal interface.
+
 | Component | Specification |
 |-----------|---------------|
 | **Engine** | Web Audio API synthesis |
@@ -76,6 +93,9 @@
 | **Controls** | MUTE toggle, volume adjustment via API |
 
 ### Clearance System
+
+Operational engagement is rewarded through a comprehensive progression framework. Sustained activity unlocks increasingly prestigious clearance designations.
+
 | Mechanic | Description |
 |----------|-------------|
 | **Milestone Tracking** | Clicks, messages, sessions, XP, uptime |
@@ -83,6 +103,9 @@
 | **Persistence** | Progress survives session termination |
 
 ### Asset Maintenance
+
+Like any field asset, Radgotchi requires periodic care. Neglecting vital signs results in XP penalties; attentive operation yields bonus rewards.
+
 | Need | Mechanism |
 |------|----------|
 | **Sustenance** | Feed via terminal interface |
@@ -91,6 +114,9 @@
 | **Monitoring** | Stats panel visualization |
 
 ### Focus Operations
+
+Integrated Pomodoro timer for sustained operational focus. Complete work cycles to earn XP bonuses and maintain peak productivity.
+
 | Parameter | Value |
 |-----------|-------|
 | **Work Cycle** | 25 minutes |
@@ -99,6 +125,9 @@
 | **XP Reward** | +25 on completion |
 
 ### Progression Engine
+
+The leveling system tracks cumulative engagement across all operational vectors—interactions, messages, sessions, and uptime. Advance through 13 clearance ranks from TRAINEE to PHANTOM.
+
 | Metric | Range |
 |--------|-------|
 | **Levels** | 1–50+ (17,500+ XP max tier) |
@@ -107,11 +136,17 @@
 | **Engagement** | Streak tracking, level-up events |
 
 ### Localization
+
+Full interface localization ensures global accessibility. All status messages, interface elements, and system notifications adapt to the selected language.
+
 - **Primary:** English
 - **Secondary:** 中文 (Chinese)
 - **Toggle:** Terminal or system tray
 
 ### Visual Fidelity
+
+Pixel-perfect rendering ensures your asset looks sharp at any scale. The floating window maintains transparency with always-on-top priority.
+
 | Feature | Implementation |
 |---------|----------------|
 | **Idle Animation** | Breathing pulse effect |
@@ -123,6 +158,8 @@
 ---
 
 ## Deployment
+
+Radgotchi deploys as a standalone Electron application. No additional runtime dependencies required after initial setup.
 
 ### System Requirements
 
@@ -159,7 +196,11 @@ npm run start:safe
 
 ## Operational Parameters
 
+Direct interaction with your asset is handled through mouse controls and the system tray command center. The following matrices define available inputs and their effects.
+
 ### Input Controls
+
+Basic interaction mechanics for daily operation.
 
 | Input | Action |
 |-------|--------|
@@ -169,6 +210,8 @@ npm run start:safe
 | `TRAY RIGHT-CLICK` | Access command center |
 
 ### Command Center
+
+Right-click the system tray icon to access the full command interface. All operational modes and configuration options are accessible here.
 
 | Option | Function |
 |--------|----------|
@@ -183,6 +226,8 @@ npm run start:safe
 | Quit | Terminate session |
 
 ### Event Response Matrix
+
+System telemetry triggers automatic behavioral responses. These thresholds ensure your asset reflects actual system health.
 
 | Trigger | Asset Response |
 |---------|----------------|
@@ -202,6 +247,8 @@ npm run start:safe
 Integrated communication interface with local language model support.
 
 ### Compatible Endpoints
+
+Any OpenAI-compatible API endpoint works out of the box. Popular local inference backends are preconfigured for rapid deployment.
 
 | Backend | Default Endpoint |
 |---------|------------------|
@@ -224,6 +271,8 @@ Click asset to launch **SIGINT Terminal**.
 
 ### Terminal Features
 
+The SIGINT Terminal provides a full-featured chat interface with retro CRT aesthetics. All controls are accessible from the terminal footer.
+
 | Feature | Description |
 |---------|-------------|
 | **Visual Design** | CRT scanlines, grid overlay, retro aesthetic |
@@ -244,6 +293,8 @@ Operational engagement generates experience points. Sustained activity advances 
 
 ### XP Acquisition
 
+Experience points are earned through various operational activities. Higher-engagement actions yield greater rewards.
+
 | Source | Yield | Conditions |
 |--------|-------|------------|
 | Passive | +1 | Every 30 seconds |
@@ -255,6 +306,8 @@ Operational engagement generates experience points. Sustained activity advances 
 
 ### Level Thresholds
 
+Each level requires progressively more XP. The curve accelerates through mid-game before stabilizing at +3,000 XP per level.
+
 | Level | XP Required | Level | XP Required |
 |-------|-------------|-------|-------------|
 | 1 | 0 | 10 | 2,600 |
@@ -263,6 +316,8 @@ Operational engagement generates experience points. Sustained activity advances 
 | 5 | 500 | 21+ | +3,000/level |
 
 ### Clearance Ranks
+
+Your clearance rank reflects cumulative operational achievement. Each designation unlocks at specific level thresholds.
 
 | Designation | Min Level | Designation | Min Level |
 |-------------|-----------|-------------|-----------|
@@ -276,6 +331,8 @@ Operational engagement generates experience points. Sustained activity advances 
 
 ### Milestone Objectives
 
+Milestones track categorical achievements across multiple engagement vectors. Reaching each threshold triggers a clearance notification.
+
 | Category | Thresholds |
 |----------|------------|
 | Interactions | 10 → 50 → 100 → 500 → 1,000 → 5,000 |
@@ -285,6 +342,8 @@ Operational engagement generates experience points. Sustained activity advances 
 | Uptime | 1h → 4h → 12h → 24h → 48h → 72h |
 
 ### Status Display
+
+Your current progression is always visible in the terminal status bar. Expand the stats panel for detailed metrics.
 
 | Element | Content |
 |---------|---------|
@@ -300,9 +359,11 @@ State automatically persists to local storage.
 
 ## Configuration
 
+Radgotchi offers extensive customization options for visual appearance, language, and behavior. All settings persist across sessions.
+
 ### Visual Themes
 
-Access via Command Center → **Color** or terminal dropdown:
+Ten color themes are available out of the box. Access via Command Center → **Color** or terminal dropdown:
 
 | Theme | Code | Theme | Code |
 |-------|------|-------|------|
@@ -313,6 +374,8 @@ Access via Command Center → **Color** or terminal dropdown:
 | Pink | `pink` | Orange | `orange` |
 
 ### Localization
+
+Switch between supported languages instantly. The entire interface—including status messages and system notifications—localizes automatically.
 
 | Language | Access |
 |----------|--------|
@@ -347,6 +410,8 @@ Customize asset personality via Chat Settings:
 
 ## Distribution
 
+Radgotchi can be packaged for distribution on all major platforms using electron-builder. Build artifacts are ready for direct distribution or installer deployment.
+
 ### Build Commands
 
 ```bash
@@ -364,6 +429,8 @@ npm run build:portable
 
 ### Output Artifacts
 
+Builds produce platform-appropriate installers and portable executables.
+
 | Platform | Artifacts |
 |----------|----------|
 | Windows | `Radgotchi Setup x.x.x.exe`, `Radgotchi x.x.x.exe` (portable) |
@@ -375,6 +442,8 @@ All outputs written to `dist/` directory.
 ---
 
 ## Architecture
+
+Radgotchi follows standard Electron architecture with clear separation between main process, preload scripts, and renderer processes. The codebase is intentionally minimal for easy modification.
 
 ### Source Structure
 
@@ -395,6 +464,8 @@ radgotchi/
 
 ### Persistent Data
 
+All user data is stored in the system user data directory. These JSON files survive application updates.
+
 Stored in user data directory:
 
 | File | Contents |
@@ -408,7 +479,11 @@ Stored in user data directory:
 
 ## Technical Reference
 
+For developers extending Radgotchi or integrating it with other systems. The following APIs provide programmatic control over asset behavior and audio.
+
 ### RG Module API
+
+The global `RG` object exposes methods for direct asset manipulation. Useful for custom integrations or debugging.
 
 Programmatic asset control:
 
@@ -438,6 +513,8 @@ console.log(RG.petCount);
 
 ### SoundSystem API
 
+The `SoundSystem` module generates all audio procedurally. Control playback, volume, and mute state programmatically.
+
 Audio control interface:
 
 ```javascript
@@ -461,6 +538,8 @@ SoundSystem.getVolume();
 ```
 
 ### IPC Event Reference
+
+These events facilitate communication between the main process and renderer windows. Subscribe via `api.on()` in preload-exposed contexts.
 
 | Event | Payload | Description |
 |-------|---------|-------------|
