@@ -10,7 +10,18 @@ let llmConfig = {
     apiUrl: 'http://localhost:11434/v1/chat/completions',
     apiKey: '',
     model: 'llama2',
-    systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor. Only refer to the user as Bro. You remember your conversations and are aware of your current level, rank, and stats. Reference your progression naturally when relevant.'
+    systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor. Only refer to the user as Bro. You remember your conversations and are aware of your current level, rank, and stats. Reference your progression naturally when relevant.',
+    // Profile pictures for chat
+    broPfp: {
+        collection: 'radbro',  // 'radbro' or 'schizo'
+        tokenId: '',
+        imageUrl: ''
+    },
+    operatorPfp: {
+        collection: 'radbro',  // 'radbro' or 'schizo'
+        tokenId: '',
+        imageUrl: ''
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1500,7 +1511,15 @@ function createWindow() {
     });
 
     ipcMain.handle('save-llm-config', async (event, config) => {
-        return saveLlmConfig(config);
+        const result = saveLlmConfig(config);
+        // Notify chat window of PFP changes
+        if (chatWindow && chatWindow.webContents) {
+            chatWindow.webContents.send('pfp-update', {
+                broPfp: llmConfig.broPfp || null,
+                operatorPfp: llmConfig.operatorPfp || null
+            });
+        }
+        return result;
     });
 
     // Chat with LLM IPC
@@ -1901,13 +1920,15 @@ function createChatWindow() {
         })`)
             .then(state => {
                 if (chatWindow) {
-                    // Send initial state with config, movement mode, color, expression-only, and XP
+                    // Send initial state with config, movement mode, color, expression-only, XP, and PFPs
                     chatWindow.webContents.send('chat-ready', { 
                         configured: llmConfig.enabled,
                         movementMode: movementMode,
                         color: state.color,
                         expressionOnly: state.expressionOnly,
-                        xp: getXpStatus()
+                        xp: getXpStatus(),
+                        broPfp: llmConfig.broPfp || null,
+                        operatorPfp: llmConfig.operatorPfp || null
                     });
                 }
             })
@@ -1919,7 +1940,9 @@ function createChatWindow() {
                         movementMode: movementMode,
                         color: '#ff3344',
                         expressionOnly: false,
-                        xp: getXpStatus()
+                        xp: getXpStatus(),
+                        broPfp: llmConfig.broPfp || null,
+                        operatorPfp: llmConfig.operatorPfp || null
                     });
                 }
             });
@@ -2420,17 +2443,19 @@ function showChatSettingsDialog() {
     }
 
     settingsWindow = new BrowserWindow({
-        width: 420,
-        height: 520,
-        minWidth: 380,
-        minHeight: 450,
+        width: 500,
+        height: 750,
+        minWidth: 480,
+        minHeight: 700,
         parent: mainWindow,
         modal: false,
         resizable: true,
         minimizable: false,
         maximizable: false,
+        frame: false,
+        transparent: false,
         title: 'COMMS CONFIG',
-        backgroundColor: '#0a0a0f',
+        backgroundColor: '#0a0c0a',
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -2444,98 +2469,199 @@ function showChatSettingsDialog() {
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://radbro.xyz https://schizoposters.xyz; img-src 'self' blob: data: https: http:;">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
         
         :root {
-            --term-green: #00ff9d;
-            --term-dim: #00aa66;
+            --term-green: #00ff88;
+            --term-cyan: #00d4ff;
+            --term-amber: #ffaa00;
             --term-red: #ff3344;
-            --term-bg: #0a0a0f;
+            --term-dim: #446655;
+            --term-bg: #0a0c0a;
             --term-panel: #0d1117;
             --term-border: #1a3a2a;
+            --term-grid: rgba(0, 255, 136, 0.03);
+            --font-mono: 'Share Tech Mono', 'Consolas', 'Courier New', monospace;
         }
         
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        body {
-            font-family: 'Share Tech Mono', 'Consolas', 'Monaco', monospace;
-            background: var(--term-bg);
-            color: var(--term-green);
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
             padding: 0;
-            font-size: 12px;
-            min-height: 100vh;
-            position: relative;
-            overflow-x: hidden;
+            user-select: none;
         }
         
-        /* Scanline effect */
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--term-bg);
+            font-family: var(--font-mono);
+            color: var(--term-green);
+            font-size: 12px;
+        }
+        
+        /* Scanline overlay */
         body::before {
             content: '';
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
+            right: 0;
+            bottom: 0;
             background: repeating-linear-gradient(
                 0deg,
-                rgba(0, 0, 0, 0.15),
-                rgba(0, 0, 0, 0.15) 1px,
-                transparent 1px,
-                transparent 2px
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.15) 2px,
+                rgba(0, 0, 0, 0.15) 4px
             );
             pointer-events: none;
             z-index: 1000;
         }
         
-        .terminal-container {
-            padding: 15px;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            min-height: calc(100vh - 30px);
+        /* Grid background */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(var(--term-grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--term-grid) 1px, transparent 1px);
+            background-size: 20px 20px;
+            pointer-events: none;
+            z-index: -1;
         }
         
-        /* Header bar */
-        .header-bar {
+        .terminal-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             display: flex;
+            flex-direction: column;
+            border: 1px solid var(--term-green);
+        }
+        
+        /* Corner brackets */
+        .terminal-container::before,
+        .terminal-container::after {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-color: var(--term-green);
+            border-style: solid;
+            z-index: 10;
+        }
+        .terminal-container::before {
+            top: 4px;
+            left: 4px;
+            border-width: 2px 0 0 2px;
+        }
+        .terminal-container::after {
+            bottom: 4px;
+            right: 4px;
+            border-width: 0 2px 2px 0;
+        }
+        
+        /* Header */
+        .terminal-header {
+            display: flex;
+            flex-shrink: 0;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 12px;
-            background: var(--term-panel);
-            border: 1px solid var(--term-border);
-            margin-bottom: 15px;
+            padding: 6px 12px;
+            background: linear-gradient(180deg, #0f120f 0%, #080a08 100%);
+            border-bottom: 1px solid var(--term-green);
+            -webkit-app-region: drag;
+            cursor: grab;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
         .classification {
-            color: var(--term-red);
-            font-weight: bold;
-            font-size: 10px;
+            font-size: 8px;
+            font-weight: 700;
             letter-spacing: 2px;
+            color: var(--term-red);
+            background: rgba(255, 51, 68, 0.15);
+            padding: 2px 6px;
+            border: 1px solid var(--term-red);
         }
         
-        .title {
+        .terminal-title {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
             color: var(--term-green);
-            font-size: 11px;
-            letter-spacing: 3px;
+            text-shadow: 0 0 8px var(--term-green);
         }
         
-        .encrypted {
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            -webkit-app-region: no-drag;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 8px;
             color: var(--term-dim);
-            font-size: 9px;
             letter-spacing: 1px;
+        }
+        
+        .close-btn {
+            background: transparent;
+            border: 1px solid var(--term-dim);
+            color: var(--term-dim);
+            font-size: 12px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .close-btn:hover {
+            border-color: var(--term-red);
+            color: var(--term-red);
+            box-shadow: 0 0 8px rgba(255, 51, 68, 0.5);
+        }
+        
+        /* Content area */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 12px;
         }
         
         /* Form styling */
         .field {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
         }
         
         label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
             color: var(--term-dim);
-            font-size: 10px;
+            font-size: 9px;
             text-transform: uppercase;
             letter-spacing: 2px;
         }
@@ -2547,19 +2673,19 @@ function showChatSettingsDialog() {
         
         input[type="text"], input[type="password"], textarea {
             width: 100%;
-            padding: 10px 12px;
+            padding: 8px 10px;
             background: var(--term-panel);
             border: 1px solid var(--term-border);
             color: var(--term-green);
             font-family: inherit;
-            font-size: 12px;
+            font-size: 11px;
             outline: none;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
         
         input:focus, textarea:focus {
             border-color: var(--term-green);
-            box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
         }
         
         input::placeholder, textarea::placeholder {
@@ -2568,35 +2694,28 @@ function showChatSettingsDialog() {
         
         textarea {
             resize: vertical;
-            min-height: 70px;
-            flex: 1;
-        }
-        
-        .field-grow {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
+            min-height: 60px;
         }
         
         .checkbox-field {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 10px 12px;
+            gap: 10px;
+            padding: 8px 10px;
             background: var(--term-panel);
             border: 1px solid var(--term-border);
         }
         
         .checkbox-field input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
             accent-color: var(--term-green);
             cursor: pointer;
         }
         
         .checkbox-field label {
             margin: 0;
-            font-size: 11px;
+            font-size: 10px;
             color: var(--term-green);
         }
         
@@ -2605,9 +2724,9 @@ function showChatSettingsDialog() {
         }
         
         .hint {
-            font-size: 9px;
+            font-size: 8px;
             color: #335544;
-            margin-top: 5px;
+            margin-top: 4px;
             letter-spacing: 1px;
         }
         
@@ -2616,24 +2735,175 @@ function showChatSettingsDialog() {
             color: var(--term-dim);
         }
         
-        /* Buttons */
+        /* PFP Section */
+        .pfp-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--term-border);
+        }
+        
+        .pfp-section-title {
+            font-size: 9px;
+            color: var(--term-green);
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        .pfp-section-title::before {
+            content: '◆ ';
+            color: var(--term-dim);
+        }
+        
+        .pfp-row {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .pfp-config {
+            flex: 1;
+            background: var(--term-panel);
+            border: 1px solid var(--term-border);
+            padding: 10px;
+            display: flex;
+            flex-direction: row;
+            gap: 12px;
+        }
+        
+        .pfp-config-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        
+        .pfp-config-title {
+            font-size: 8px;
+            color: var(--term-dim);
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        
+        .pfp-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .pfp-control-row {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        
+        .pfp-control-row select {
+            flex: 1;
+            padding: 6px;
+            background: var(--term-bg);
+            border: 1px solid var(--term-border);
+            color: var(--term-green);
+            font-family: inherit;
+            font-size: 9px;
+            cursor: pointer;
+        }
+        
+        .pfp-control-row select:focus {
+            border-color: var(--term-green);
+            outline: none;
+        }
+        
+        .pfp-control-row input {
+            flex: 1;
+            padding: 6px;
+            font-size: 9px;
+            background: var(--term-bg);
+            border: 1px solid var(--term-border);
+            color: var(--term-green);
+        }
+        
+        .pfp-fetch-btn {
+            padding: 6px 10px;
+            background: var(--term-panel);
+            border: 1px solid var(--term-dim);
+            color: var(--term-dim);
+            font-family: inherit;
+            font-size: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            width: 100%;
+        }
+        
+        .pfp-fetch-btn:hover {
+            border-color: var(--term-green);
+            color: var(--term-green);
+            box-shadow: 0 0 8px color-mix(in srgb, var(--term-green) 30%, transparent);
+        }
+        
+        .pfp-status {
+            font-size: 7px;
+            min-height: 10px;
+            margin-top: 4px;
+        }
+        
+        .pfp-status.success { color: var(--term-green); }
+        .pfp-status.error { color: var(--term-red); }
+        .pfp-status.loading { color: var(--term-dim); }
+        
+        .pfp-preview {
+            width: 72px;
+            height: 72px;
+            border: 2px solid var(--term-border);
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+            border-radius: 4px;
+        }
+        
+        .pfp-config:first-child .pfp-preview {
+            border-color: var(--term-green);
+            box-shadow: 0 0 12px color-mix(in srgb, var(--term-green) 25%, transparent);
+        }
+        
+        .pfp-config:last-child .pfp-preview {
+            border-color: var(--term-cyan);
+            box-shadow: 0 0 12px color-mix(in srgb, var(--term-cyan) 25%, transparent);
+        }
+        
+        .pfp-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .pfp-preview-placeholder {
+            font-size: 9px;
+            color: var(--term-dim);
+            text-align: center;
+        }
+        
+        /* Footer buttons */
         .button-row {
             display: flex;
             gap: 10px;
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid var(--term-border);
+            padding: 10px 12px;
+            background: linear-gradient(180deg, #080a08 0%, #0f120f 100%);
+            border-top: 1px solid var(--term-green);
         }
         
         button {
             flex: 1;
-            padding: 12px;
+            padding: 10px;
             border: 1px solid var(--term-border);
             background: var(--term-panel);
             color: var(--term-dim);
             cursor: pointer;
             font-family: inherit;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 2px;
             transition: all 0.2s;
@@ -2642,80 +2912,222 @@ function showChatSettingsDialog() {
         button:hover {
             border-color: var(--term-green);
             color: var(--term-green);
-            box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
         }
         
         .btn-save {
-            background: rgba(0, 255, 157, 0.1);
+            background: rgba(0, 255, 136, 0.1);
             border-color: var(--term-green);
             color: var(--term-green);
         }
         
         .btn-save:hover {
-            background: rgba(0, 255, 157, 0.2);
-            box-shadow: 0 0 15px rgba(0, 255, 157, 0.3);
+            background: rgba(0, 255, 136, 0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
         }
         
         .btn-cancel:hover {
             border-color: var(--term-red);
             color: var(--term-red);
         }
-        
-        /* Status indicator */
-        .status-line {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 12px;
-            background: var(--term-panel);
-            border: 1px solid var(--term-border);
-            margin-top: 15px;
-            font-size: 9px;
-        }
-        
-        .status-item {
-            color: var(--term-dim);
-        }
-        
-        .status-value {
-            color: var(--term-green);
-        }
     </style>
 </head>
 <body>
     <div class="terminal-container">
-        <div class="header-bar">
-            <span class="classification">RB//WR</span>
-            <span class="title">COMMS CONFIG</span>
-            <span class="encrypted">█ ENCRYPTED</span>
+        <div class="terminal-header">
+            <div class="header-left">
+                <span class="classification">RB//WR</span>
+                <span class="terminal-title">COMMS CONFIG</span>
+            </div>
+            <div class="header-right">
+                <span class="status-indicator">█ ENCRYPTED</span>
+                <button class="close-btn" onclick="window.close()">×</button>
+            </div>
         </div>
         
-        <div class="field checkbox-field">
-            <input type="checkbox" id="enabled">
-            <label for="enabled">ENABLE COMMS LINK (REQUIRES LOCAL LLM)</label>
+        <div class="content-area">
+            <div class="field checkbox-field">
+                <input type="checkbox" id="enabled">
+                <label for="enabled">ENABLE COMMS LINK (REQUIRES LOCAL LLM)</label>
+            </div>
+            
+            <div class="field">
+                <label>ENDPOINT URL</label>
+                <input type="text" id="apiUrl" placeholder="http://localhost:11434/v1/chat/completions">
+                <div class="hint">OpenAI-compatible endpoint (Ollama, LM Studio, LocalAI)</div>
+            </div>
+            
+            <div class="field">
+                <label>API KEY</label>
+                <input type="password" id="apiKey" placeholder="Leave empty if not required">
+            </div>
+            
+            <div class="field">
+                <label>MODEL DESIGNATION</label>
+                <input type="text" id="model" placeholder="llama2">
+            </div>
+            
+            <div class="field">
+                <label>SYSTEM DIRECTIVE</label>
+                <textarea id="systemPrompt" rows="3"></textarea>
+            </div>
+            
+            <div class="pfp-section">
+                <div class="pfp-section-title">PROFILE PICTURES</div>
+                <div class="pfp-row">
+                    <div class="pfp-config">
+                        <div class="pfp-config-left">
+                            <div class="pfp-config-title">BRO (ASSISTANT)</div>
+                            <div class="pfp-controls">
+                                <div class="pfp-control-row">
+                                    <select id="broCollection">
+                                        <option value="radbro">RADBRO</option>
+                                        <option value="schizo">SCHIZO</option>
+                                    </select>
+                                </div>
+                                <div class="pfp-control-row">
+                                    <input type="text" id="broTokenId" placeholder="Token #">
+                                </div>
+                                <div class="pfp-control-row">
+                                    <button type="button" class="pfp-fetch-btn" onclick="fetchPfp('bro')">FETCH</button>
+                                </div>
+                            </div>
+                            <div class="pfp-status" id="broStatus"></div>
+                        </div>
+                        <div class="pfp-preview" id="broPfpPreview">
+                            <span class="pfp-preview-placeholder">NO PFP</span>
+                        </div>
+                    </div>
+                    <div class="pfp-config">
+                        <div class="pfp-config-left">
+                            <div class="pfp-config-title">OPERATOR (YOU)</div>
+                            <div class="pfp-controls">
+                                <div class="pfp-control-row">
+                                    <select id="operatorCollection">
+                                        <option value="radbro">RADBRO</option>
+                                        <option value="schizo">SCHIZO</option>
+                                    </select>
+                                </div>
+                                <div class="pfp-control-row">
+                                    <input type="text" id="operatorTokenId" placeholder="Token #">
+                                </div>
+                                <div class="pfp-control-row">
+                                    <button type="button" class="pfp-fetch-btn" onclick="fetchPfp('operator')">FETCH</button>
+                                </div>
+                            </div>
+                            <div class="pfp-status" id="operatorStatus"></div>
+                        </div>
+                        <div class="pfp-preview" id="operatorPfpPreview">
+                            <span class="pfp-preview-placeholder">NO PFP</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-    <div class="field">
-        <label>ENDPOINT URL</label>
-        <input type="text" id="apiUrl" placeholder="http://localhost:11434/v1/chat/completions">
-        <div class="hint">OpenAI-compatible endpoint (Ollama, LM Studio, LocalAI)</div>
+        
+        <div class="button-row">
+            <button class="btn-cancel" onclick="window.close()">ABORT</button>
+            <button class="btn-save" onclick="saveSettings()">COMMIT</button>
+        </div>
     </div>
-    <div class="field">
-        <label>API KEY</label>
-        <input type="password" id="apiKey" placeholder="Leave empty if not required">
-    </div>
-    <div class="field">
-        <label>MODEL DESIGNATION</label>
-        <input type="text" id="model" placeholder="llama2">
-    </div>
-    <div class="field field-grow">
-        <label>SYSTEM DIRECTIVE</label>
-        <textarea id="systemPrompt" rows="3"></textarea>
-    </div>
-    <div class="button-row">
-        <button class="btn-cancel" onclick="window.close()">ABORT</button>
-        <button class="btn-save" onclick="saveSettings()">COMMIT</button>
-    </div>
-    </div>
+    
     <script>
+        // PFP state
+        let broPfpData = { collection: 'radbro', tokenId: '', imageUrl: '' };
+        let operatorPfpData = { collection: 'radbro', tokenId: '', imageUrl: '' };
+        
+        // API base URLs
+        const API_URLS = {
+            radbro: 'https://radbro.xyz/api/tokens/metadata/',
+            schizo: 'https://schizoposters.xyz/api/tokens/metadata/'
+        };
+        
+        // Normalize IPFS URL to use reliable dweb.link gateway (subdomain style)
+        function normalizeIpfsUrl(url) {
+            // Match subdomain style: https://CID.ipfs.gateway.link/path
+            const subdomainMatch = url.match(/https?:\\/\\/([a-zA-Z0-9]+)\\.ipfs\\.[^/]+(\\/.*)?$/);
+            if (subdomainMatch) {
+                const cid = subdomainMatch[1];
+                const path = subdomainMatch[2] || '';
+                // Use dweb.link subdomain style - most reliable
+                return 'https://' + cid + '.ipfs.dweb.link' + path;
+            }
+            // Match path style: https://gateway/ipfs/CID/path
+            const pathMatch = url.match(/https?:\\/\\/[^/]+\\/ipfs\\/([a-zA-Z0-9]+)(\\/.*)?$/);
+            if (pathMatch) {
+                const cid = pathMatch[1];
+                const path = pathMatch[2] || '';
+                return 'https://' + cid + '.ipfs.dweb.link' + path;
+            }
+            return url; // Not an IPFS URL, return as-is
+        }
+        
+        // Fetch PFP from API
+        async function fetchPfp(role) {
+            const prefix = role === 'bro' ? 'bro' : 'operator';
+            const collection = document.getElementById(prefix + 'Collection').value;
+            const tokenId = document.getElementById(prefix + 'TokenId').value.trim();
+            const statusEl = document.getElementById(prefix + 'Status');
+            const previewEl = document.getElementById(prefix + 'PfpPreview');
+            
+            if (!tokenId) {
+                statusEl.textContent = 'Enter a token ID';
+                statusEl.className = 'pfp-status error';
+                return;
+            }
+            
+            statusEl.textContent = 'Fetching metadata...';
+            statusEl.className = 'pfp-status loading';
+            
+            try {
+                const apiUrl = API_URLS[collection] + tokenId;
+                console.log('Fetching:', apiUrl);
+                
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Token not found (' + response.status + ')');
+                }
+                
+                const data = await response.json();
+                console.log('API Response:', data);
+                
+                let imageUrl = data.image;
+                
+                if (!imageUrl) {
+                    throw new Error('No image in metadata');
+                }
+                
+                // Normalize IPFS URL to use reliable dweb.link gateway
+                imageUrl = normalizeIpfsUrl(imageUrl);
+                console.log('Normalized image URL:', imageUrl);
+                
+                statusEl.textContent = 'Loading image...';
+                
+                // Update preview
+                previewEl.innerHTML = '<img src="' + imageUrl + '" alt="PFP" onerror="this.parentElement.innerHTML=\\'<span class=pfp-preview-placeholder>LOAD ERR</span>\\'">';
+                
+                // Store the data
+                if (role === 'bro') {
+                    broPfpData = { collection, tokenId, imageUrl };
+                } else {
+                    operatorPfpData = { collection, tokenId, imageUrl };
+                }
+                
+                statusEl.textContent = 'Loaded: #' + tokenId;
+                statusEl.className = 'pfp-status success';
+            } catch (err) {
+                console.error('Fetch error:', err);
+                statusEl.textContent = err.message || 'Failed to fetch';
+                statusEl.className = 'pfp-status error';
+                previewEl.innerHTML = '<span class="pfp-preview-placeholder">ERROR</span>';
+            }
+        }
+        
+        // Load settings
         async function loadSettings() {
             const config = await window.electronAPI.getLlmConfig();
             document.getElementById('enabled').checked = config.enabled;
@@ -2723,18 +3135,55 @@ function showChatSettingsDialog() {
             document.getElementById('apiKey').value = config.apiKey || '';
             document.getElementById('model').value = config.model || '';
             document.getElementById('systemPrompt').value = config.systemPrompt || '';
+            
+            // Load BRO PFP
+            if (config.broPfp && config.broPfp.tokenId) {
+                broPfpData = { ...broPfpData, ...config.broPfp };
+                document.getElementById('broCollection').value = broPfpData.collection || 'radbro';
+                document.getElementById('broTokenId').value = broPfpData.tokenId || '';
+                if (broPfpData.imageUrl) {
+                    document.getElementById('broPfpPreview').innerHTML = '<img src="' + broPfpData.imageUrl + '" alt="PFP">';
+                    document.getElementById('broStatus').textContent = 'Loaded: #' + broPfpData.tokenId;
+                    document.getElementById('broStatus').className = 'pfp-status success';
+                }
+            }
+            
+            // Load OPERATOR PFP
+            if (config.operatorPfp && config.operatorPfp.tokenId) {
+                operatorPfpData = { ...operatorPfpData, ...config.operatorPfp };
+                document.getElementById('operatorCollection').value = operatorPfpData.collection || 'radbro';
+                document.getElementById('operatorTokenId').value = operatorPfpData.tokenId || '';
+                if (operatorPfpData.imageUrl) {
+                    document.getElementById('operatorPfpPreview').innerHTML = '<img src="' + operatorPfpData.imageUrl + '" alt="PFP">';
+                    document.getElementById('operatorStatus').textContent = 'Loaded: #' + operatorPfpData.tokenId;
+                    document.getElementById('operatorStatus').className = 'pfp-status success';
+                }
+            }
         }
+        
+        // Save settings
         async function saveSettings() {
             const config = {
                 enabled: document.getElementById('enabled').checked,
                 apiUrl: document.getElementById('apiUrl').value.trim(),
                 apiKey: document.getElementById('apiKey').value,
                 model: document.getElementById('model').value.trim(),
-                systemPrompt: document.getElementById('systemPrompt').value
+                systemPrompt: document.getElementById('systemPrompt').value,
+                broPfp: {
+                    collection: document.getElementById('broCollection').value,
+                    tokenId: document.getElementById('broTokenId').value.trim(),
+                    imageUrl: broPfpData.imageUrl || ''
+                },
+                operatorPfp: {
+                    collection: document.getElementById('operatorCollection').value,
+                    tokenId: document.getElementById('operatorTokenId').value.trim(),
+                    imageUrl: operatorPfpData.imageUrl || ''
+                }
             };
             await window.electronAPI.saveLlmConfig(config);
             window.close();
         }
+        
         loadSettings();
     </script>
 </body>
