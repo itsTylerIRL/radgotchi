@@ -1943,6 +1943,11 @@ ipcMain.on('close-chat', () => {
     }
 });
 
+// IPC: Open settings from chat window
+ipcMain.on('open-settings', () => {
+    showChatSettingsDialog();
+});
+
 // IPC: Chat mood changes (forward to main window for animation)
 ipcMain.on('chat-mood', (event, mood) => {
     if (mainWindow && mainWindow.webContents) {

@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Chat window preload
 contextBridge.exposeInMainWorld('electronAPI', {
     closeChat: () => ipcRenderer.send('close-chat'),
+    openSettings: () => ipcRenderer.send('open-settings'),
     sendChatMessage: (messages) => ipcRenderer.invoke('send-chat-message', { messages }),
     // Streaming chat
     sendChatMessageStream: (messages) => ipcRenderer.send('send-chat-message-stream', { messages }),

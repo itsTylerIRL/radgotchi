@@ -222,6 +222,34 @@
             box-shadow: 0 0 8px rgba(255, 51, 68, 0.5);
         }
         
+        /* Settings button */
+        .settings-btn {
+            -webkit-app-region: no-drag;
+            background: transparent;
+            border: 1px solid var(--term-dim);
+            color: var(--term-dim);
+            font-size: 9px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .settings-btn::before {
+            content: '⚙';
+            font-size: 10px;
+        }
+        
+        .settings-btn:hover {
+            border-color: var(--term-cyan);
+            color: var(--term-cyan);
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+        }
+        
         /* Info bar */
         .info-bar {
             display: flex;
@@ -542,14 +570,14 @@
             animation: none !important;
         }
         
-        /* Stats panel */
+        /* Stats panel - dense intelligence style */
         .stats-panel {
             display: none;
             flex-shrink: 0;
-            padding: 8px 12px;
-            background: rgba(0, 0, 0, 0.3);
-            border-bottom: 1px solid rgba(0, 255, 136, 0.1);
-            font-size: 8px;
+            padding: 6px 12px;
+            background: rgba(0, 0, 0, 0.4);
+            border-bottom: 1px solid rgba(0, 255, 136, 0.15);
+            font-size: 7px;
             color: var(--term-dim);
             letter-spacing: 0.5px;
         }
@@ -561,24 +589,42 @@
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
+            gap: 2px 12px;
+        }
+        
+        .stats-row {
+            display: flex;
+            gap: 8px;
+            justify-content: space-between;
+            border-bottom: 1px dotted rgba(0, 255, 136, 0.1);
+            padding: 2px 0;
+        }
+        
+        .stats-row:last-child {
+            border-bottom: none;
         }
         
         .stat-item {
             display: flex;
-            flex-direction: column;
-            gap: 2px;
+            align-items: center;
+            gap: 4px;
+            flex: 1;
+            min-width: 0;
         }
         
         .stat-label {
             color: var(--term-dim);
             font-size: 7px;
+            text-transform: uppercase;
+            min-width: 45px;
         }
         
         .stat-value {
             color: var(--term-green);
-            font-size: 9px;
+            font-size: 8px;
             font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 0 4px rgba(0, 255, 136, 0.3);
         }
         
         /* Pomodoro bar */
@@ -1223,6 +1269,7 @@
                     <span class="status-dot"></span>
                     <span>ENCRYPTED</span>
                 </div>
+                <button class="settings-btn" id="settings-btn" title="LLM Settings"></button>
                 <button class="close-btn" id="close-btn">×</button>
             </div>
         </div>
@@ -1268,7 +1315,7 @@
             </div>
         </div>
         <div class="stats-panel" id="stats-panel">
-            <div class="stats-grid">
+            <div class="stats-row">
                 <div class="stat-item">
                     <span class="stat-label" id="label-uptime">UPTIME</span>
                     <span class="stat-value" id="stat-uptime">0h 0m</span>
@@ -1281,6 +1328,8 @@
                     <span class="stat-label" id="label-msgs">MSGS</span>
                     <span class="stat-value" id="stat-messages">0</span>
                 </div>
+            </div>
+            <div class="stats-row">
                 <div class="stat-item">
                     <span class="stat-label" id="label-sessions">SESSIONS</span>
                     <span class="stat-value" id="stat-sessions">0</span>
@@ -1293,6 +1342,8 @@
                     <span class="stat-label" id="label-best">BEST</span>
                     <span class="stat-value" id="stat-best">0 days</span>
                 </div>
+            </div>
+            <div class="stats-row">
                 <div class="stat-item">
                     <span class="stat-label" id="label-stasis">STASIS</span>
                     <span class="stat-value" id="stat-stasis">0h 0m</span>
@@ -1301,6 +1352,7 @@
                     <span class="stat-label" id="label-deepest">DEEPEST</span>
                     <span class="stat-value" id="stat-deepest">0h 0m</span>
                 </div>
+                <div class="stat-item"></div>
             </div>
         </div>
         <div class="pomodoro-bar" id="pomodoro-bar">
@@ -1545,6 +1597,13 @@
                 window.electronAPI.removeChatStreamListeners();
             }
             window.electronAPI.closeChat();
+        });
+        
+        // Settings button
+        const settingsBtn = document.getElementById('settings-btn');
+        settingsBtn.addEventListener('click', () => {
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('click');
+            window.electronAPI.openSettings();
         });
         
         // Get current time string
@@ -2164,7 +2223,7 @@
                 if (mode === 'work') {
                     msg = currentLang === 'zh' 
                         ? '🍅 专注完成！已完成 ' + pomosCompleted + ' 个番茄钟。休息一下？'
-                        : '🍅 FOCUS SESSION COMPLETE! ' + pomosCompleted + ' pomodoros. Time for a break?';
+                        : '🍅 FOCUS SESSION COMPLETE! ' + pomosCompleted + ' grinds. Time for a break?';
                 } else {
                     msg = currentLang === 'zh' 
                         ? '☕ 休息结束！准备好继续了吗？'
