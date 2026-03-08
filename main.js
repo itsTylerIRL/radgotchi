@@ -2447,7 +2447,6 @@ function showChatSettingsDialog() {
         height: 750,
         minWidth: 480,
         minHeight: 700,
-        parent: mainWindow,
         modal: false,
         resizable: true,
         minimizable: false,
