@@ -87,6 +87,7 @@
       "preload-chat.js",
       "renderer.js",
       "radgotchi.js",
+      "sounds.js",
       "index.html",
       "chat.html",
       "styles.css",
