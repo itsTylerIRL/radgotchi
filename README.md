@@ -1,100 +1,155 @@
-# 🤖 Radgotchi
+<p align="center">
+  <img src="assets/AWAKE.png" alt="Radgotchi" width="100">
+</p>
 
-> A cross-platform desktop virtual pet that lives on your screen, reacts to your system, chats with you via local AI, and keeps you company while you level up.
-
-**Supports:** Windows • macOS • Linux
+<h1 align="center">RADGOTCHI</h1>
+<p align="center"><code>CLASSIFICATION: OPEN SOURCE</code></p>
 
 <p align="center">
-  <img src="assets/AWAKE.png" alt="Radgotchi" width="120">
-  <img src="assets/HAPPY.png" alt="Happy" width="120">
-  <img src="assets/EXCITED.png" alt="Excited" width="120">
-  <img src="assets/COOL.png" alt="Cool" width="120">
+  <b>Desktop Intelligence Asset</b> — Cross-platform radbro companion app that monitors your system,<br>
+  interfaces with local AI, and rewards operational engagement.
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#chat--ai">Chat & AI</a> •
-  <a href="#xp--leveling">XP & Leveling</a> •
-  <a href="#customization">Customization</a> •
-  <a href="#building">Building</a>
+  <code>PLATFORM SUPPORT:</code> Windows • macOS • Linux
+</p>
+
+<p align="center">
+  <img src="assets/AWAKE.png" alt="Radgotchi" width="80">
+  <img src="assets/HAPPY.png" alt="Happy" width="80">
+  <img src="assets/EXCITED.png" alt="Excited" width="80">
+  <img src="assets/COOL.png" alt="Cool" width="80">
+</p>
+
+<p align="center">
+  <a href="#system-capabilities">Capabilities</a> •
+  <a href="#deployment">Deployment</a> •
+  <a href="#operational-parameters">Operations</a> •
+  <a href="#sigint-terminal">SIGINT Terminal</a> •
+  <a href="#clearance-progression">Clearance</a> •
+  <a href="#configuration">Configuration</a> •
+  <a href="#distribution">Distribution</a>
 </p>
 
 ---
 
-## ✨ Features
+## System Capabilities
 
-### 🎭 Expressive Moods
-- **25+ unique mood states** with hand-crafted pixel art sprites
-- Smooth transitions between moods
-- Contextual status messages in English or Chinese
+### Behavioral Intelligence
+| Capability | Description |
+|------------|-------------|
+| **Mood States** | 25+ expressive states with hand-crafted pixel art |
+| **Context Awareness** | Localized status messaging (EN/中文) |
+| **Adaptive Response** | Smooth state transitions based on system events |
 
-### 🖥️ System Awareness
-- **CPU monitoring** — Gets intense during heavy loads, detects spikes
-- **Memory tracking** — Warns you about high usage
-- **Network detection** — Celebrates connectivity, notices disconnects
-- **Window tracking** — Reacts to apps opening/closing
-- **Idle detection** — Falls asleep when you're AFK (2 min), wakes up when you return
+### System Telemetry
+| Feed | Response Behavior |
+|------|-------------------|
+| **CPU Load** | Elevated alertness during high utilization, spike detection |
+| **Memory Pressure** | Warning indicators above 85% threshold |
+| **Network Status** | Connectivity state changes logged and displayed |
+| **Process Health** | Hung process detection and notification |
+| **User Presence** | Idle detection (2min) triggers sleep mode; returns on activity |
 
-### 🎮 Movement Modes
-- **None** — Stays where you put it
-- **Bounce** — DVD-logo style screensaver, bounces off screen edges
-- **Follow** — Pet follows your cursor around the screen
-- **Wander** — Random exploration with pauses
+### Movement Protocols
+| Mode | Behavior |
+|------|----------|
+| `STATIC` | Fixed position, manual repositioning only |
+| `BOUNCE` | Perimeter patrol, edge reflection |
+| `FOLLOW` | Cursor tracking, maintains visual contact |
+| `WANDER` | Autonomous exploration with rest intervals |
 
-### 💬 AI Chat Integration
-- **Local LLM support** — Connect to Ollama, LM Studio, LocalAI, or any OpenAI-compatible endpoint
-- **SIGINT Terminal interface** — Themed chat window
-- **Mood reactions** — Pet reacts while thinking and responding
-- **Markdown support** — Code blocks with copy button, formatting
+### SIGINT Terminal
+| Feature | Status |
+|---------|--------|
+| **Local LLM Integration** | Ollama, LM Studio, LocalAI, OpenAI-compatible |
+| **Streaming Decode** | Real-time token display (endpoint-dependent) |
+| **Session Persistence** | Message history retained across sessions |
+| **Mood Feedback** | Visual state changes during processing |
+| **Markdown Render** | Code blocks, formatting, copy functionality |
 
-### 📈 XP & Leveling System
-- **Passive XP** — Earn XP just by keeping Radgotchi open
-- **Interaction XP** — Extra XP for clicks and chat messages
-- **21 levels** — Progress from 0 to 17,500+ XP
-- **Persistent progress** — XP saves across sessions
-- **Level-up celebrations** — Visual feedback when you level up
+### Audio Subsystem
+| Component | Specification |
+|-----------|---------------|
+| **Engine** | Web Audio API synthesis |
+| **Sound Library** | 14 unique operational tones |
+| **Controls** | MUTE toggle, volume adjustment via API |
 
-### 🌐 Internationalization
-- **English** (default)
-- **中文** (Chinese)
-- Toggle via chat panel or system tray
+### Clearance System
+| Mechanic | Description |
+|----------|-------------|
+| **Milestone Tracking** | Clicks, messages, sessions, XP, uptime |
+| **Achievement Unlock** | "🔓 CLEARANCE GRANTED" notifications |
+| **Persistence** | Progress survives session termination |
 
-### 💫 Polished Details
-- **Breathing animation** — Subtle idle pulse
-- **Eye tracking** — Follows your cursor
-- **Always-on-top** — Floats above other windows
-- **System tray** — Full control panel
-- **Transparent background** — Clean floating appearance
-- **Expression-only mode** — Hide status text, show just the face
+### Asset Maintenance
+| Need | Mechanism |
+|------|----------|
+| **Sustenance** | Feed via terminal interface |
+| **Energy** | Sleep mode restoration |
+| **Penalties** | XP decay on neglect |
+| **Monitoring** | Stats panel visualization |
+
+### Focus Operations
+| Parameter | Value |
+|-----------|-------|
+| **Work Cycle** | 25 minutes |
+| **Break Cycle** | 5 minutes |
+| **Audio Alerts** | Session start/complete |
+| **XP Reward** | +25 on completion |
+
+### Progression Engine
+| Metric | Range |
+|--------|-------|
+| **Levels** | 1–50+ (17,500+ XP max tier) |
+| **Ranks** | 13 tiers (TRAINEE → PHANTOM) |
+| **Persistence** | Automatic state serialization |
+| **Engagement** | Streak tracking, level-up events |
+
+### Localization
+- **Primary:** English
+- **Secondary:** 中文 (Chinese)
+- **Toggle:** Terminal or system tray
+
+### Visual Fidelity
+| Feature | Implementation |
+|---------|----------------|
+| **Idle Animation** | Breathing pulse effect |
+| **Gaze Tracking** | Cursor-following eyes |
+| **Window Priority** | Always-on-top rendering |
+| **Transparency** | Clean floating overlay |
+| **Sleepy Mode** | Low-power rest state |
 
 ---
 
-## 📦 Installation
+## Deployment
 
-### Prerequisites
+### System Requirements
 
-- [Node.js](https://nodejs.org/) v18 or later
-- Windows 10/11, macOS 10.15+, or Linux (Ubuntu/Debian recommended)
+| Dependency | Version |
+|------------|---------|
+| Node.js | v18+ |
+| Windows | 10/11 |
+| macOS | 10.15+ |
+| Linux | Ubuntu/Debian recommended |
 
-### Quick Start
+### Standard Deployment
 
 ```bash
-# Clone the repository
+# Acquire source
 git clone https://github.com/itsTylerIRL/radgotchi.git
 cd radgotchi
 
-# Install dependencies
+# Initialize dependencies
 npm install
 
-# Run the app
+# Execute
 npm start
 ```
 
-### GPU Issues?
+### Fallback Mode
 
-If you're running in a VM, remote session, or have GPU issues, use:
+For environments with GPU constraints (VM, remote session, compatibility issues):
 
 ```bash
 npm run start:safe
@@ -102,270 +157,352 @@ npm run start:safe
 
 ---
 
-## 🎮 Usage
+## Operational Parameters
 
-### Controls
+### Input Controls
 
-| Action | Effect |
-|--------|--------|
-| **Drag** | Move Radgotchi around your screen |
-| **Scroll wheel** | Resize (scale up/down) |
-| **Click** | Pet interaction with emotes (+2 XP) |
-| **Right-click tray** | Access menu and settings |
+| Input | Action |
+|-------|--------|
+| `DRAG` | Reposition asset on screen |
+| `SCROLL` | Scale adjustment |
+| `CLICK` | Interaction event (+2 XP) |
+| `TRAY RIGHT-CLICK` | Access command center |
 
-### Tray Menu Options
+### Command Center
 
-- 📌 **Always on Top** — Toggle window priority
-- 🔄 **Reset Position** — Return to default location
-- 🎬 **Movement** — None / Bounce / Follow / Wander
-- 🎨 **Color** — Choose from 10 theme colors
-- 🌐 **Language** — English / 中文
-- ⚙️ **Chat Settings** — Configure LLM endpoint
-- 🛠️ **Dev Tools** — Debug console
-- 🔄 **Update from GitHub** — Pull latest changes
-- ❌ **Quit** — Close Radgotchi
+| Option | Function |
+|--------|----------|
+| Always on Top | Window priority toggle |
+| Reset Position | Return to origin coordinates |
+| Movement | Protocol selection |
+| Color | Visual theme configuration |
+| Language | Localization toggle |
+| Chat Settings | LLM endpoint configuration |
+| Dev Tools | Debug interface |
+| Update | Pull latest from repository |
+| Quit | Terminate session |
 
-### System Reactions
+### Event Response Matrix
 
-| Condition | Radgotchi's Response |
-|-----------|---------------------|
-| CPU > 80% | 😰 Concerned, alert |
-| CPU > 95% | 🔥 Intense spike detected |
-| Memory > 85% | 😟 Memory pressure warning |
-| Network lost | 😢 Connection lost |
-| Network restored | 😊 Back online |
-| App not responding | 😵 Detects hung processes |
-| User idle 2min | 😴 Falls asleep |
-| User returns | 😆 Excited wakeup |
-
----
-
-## 💬 Chat & AI
-
-Radgotchi includes a built-in chat terminal that connects to local LLM services.
-
-### Supported Backends
-
-- **[Ollama](https://ollama.ai/)** — `http://localhost:11434/v1/chat/completions`
-- **[LM Studio](https://lmstudio.ai/)** — `http://localhost:1234/v1/chat/completions`
-- **[LocalAI](https://localai.io/)** — Configure your endpoint
-- **Any OpenAI-compatible API** — Works with custom endpoints
-
-### Setup
-
-1. Right-click tray → **Chat Settings**
-2. Enable chat and enter your API endpoint
-3. Set the model name (e.g., `llama2`, `mistral`, `codellama`)
-4. Optionally customize the system prompt
-5. Click **Save**
-
-### Opening Chat
-
-Click on Radgotchi to open the **SIGINT Terminal** chat interface.
-
-### Chat Features
-
-- **Retro terminal aesthetic** — CRT scanlines, grid background
-- **Mood reactions** — Pet shows thinking/success/error states
-- **Markdown rendering** — Code blocks, bold, lists, links
-- **Copy code blocks** — One-click copy button
-- **Control panel** — Movement, color, and language controls built-in
-- **XP display** — Level and progress bar in chat header
+| Trigger | Asset Response |
+|---------|----------------|
+| `CPU > 80%` | Alert state |
+| `CPU > 95%` | Critical alert |
+| `MEM > 85%` | Pressure warning |
+| `NET DOWN` | Connection lost indicator |
+| `NET UP` | Connectivity restored |
+| `PROC HUNG` | Process fault detected |
+| `IDLE 2m` | Sleep mode engaged |
+| `ACTIVITY` | Wake event |
 
 ---
 
-## 📈 XP & Leveling
+## SIGINT Terminal
 
-Keep Radgotchi running and interact with it to earn XP and level up!
+Integrated communication interface with local language model support.
 
-### XP Sources
+### Compatible Endpoints
 
-| Action | XP Earned |
-|--------|-----------|
-| **Passive** | +1 XP every 30 seconds |
-| **Click pet** | +2 XP (3-second cooldown) |
-| **Send message** | +5 XP |
-| **Receive response** | +3 XP |
+| Backend | Default Endpoint |
+|---------|------------------|
+| [Ollama](https://ollama.ai/) | `localhost:11434/v1/chat/completions` |
+| [LM Studio](https://lmstudio.ai/) | `localhost:1234/v1/chat/completions` |
+| [LocalAI](https://localai.io/) | Custom configuration |
+| OpenAI-compatible | Any conformant endpoint |
 
-### Level Progression
+### Configuration Sequence
 
-| Level | Total XP Required |
-|-------|-------------------|
-| 1 | 0 |
-| 2 | 50 |
-| 3 | 150 |
-| 5 | 500 |
-| 10 | 2,600 |
-| 15 | 7,200 |
-| 20 | 17,500 |
-| 21+ | +3,000 per level |
+1. Access Command Center → **Chat Settings**
+2. Enable interface, specify endpoint URL
+3. Define model identifier (`llama2`, `mistral`, `codellama`, etc.)
+4. Configure system prompt (optional)
+5. Commit configuration
 
-### XP Display
+### Interface Access
 
-The chat panel shows:
-- **Level badge** — Your current level
-- **Progress bar** — XP towards next level
-- **Total XP** — Cumulative XP earned
+Click asset to launch **SIGINT Terminal**.
 
-XP automatically saves to disk and persists across sessions.
+### Terminal Features
+
+| Feature | Description |
+|---------|-------------|
+| **Visual Design** | CRT scanlines, grid overlay, retro aesthetic |
+| **Streaming** | Real-time token decode and display |
+| **Persistence** | Automatic session history retention |
+| **Activity Log** | Event tracking (XP, milestones, system) |
+| **State Display** | Processing/success/error indicators |
+| **Markdown** | Full rendering with code block copy |
+| **Controls** | Movement, theme, language, sleep, stats, focus |
+| **Status Bar** | Level, rank, progress visualization |
+| **Audio** | MUTE toggle for silent operation |
 
 ---
 
-## 🎨 Customization
+## Clearance Progression
 
-### Color Themes
+Operational engagement generates experience points. Sustained activity advances clearance level.
 
-Right-click the tray icon → **Color** or use the chat panel dropdown:
-- 🔴 Red (default)
-- 🩵 Cyan
-- 💚 Green
-- 💜 Purple
-- 💗 Pink
-- 🧡 Orange
-- 💛 Yellow
-- 💙 Blue
-- 💚 Lime
-- 🤍 White
+### XP Acquisition
 
-### Language
+| Source | Yield | Conditions |
+|--------|-------|------------|
+| Passive | +1 | Every 30 seconds |
+| Interaction | +2 | 3-second cooldown |
+| Message Send | +5 | Per transmission |
+| Message Receive | +3 | Per response |
+| Focus Complete | +25 | Pomodoro session |
+| Alert Response | +15 | Attention event |
 
-Switch between English and 中文 (Chinese):
-- Tray menu → **Language**
-- Chat panel → **Language toggle button**
+### Level Thresholds
 
-All UI text, status messages, and emotes are localized.
+| Level | XP Required | Level | XP Required |
+|-------|-------------|-------|-------------|
+| 1 | 0 | 10 | 2,600 |
+| 2 | 50 | 15 | 7,200 |
+| 3 | 150 | 20 | 17,500 |
+| 5 | 500 | 21+ | +3,000/level |
 
-### Expression-Only Mode
+### Clearance Ranks
 
-Toggle via the chat panel to hide status text and show only Radgotchi's expressions. Perfect for a cleaner desktop look.
+| Designation | Min Level | Designation | Min Level |
+|-------------|-----------|-------------|-----------|
+| TRAINEE | 1 | CONTROLLER | 17 |
+| ANALYST | 3 | DIRECTOR | 20 |
+| OPERATIVE | 5 | EXECUTIVE | 24 |
+| AGENT | 8 | OVERSEER | 28 |
+| SPECIALIST | 11 | SENTINEL | 33 |
+| HANDLER | 14 | ARCHITECT | 40 |
+| | | PHANTOM | 50 |
 
-### CSS Variables
+### Milestone Objectives
 
-For deeper customization, edit `styles.css`:
+| Category | Thresholds |
+|----------|------------|
+| Interactions | 10 → 50 → 100 → 500 → 1,000 → 5,000 |
+| Transmissions | 5 → 25 → 50 → 100 → 250 → 500 |
+| Sessions | 5 → 10 → 25 → 50 → 100 |
+| Total XP | 100 → 500 → 1K → 5K → 10K → 50K |
+| Uptime | 1h → 4h → 12h → 24h → 48h → 72h |
+
+### Status Display
+
+| Element | Content |
+|---------|---------|
+| Level Badge | Current clearance level |
+| Rank Title | Designation name |
+| Progress Bar | XP to next threshold |
+| Total XP | Cumulative acquisition |
+| Stats Panel | Detailed metrics (📊 toggle) |
+
+State automatically persists to local storage.
+
+---
+
+## Configuration
+
+### Visual Themes
+
+Access via Command Center → **Color** or terminal dropdown:
+
+| Theme | Code | Theme | Code |
+|-------|------|-------|------|
+| Red | `red` | Yellow | `yellow` |
+| Cyan | `cyan` | Blue | `blue` |
+| Green | `green` | Lime | `lime` |
+| Purple | `purple` | White | `white` |
+| Pink | `pink` | Orange | `orange` |
+
+### Localization
+
+| Language | Access |
+|----------|--------|
+| English | Default |
+| 中文 | Toggle via tray or terminal |
+
+All interface elements and status messages localize automatically.
+
+### Sleepy Mode
+
+Enable low-power display mode via terminal toggle. Reduces visual activity and prevents energy loss over time.
+
+### Style Variables
+
+For advanced theming, modify `styles.css`:
 
 ```css
 :root {
-    --rg-color: #ff3344;       /* Main accent */
-    --rg-glow: #ff334488;      /* Glow effect */
+    --rg-color: #ff3344;       /* Primary accent */
+    --rg-glow: #ff334488;      /* Glow intensity */
     --rg-status-color: #cc2233; /* Status text */
 }
 ```
 
-### Custom System Prompt
+### System Prompt Configuration
 
-Configure the AI personality in Chat Settings:
-- Change the system prompt to customize how Radgotchi talks
-- Make it more helpful, silly, professional, or anything you want
+Customize asset personality via Chat Settings:
+- Modify system prompt to alter communication style
+- Supports any persona configuration
 
 ---
 
-## 🔨 Building
+## Distribution
 
-### Create Distributable
+### Build Commands
 
 ```bash
-# Build for current platform
+# Current platform
 npm run build
 
-# Platform-specific builds
-npm run build:win      # Windows (NSIS installer + portable)
+# Platform-specific
+npm run build:win      # Windows (NSIS + portable)
 npm run build:mac      # macOS (DMG + ZIP)
 npm run build:linux    # Linux (AppImage + DEB)
 
-# Windows portable only
+# Portable only
 npm run build:portable
 ```
 
-Output goes to the `dist/` folder:
+### Output Artifacts
 
-**Windows:**
-- `Radgotchi Setup x.x.x.exe` — Installer
-- `Radgotchi x.x.x.exe` — Portable version
+| Platform | Artifacts |
+|----------|----------|
+| Windows | `Radgotchi Setup x.x.x.exe`, `Radgotchi x.x.x.exe` (portable) |
+| macOS | `Radgotchi-x.x.x.dmg`, `Radgotchi-x.x.x-mac.zip` |
+| Linux | `Radgotchi-x.x.x.AppImage`, `radgotchi_x.x.x_amd64.deb` |
 
-**macOS:**
-- `Radgotchi-x.x.x.dmg` — Disk image
-- `Radgotchi-x.x.x-mac.zip` — Zipped app
-
-**Linux:**
-- `Radgotchi-x.x.x.AppImage` — Universal Linux app
-- `radgotchi_x.x.x_amd64.deb` — Debian/Ubuntu package
+All outputs written to `dist/` directory.
 
 ---
 
-## 📁 Project Structure
+## Architecture
+
+### Source Structure
 
 ```
 radgotchi/
-├── main.js           # Electron main process, XP system, IPC
-├── preload.js        # Secure IPC bridge (main window)
-├── preload-chat.js   # Secure IPC bridge (chat window)
-├── renderer.js       # UI logic & interactions
-├── radgotchi.js      # Pet behavior module
-├── index.html        # Main app shell
-├── chat.html         # Chat terminal interface
-├── styles.css        # Animations & themes
-├── package.json      # Config & dependencies
-└── assets/           # Sprite images (25+)
+├── main.js           # Main process, state management, IPC
+├── preload.js        # Secure bridge (main window)
+├── preload-chat.js   # Secure bridge (terminal window)
+├── renderer.js       # UI controller
+├── radgotchi.js      # Asset behavior engine
+├── sounds.js         # Audio synthesis module
+├── index.html        # Primary interface
+├── chat.html         # SIGINT Terminal
+├── styles.css        # Visual styling
+├── package.json      # Project manifest
+└── assets/           # Sprite library (25+)
 ```
 
-### Data Files (stored in userData)
+### Persistent Data
 
-- `llm-config.json` — LLM endpoint configuration
-- `xp-data.json` — XP and level progress
+Stored in user data directory:
+
+| File | Contents |
+|------|----------|
+| `llm-config.json` | LLM endpoint configuration |
+| `xp-data.json` | Progression state, streaks |
+| `chat-data.json` | Message history |
+| `milestones.json` | Achievement records |
 
 ---
 
-## 🛠️ Development
+## Technical Reference
 
-### API Reference
+### RG Module API
 
-The global `RG` module provides programmatic control:
+Programmatic asset control:
 
 ```javascript
-// Set mood (with options)
+// State manipulation
 RG.setMood('happy', { 
-  duration: 3000,    // Auto-reset after 3s
-  anim: 'bounce',    // Animation class
-  status: 'Custom!'  // Status text
+  duration: 3000,
+  anim: 'bounce',
+  status: 'Custom text'
 });
 
-// React to severity levels
-RG.react('critical', 'Alert!');
-RG.react('warning', 'Heads up');
-RG.react('ok', 'All good');
+// Severity response
+RG.react('critical', 'Alert message');
+RG.react('warning', 'Warning message');
+RG.react('ok', 'Status normal');
 
-// Feed system metrics
+// Telemetry ingestion
 RG.assessHealth({
   cpu: { usage_total: 45 },
   memory: { percent: 60 }
 });
 
-// Read state
-console.log(RG.mood);      // Current mood
-console.log(RG.petCount);  // Interaction count
+// State inspection
+console.log(RG.mood);
+console.log(RG.petCount);
 ```
 
-### IPC Events
+### SoundSystem API
 
-The main process emits these events to renderers:
+Audio control interface:
 
-| Event | Data | Description |
-|-------|------|-------------|
-| `xp-update` | `{level, totalXp, progress, leveledUp}` | XP changed |
-| `movement-mode-change` | `mode` | Movement mode switched |
-| `system-event` | `{type, value}` | System state changed |
-| `idle-change` | `{idle: boolean}` | User AFK status |
-| `set-color` | `color` | Theme color changed |
-| `set-language` | `lang` | Language switched |
+```javascript
+// Playback
+SoundSystem.play('levelUp');
+SoundSystem.play('click');
+SoundSystem.play('messageReceive');
+
+// Available: chatOpen, chatClose, messageSend, messageReceive,
+// click, sleepStart, sleepEnd, attentionStart, attentionEnd,
+// levelUp, milestone, pomodoroStart, pomodoroComplete, xpGain, xpLoss
+
+// Enable/disable
+SoundSystem.setEnabled(false);
+SoundSystem.setEnabled(true);
+SoundSystem.isEnabled();
+
+// Volume (0.0 - 1.0)
+SoundSystem.setVolume(0.5);
+SoundSystem.getVolume();
+```
+
+### IPC Event Reference
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `xp-update` | `{level, totalXp, progress, leveledUp}` | Progression change |
+| `movement-mode-change` | `mode` | Protocol switch |
+| `system-event` | `{type, value}` | System state delta |
+| `idle-change` | `{idle: boolean}` | Presence detection |
+| `set-color` | `color` | Theme update |
+| `set-language` | `lang` | Locale switch |
+| `chat-stream-chunk` | `{content, done}` | LLM stream data |
+| `needs-update` | `{hunger, energy}` | Asset needs delta |
+| `pomodoro-update` | `{mode, remaining}` | Timer state |
+| `pomodoro-complete` | `{mode}` | Session complete |
+| `activity-log-update` | `{type, message, ts}` | Activity event |
+| `attention-event` | `{type, message}` | Alert triggered |
 
 ---
 
-## 📄 License
+## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+`MIT` — See [LICENSE](LICENSE)
+
+---
+
+## Acknowledgments
+
+<p align="center">
+  <b>Inspired by the rad minds behind:</b>
+</p>
+
+<p align="center">
+  <a href="https://radbro.xyz"><b>Radbro Webring</b></a><br>
+  <a href="https://opensea.io/collection/radbro-webring">OpenSea</a> • <a href="https://x.com/radbro_webring">𝕏</a>
+</p>
+
+<p align="center">
+  <a href="https://remilio.org"><b>Remilio</b></a> (Remilia Corporation)<br>
+  <a href="https://opensea.io/collection/remilio-babies">OpenSea</a> • <a href="https://x.com/RemilioBaby">𝕏</a>
+</p>
 
 ---
 
 <p align="center">
-  <b>Made with 💻 by the Radbro community</b>
+  <code>[ END TRANSMISSION ]</code>
 </p>

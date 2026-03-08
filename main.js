@@ -92,6 +92,49 @@ function getRank(level) {
     return RANKS[0];
 }
 
+// Milestone achievements
+const MILESTONES = {
+    clicks: [10, 50, 100, 250, 500, 1000, 2500, 5000],
+    messages: [5, 25, 50, 100, 250, 500],
+    sessions: [5, 10, 25, 50, 100],
+    xp: [100, 500, 1000, 2500, 5000, 10000, 25000, 50000],
+    uptime: [3600000, 18000000, 86400000, 259200000], // 1hr, 5hr, 24hr, 72hr
+};
+
+let achievedMilestones = new Set();
+
+function checkMilestones(type, value, prevValue = 0) {
+    const thresholds = MILESTONES[type];
+    if (!thresholds) return;
+    
+    for (const threshold of thresholds) {
+        const key = `${type}-${threshold}`;
+        if (value >= threshold && prevValue < threshold && !achievedMilestones.has(key)) {
+            achievedMilestones.add(key);
+            
+            const labels = {
+                clicks: { en: 'CLICKS', zh: '点击' },
+                messages: { en: 'MESSAGES', zh: '消息' },
+                sessions: { en: 'SESSIONS', zh: '会话' },
+                xp: { en: 'XP', zh: '经验' },
+                uptime: { en: 'UPTIME', zh: '运行时间' },
+            };
+            
+            let displayValue = threshold;
+            if (type === 'uptime') {
+                displayValue = threshold >= 86400000 ? Math.floor(threshold / 86400000) + 'h' :
+                               threshold >= 3600000 ? Math.floor(threshold / 3600000) + 'h' : 
+                               Math.floor(threshold / 60000) + 'm';
+                if (threshold >= 86400000) displayValue = Math.floor(threshold / 86400000) + 'd';
+            }
+            
+            addActivityLogEntry('milestone', 
+                `🔓 CLEARANCE GRANTED: ${displayValue} ${labels[type].en}`,
+                `🔓 权限解锁: ${displayValue} ${labels[type].zh}`);
+        }
+    }
+}
+
 // XP state
 let xpData = {
     totalXp: 0,
@@ -109,6 +152,7 @@ let xpData = {
     // Sleep stats
     stasisCycles: 0,       // Total number of sleeps
     deepestStasis: 0,      // Longest sleep duration in ms
+    totalStasis: 0,        // Total accumulated sleep time in ms
 };
 
 // Pet needs state (hunger/energy)
@@ -177,6 +221,87 @@ function getXpDataPath() {
     return path.join(app.getPath('userData'), 'xp-data.json');
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Chat History & Activity Log Persistence
+// ═══════════════════════════════════════════════════════════════════════════
+
+const CHAT_HISTORY_CONFIG = {
+    MAX_MESSAGES: 100,        // Max chat messages to keep
+    MAX_ACTIVITY_LOG: 50,     // Max activity log entries
+};
+
+let chatHistory = [];
+let activityLog = [];
+
+function getChatDataPath() {
+    return path.join(app.getPath('userData'), 'chat-data.json');
+}
+
+function loadChatData() {
+    try {
+        const dataPath = getChatDataPath();
+        if (fs.existsSync(dataPath)) {
+            const data = fs.readFileSync(dataPath, 'utf8');
+            const saved = JSON.parse(data);
+            chatHistory = saved.chatHistory || [];
+            activityLog = saved.activityLog || [];
+            
+            // Trim to max limits
+            if (chatHistory.length > CHAT_HISTORY_CONFIG.MAX_MESSAGES) {
+                chatHistory = chatHistory.slice(-CHAT_HISTORY_CONFIG.MAX_MESSAGES);
+            }
+            if (activityLog.length > CHAT_HISTORY_CONFIG.MAX_ACTIVITY_LOG) {
+                activityLog = activityLog.slice(-CHAT_HISTORY_CONFIG.MAX_ACTIVITY_LOG);
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load chat data:', e);
+        chatHistory = [];
+        activityLog = [];
+    }
+}
+
+function saveChatData() {
+    try {
+        // Trim before saving
+        if (chatHistory.length > CHAT_HISTORY_CONFIG.MAX_MESSAGES) {
+            chatHistory = chatHistory.slice(-CHAT_HISTORY_CONFIG.MAX_MESSAGES);
+        }
+        if (activityLog.length > CHAT_HISTORY_CONFIG.MAX_ACTIVITY_LOG) {
+            activityLog = activityLog.slice(-CHAT_HISTORY_CONFIG.MAX_ACTIVITY_LOG);
+        }
+        
+        const dataToSave = {
+            chatHistory,
+            activityLog,
+            lastSaved: Date.now()
+        };
+        fs.writeFileSync(getChatDataPath(), JSON.stringify(dataToSave, null, 2));
+    } catch (e) {
+        console.error('Failed to save chat data:', e);
+    }
+}
+
+function addActivityLogEntry(type, message, messageZh = null) {
+    const entry = {
+        type,
+        message,
+        messageZh: messageZh || message,
+        timestamp: Date.now()
+    };
+    activityLog.push(entry);
+    
+    // Auto-save periodically (not every entry to reduce IO)
+    if (activityLog.length % 5 === 0) {
+        saveChatData();
+    }
+    
+    // Notify chat window if open
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('activity-log-update', entry);
+    }
+}
+
 function loadXpData() {
     try {
         const dataPath = getXpDataPath();
@@ -199,6 +324,7 @@ function loadXpData() {
                 // Sleep stats
                 stasisCycles: saved.stasisCycles || 0,
                 deepestStasis: saved.deepestStasis || 0,
+                totalStasis: saved.totalStasis || 0,
             };
             
             // Update streak
@@ -233,6 +359,17 @@ function loadXpData() {
             
             // Recalculate level in case thresholds changed
             xpData.level = calculateLevel(xpData.totalXp);
+            
+            // Load achieved milestones
+            if (saved.achievedMilestones && Array.isArray(saved.achievedMilestones)) {
+                achievedMilestones = new Set(saved.achievedMilestones);
+            }
+            
+            // Initialize uptime milestone check baseline
+            lastUptimeMilestoneCheck = xpData.totalSessionTime;
+            
+            // Check session milestone (after incrementing totalSessions above)
+            checkMilestones('sessions', xpData.totalSessions, xpData.totalSessions - 1);
         }
     } catch (e) {
         console.error('Failed to load XP data:', e);
@@ -256,10 +393,12 @@ function saveXpData() {
             // Sleep stats
             stasisCycles: xpData.stasisCycles,
             deepestStasis: xpData.deepestStasis,
+            totalStasis: xpData.totalStasis,
             petNeeds: {
                 hunger: petNeeds.hunger,
                 energy: petNeeds.energy,
             },
+            achievedMilestones: Array.from(achievedMilestones),
             lastSaved: Date.now()
         };
         fs.writeFileSync(getXpDataPath(), JSON.stringify(dataToSave, null, 2));
@@ -305,20 +444,36 @@ function addXp(amount, source = 'unknown') {
     }
     
     const oldLevel = xpData.level;
+    const prevXp = xpData.totalXp;
     xpData.totalXp += finalAmount;
     xpData.level = calculateLevel(xpData.totalXp);
     
+    // Check XP milestones
+    checkMilestones('xp', xpData.totalXp, prevXp);
+    
     // Track stats and feed pet based on source
     if (source === 'click') {
+        const prevClicks = xpData.totalClicks;
         xpData.totalClicks++;
+        checkMilestones('clicks', xpData.totalClicks, prevClicks);
         feedPet(NEEDS_CONFIG.CLICK_FEED, 'hunger');
     } else if (source === 'message-send' || source === 'message-receive') {
+        const prevMsgs = xpData.totalMessages;
         xpData.totalMessages++;
+        checkMilestones('messages', xpData.totalMessages, prevMsgs);
         feedPet(NEEDS_CONFIG.MESSAGE_FEED, 'hunger');
         feedPet(NEEDS_CONFIG.MESSAGE_ENERGY, 'energy');
     }
     
     const leveledUp = xpData.level > oldLevel;
+    
+    // Log level up to activity log
+    if (leveledUp) {
+        const rank = getRank(xpData.level);
+        addActivityLogEntry('level-up', 
+            `Level up! Now level ${xpData.level} [${rank.name}]`,
+            `等级提升！达到 ${xpData.level} 级 [${rank.nameZh}]`);
+    }
     
     // Broadcast XP update to windows
     broadcastXpUpdate(leveledUp, oldLevel);
@@ -375,6 +530,7 @@ function getXpStatus() {
         // Sleep stats
         stasisCycles: xpData.stasisCycles,
         deepestStasis: xpData.deepestStasis,
+        totalStasis: xpData.totalStasis,
         // Needs
         hunger: petNeeds.hunger,
         energy: petNeeds.energy,
@@ -389,11 +545,19 @@ function getXpStatus() {
     };
 }
 
+let lastUptimeMilestoneCheck = 0;
+
 function startPassiveXpGain() {
     if (passiveXpInterval) return;
     
     passiveXpInterval = setInterval(() => {
         addXp(XP_CONFIG.PASSIVE_XP, 'passive');
+        
+        // Check uptime milestones periodically
+        const currentSessionMs = Date.now() - xpData.sessionStartTime;
+        const totalUptimeMs = xpData.totalSessionTime + currentSessionMs;
+        checkMilestones('uptime', totalUptimeMs, lastUptimeMilestoneCheck);
+        lastUptimeMilestoneCheck = totalUptimeMs;
     }, XP_CONFIG.PASSIVE_INTERVAL_MS);
 }
 
@@ -417,6 +581,14 @@ function removeXp(amount, source = 'unknown') {
     xpData.level = calculateLevel(xpData.totalXp);
     
     const leveledDown = xpData.level < oldLevel;
+    
+    // Log level down to activity log
+    if (leveledDown) {
+        const rank = getRank(xpData.level);
+        addActivityLogEntry('level-down', 
+            `Level down! Dropped to level ${xpData.level} [${rank.name}]`,
+            `等级下降！降至 ${xpData.level} 级 [${rank.nameZh}]`);
+    }
     
     // Broadcast XP update to windows
     const update = getXpStatus();
@@ -508,6 +680,11 @@ function triggerAttentionEvent() {
     attentionEvent.active = true;
     attentionEvent.startTime = Date.now();
     
+    // Log attention event
+    addActivityLogEntry('attention', 
+        'Attention required! Link unstable.',
+        '注意！连接不稳定。');
+    
     // Notify renderer to start vibrating
     if (mainWindow && mainWindow.webContents) {
         mainWindow.webContents.send('attention-event', { active: true });
@@ -550,6 +727,11 @@ function resolveAttentionEvent() {
     
     // Award bonus XP for resolving
     addXp(XP_CONFIG.ATTENTION_RESOLVE_XP, 'attention-resolve');
+    
+    // Log resolution
+    addActivityLogEntry('attention-resolved', 
+        'Attention resolved. Link restored.',
+        '注意已解决。连接已恢复。');
     
     return true;
 }
@@ -685,6 +867,13 @@ function completePomodoro() {
     }
     
     pomodoroState.active = false;
+    
+    // Log pomodoro completion
+    if (completedMode === 'work') {
+        addActivityLogEntry('pomodoro', 
+            `Pomodoro completed! Total: ${pomodoroState.pomosCompleted}`,
+            `番茄钟完成！总计：${pomodoroState.pomosCompleted}`);
+    }
     
     // Notify completion
     const notification = {
@@ -1395,6 +1584,165 @@ ${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
         }
     });
 
+    // Streaming chat with LLM IPC
+    ipcMain.on('send-chat-message-stream', async (event, { messages }) => {
+        // Wake up pet if sleeping
+        if (isSleeping) {
+            stopSleepMode();
+        }
+        
+        if (!llmConfig.enabled || !llmConfig.apiUrl) {
+            event.reply('chat-stream-error', { error: 'LLM not configured. Set up in tray menu → Chat Settings.' });
+            return;
+        }
+
+        try {
+            const https = require('https');
+            const http = require('http');
+            const url = new URL(llmConfig.apiUrl);
+            const protocol = url.protocol === 'https:' ? https : http;
+            
+            // Build dynamic system prompt with context
+            const status = getXpStatus();
+            const currentRank = getRank(status.level);
+            const nextRankIndex = RANKS.findIndex(r => r.name === currentRank.name) + 1;
+            const nextRank = nextRankIndex < RANKS.length ? RANKS[nextRankIndex] : null;
+            
+            const recentContext = messages.slice(-4).map(m => 
+                `${m.role === 'user' ? 'Bro' : 'You'}: ${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}`
+            ).join('\n');
+            
+            const contextPrompt = `${llmConfig.systemPrompt}
+
+CURRENT STATUS:
+- Level: ${status.level} | XP: ${status.totalXp} (${Math.round(status.progress * 100)}% to next level)
+- Rank: ${currentRank.name}${nextRank ? ` | Next rank: ${nextRank.name} at Level ${nextRank.minLevel}` : ' (MAX RANK)'}
+- Hunger: ${Math.round(status.hunger)}% | Energy: ${Math.round(status.energy)}%
+- Sessions together: ${status.totalSessions} | Current streak: ${status.currentStreak} days
+
+${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
+
+            const requestBody = JSON.stringify({
+                model: llmConfig.model,
+                messages: [
+                    { role: 'system', content: contextPrompt },
+                    ...messages
+                ],
+                max_tokens: 200,
+                temperature: 0.8,
+                stream: true
+            });
+
+            const req = protocol.request({
+                hostname: url.hostname,
+                port: url.port || (url.protocol === 'https:' ? 443 : 80),
+                path: url.pathname,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(requestBody),
+                    ...(llmConfig.apiKey ? { 'Authorization': `Bearer ${llmConfig.apiKey}` } : {})
+                },
+                timeout: 30000
+            }, (res) => {
+                let buffer = '';
+                let fullContent = '';
+                
+                // Check if streaming is supported
+                if (!res.headers['content-type']?.includes('text/event-stream') && 
+                    !res.headers['content-type']?.includes('application/x-ndjson')) {
+                    // Fallback: endpoint doesn't support streaming
+                    let data = '';
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', () => {
+                        try {
+                            const json = JSON.parse(data);
+                            if (json.error) {
+                                event.reply('chat-stream-error', { error: json.error.message || 'API error' });
+                            } else {
+                                const content = json.choices?.[0]?.message?.content || 'No response';
+                                event.reply('chat-stream-chunk', { content, done: true });
+                                addXp(XP_CONFIG.MESSAGE_RECEIVE_XP, 'message-receive');
+                            }
+                        } catch (e) {
+                            event.reply('chat-stream-error', { error: 'Invalid response from API' });
+                        }
+                    });
+                    return;
+                }
+                
+                res.on('data', (chunk) => {
+                    buffer += chunk.toString();
+                    
+                    // Process complete lines (SSE format: "data: {...}\n")
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
+                    
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed || trimmed === 'data: [DONE]') continue;
+                        
+                        if (trimmed.startsWith('data: ')) {
+                            try {
+                                const json = JSON.parse(trimmed.slice(6));
+                                const delta = json.choices?.[0]?.delta?.content;
+                                if (delta) {
+                                    fullContent += delta;
+                                    event.reply('chat-stream-chunk', { content: delta, done: false });
+                                }
+                            } catch (e) {
+                                // Skip malformed JSON chunks
+                            }
+                        }
+                    }
+                });
+                
+                res.on('end', () => {
+                    // Process any remaining buffer
+                    if (buffer.trim() && buffer.trim() !== 'data: [DONE]') {
+                        if (buffer.trim().startsWith('data: ')) {
+                            try {
+                                const json = JSON.parse(buffer.trim().slice(6));
+                                const delta = json.choices?.[0]?.delta?.content;
+                                if (delta) {
+                                    fullContent += delta;
+                                    event.reply('chat-stream-chunk', { content: delta, done: false });
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                    
+                    // Signal completion
+                    event.reply('chat-stream-chunk', { content: '', done: true, fullContent });
+                    
+                    // Award XP for receiving a response
+                    if (fullContent) {
+                        addXp(XP_CONFIG.MESSAGE_RECEIVE_XP, 'message-receive');
+                    }
+                });
+                
+                res.on('error', (e) => {
+                    event.reply('chat-stream-error', { error: e.message });
+                });
+            });
+
+            req.on('error', (e) => {
+                event.reply('chat-stream-error', { error: e.message || 'Connection failed' });
+            });
+            
+            req.on('timeout', () => {
+                req.destroy();
+                event.reply('chat-stream-error', { error: 'Request timeout' });
+            });
+
+            req.write(requestBody);
+            req.end();
+            
+        } catch (e) {
+            event.reply('chat-stream-error', { error: e.message || 'Failed to connect to LLM' });
+        }
+    });
+
     // XP System IPC handlers
     ipcMain.handle('get-xp-status', async () => {
         return getXpStatus();
@@ -1617,6 +1965,31 @@ ipcMain.on('chat-set-language', (event, lang) => {
     }
 });
 
+// IPC: Get chat history (for restoring on panel open)
+ipcMain.handle('get-chat-history', async () => {
+    return {
+        chatHistory,
+        activityLog
+    };
+});
+
+// IPC: Save chat message to history
+ipcMain.on('save-chat-message', (event, { role, content }) => {
+    chatHistory.push({
+        role,
+        content,
+        timestamp: Date.now()
+    });
+    saveChatData();
+});
+
+// IPC: Clear chat history
+ipcMain.handle('clear-chat-history', async () => {
+    chatHistory = [];
+    saveChatData();
+    return { success: true };
+});
+
 // Sleep mode animations
 const SLEEP_ANIMATIONS = ['sleep', 'sleep2'];
 let sleepAnimationIndex = 0;
@@ -1670,8 +2043,9 @@ function stopSleepMode() {
     if (!isSleeping) return;
     isSleeping = false;
     
-    // Calculate sleep duration and update deepest stasis record
+    // Calculate sleep duration and update stasis records
     const sleepDuration = Date.now() - sleepStartTime;
+    xpData.totalStasis += sleepDuration;
     if (sleepDuration > xpData.deepestStasis) {
         xpData.deepestStasis = sleepDuration;
     }
@@ -2280,10 +2654,16 @@ function createTray() {
 function initializeApp() {
     loadLlmConfig();
     loadXpData();
+    loadChatData();
     createWindow();
     createTray();
     startPassiveXpGain();
     startNeedsDecay();
+    
+    // Log session start
+    addActivityLogEntry('session-start', 
+        'Session started. Session #' + xpData.totalSessions,
+        '会话开始。第 ' + xpData.totalSessions + ' 次会话');
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -2318,6 +2698,7 @@ app.on('will-quit', () => {
     stopPomodoro();
     if (attentionEvent.lossInterval) clearInterval(attentionEvent.lossInterval);
     saveXpData();
+    saveChatData();
 });
 
 // Prevent multiple instances

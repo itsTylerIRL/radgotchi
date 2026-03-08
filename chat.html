@@ -742,12 +742,13 @@
         }
         
         .message.system {
-            background: rgba(255, 170, 0, 0.08);
-            border-color: var(--term-amber);
-            color: var(--term-amber);
+            background: color-mix(in srgb, var(--term-green) 12%, transparent);
+            border-color: var(--term-green);
+            color: var(--term-green);
             font-size: 9px;
             text-align: center;
             margin: 8px 20px;
+            text-shadow: 0 0 6px var(--term-green);
         }
         
         .message.system::after {
@@ -756,7 +757,7 @@
             top: -14px;
             right: 0;
             font-size: 7px;
-            color: var(--term-amber);
+            color: var(--term-green);
             letter-spacing: 1px;
         }
         
@@ -1192,6 +1193,14 @@
                     <span class="stat-label" id="label-best">BEST</span>
                     <span class="stat-value" id="stat-best">0 days</span>
                 </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="label-stasis">STASIS</span>
+                    <span class="stat-value" id="stat-stasis">0h 0m</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="label-deepest">DEEPEST</span>
+                    <span class="stat-value" id="stat-deepest">0h 0m</span>
+                </div>
             </div>
         </div>
         <div class="pomodoro-bar" id="pomodoro-bar">
@@ -1241,9 +1250,15 @@
                 <span class="toggle-indicator"></span>
                 <span class="toggle-label" id="label-sleep">ZZZ</span>
             </button>
+            <span class="control-divider"></span>
+            <button class="control-toggle" id="toggle-mute" title="Mute sounds">
+                <span class="toggle-indicator"></span>
+                <span class="toggle-label" id="label-mute">MUTE</span>
+            </button>
         </div>
     </div>
     
+    <script src="sounds.js"></script>
     <script>
         const terminalContainer = document.querySelector('.terminal-container');
         const messagesEl = document.getElementById('messages');
@@ -1256,10 +1271,31 @@
         let chatHistory = [];
         let isSending = false;
         
+        // Initialize audio context on first interaction (browser autoplay policy)
+        let audioInitialized = false;
+        function initAudioOnInteraction() {
+            if (audioInitialized) return;
+            audioInitialized = true;
+            if (typeof SoundSystem !== 'undefined') {
+                // Trigger context creation by playing a silent sound or just init
+                SoundSystem.play('click');
+            }
+            document.removeEventListener('click', initAudioOnInteraction);
+            document.removeEventListener('keydown', initAudioOnInteraction);
+        }
+        document.addEventListener('click', initAudioOnInteraction, { once: true });
+        document.addEventListener('keydown', initAudioOnInteraction, { once: true });
+        
         // Sleep timer state
         let sleepTimerEl = null;
         let sleepTimerInterval = null;
         let sleepStartTime = null;
+        
+        // Attention message state (for in-place updates)
+        let attentionMsgEl = null;
+        
+        // Pomodoro message state (for in-place updates)
+        let pomodoroMsgEl = null;
         
         // Sleep timer messages (themed)
         const sleepMessages = {
@@ -1397,6 +1433,11 @@
         
         // Close button
         closeBtn.addEventListener('click', () => {
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('chatClose');
+            // Clean up any streaming listeners
+            if (window.electronAPI.removeChatStreamListeners) {
+                window.electronAPI.removeChatStreamListeners();
+            }
             window.electronAPI.closeChat();
         });
         
@@ -1405,12 +1446,19 @@
             return new Date().toTimeString().split(' ')[0];
         }
         
+        // Format timestamp from epoch
+        function formatTimestamp(ts) {
+            if (!ts) return getTimeStr();
+            const d = new Date(ts);
+            return d.toTimeString().split(' ')[0];
+        }
+        
         // Add message to UI
-        function addMessage(role, content, isThinking = false) {
+        function addMessage(role, content, isThinking = false, timestamp = null, persist = false) {
             const t = translations[currentLang];
             const msgEl = document.createElement('div');
             msgEl.className = `message ${role}${isThinking ? ' thinking' : ''}`;
-            msgEl.setAttribute('data-time', getTimeStr());
+            msgEl.setAttribute('data-time', timestamp ? formatTimestamp(timestamp) : getTimeStr());
             
             // Set language-aware labels via CSS custom properties
             if (role === 'user') {
@@ -1436,6 +1484,12 @@
             
             messagesEl.appendChild(msgEl);
             messagesEl.scrollTop = messagesEl.scrollHeight;
+            
+            // Persist system messages if requested
+            if (persist && role === 'system' && window.electronAPI && window.electronAPI.saveChatMessage) {
+                window.electronAPI.saveChatMessage('system', content);
+            }
+            
             return msgEl;
         }
         
@@ -1458,6 +1512,14 @@
             addMessage('user', message);
             chatHistory.push({ role: 'user', content: message });
             
+            // Play send sound
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('messageSend');
+            
+            // Save message to persistent storage
+            if (window.electronAPI && window.electronAPI.saveChatMessage) {
+                window.electronAPI.saveChatMessage('user', message);
+            }
+            
             // Award XP for sending a message
             if (window.electronAPI && window.electronAPI.addXp) {
                 window.electronAPI.addXp(5, 'message-send');
@@ -1466,32 +1528,83 @@
             isSending = true;
             sendBtn.disabled = true;
             const t = translations[currentLang];
-            const thinkingEl = addMessage('assistant', t.processing, true);
+            
+            // Create streaming message element (shows "thinking" initially)
+            const streamMsgEl = document.createElement('div');
+            streamMsgEl.className = 'message assistant thinking';
+            streamMsgEl.setAttribute('data-time', getTimeStr());
+            streamMsgEl.style.setProperty('--bro-label', '"' + t.bro + '"');
+            streamMsgEl.textContent = t.processing;
+            messagesEl.appendChild(streamMsgEl);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
             
             window.electronAPI.chatMood('thinking');
             
-            try {
-                const response = await window.electronAPI.sendChatMessage(chatHistory);
+            // Streaming content accumulator
+            let streamedContent = '';
+            let streamComplete = false;
+            
+            // Set up stream handlers
+            const handleChunk = (data) => {
+                if (streamComplete) return;
                 
-                if (thinkingEl) thinkingEl.remove();
-                
-                if (response.error) {
-                    addMessage('system', t.err + ': ' + response.error);
-                    window.electronAPI.chatMood('error');
-                } else {
-                    addMessage('assistant', response.content);
-                    chatHistory.push({ role: 'assistant', content: response.content });
-                    window.electronAPI.chatMood('success');
+                if (data.content) {
+                    streamedContent += data.content;
+                    streamMsgEl.classList.remove('thinking');
+                    streamMsgEl.innerHTML = parseMarkdown(streamedContent);
+                    // Update copy buttons
+                    streamMsgEl.querySelectorAll('.copy-btn').forEach(btn => {
+                        btn.textContent = t.copy;
+                        btn.setAttribute('data-copy', t.copy);
+                        btn.setAttribute('data-copied', t.copied);
+                    });
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
                 }
-            } catch (e) {
-                if (thinkingEl) thinkingEl.remove();
-                addMessage('system', t.linkFailure + ': ' + e.message);
+                
+                if (data.done) {
+                    streamComplete = true;
+                    window.electronAPI.removeChatStreamListeners();
+                    
+                    if (streamedContent) {
+                        chatHistory.push({ role: 'assistant', content: streamedContent });
+                        
+                        // Play receive sound
+                        if (typeof SoundSystem !== 'undefined') SoundSystem.play('messageReceive');
+                        
+                        // Save assistant response to persistent storage
+                        if (window.electronAPI && window.electronAPI.saveChatMessage) {
+                            window.electronAPI.saveChatMessage('assistant', streamedContent);
+                        }
+                        
+                        window.electronAPI.chatMood('success');
+                    }
+                    
+                    isSending = false;
+                    sendBtn.disabled = false;
+                    inputEl.focus();
+                }
+            };
+            
+            const handleError = (data) => {
+                if (streamComplete) return;
+                streamComplete = true;
+                window.electronAPI.removeChatStreamListeners();
+                
+                streamMsgEl.remove();
+                addMessage('system', t.err + ': ' + (data.error || 'Unknown error'));
                 window.electronAPI.chatMood('error');
-            } finally {
+                
                 isSending = false;
                 sendBtn.disabled = false;
                 inputEl.focus();
-            }
+            };
+            
+            // Register listeners
+            window.electronAPI.onChatStreamChunk(handleChunk);
+            window.electronAPI.onChatStreamError(handleError);
+            
+            // Send message with streaming
+            window.electronAPI.sendChatMessageStream(chatHistory);
         }
         
         // Event listeners
@@ -1504,11 +1617,52 @@
         });
         
         // Listen for config status
-        window.electronAPI.onChatReady((data) => {
+        window.electronAPI.onChatReady(async (data) => {
+            // Play chat open sound
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('chatOpen');
+            
             const t = translations[currentLang];
+            
+            // Load and restore previous chat history
+            let hasHistory = false;
+            if (window.electronAPI && window.electronAPI.getChatHistory) {
+                try {
+                    const historyData = await window.electronAPI.getChatHistory();
+                    
+                    // Restore chat messages
+                    if (historyData.chatHistory && historyData.chatHistory.length > 0) {
+                        hasHistory = true;
+                        // Add a separator for previous session
+                        const sessionMsg = currentLang === 'zh' 
+                            ? '─── 之前的会话 ───'
+                            : '─── PREVIOUS SESSION ───';
+                        addMessage('system', sessionMsg);
+                        
+                        // Restore messages (limit to last 20 for performance)
+                        const recentHistory = historyData.chatHistory.slice(-20);
+                        recentHistory.forEach(msg => {
+                            addMessage(msg.role, msg.content, false, msg.timestamp);
+                            chatHistory.push({ role: msg.role, content: msg.content });
+                        });
+                        
+                        // Add current session separator
+                        const currentMsg = currentLang === 'zh' 
+                            ? '─── 当前会话 ───'
+                            : '─── CURRENT SESSION ───';
+                        addMessage('system', currentMsg);
+                    }
+                    
+                    // Activity log events are now persisted in chatHistory,
+                    // no need for separate summary
+                } catch (e) {
+                    console.error('Failed to load chat history:', e);
+                }
+            }
+            
             if (!data.configured) {
                 addMessage('system', t.commsOffline);
-            } else {
+            } else if (!hasHistory) {
+                // Only show link established if no history was restored
                 addMessage('assistant', t.linkEstablished);
             }
             
@@ -1523,10 +1677,7 @@
                 applyColor(data.color);
             }
             
-            // Preselect expression-only toggle from current state
-            if (data.expressionOnly) {
-                toggleExpressionOnly.classList.add('active');
-            }
+            // Expression-only toggle is in main window only, not chat panel
             
             // Initialize XP display
             if (data.xp) {
@@ -1626,6 +1777,8 @@
         const statSessions = document.getElementById('stat-sessions');
         const statStreak = document.getElementById('stat-streak');
         const statBest = document.getElementById('stat-best');
+        const statStasis = document.getElementById('stat-stasis');
+        const statDeepest = document.getElementById('stat-deepest');
         
         // Pomodoro elements
         const pomodoroBar = document.getElementById('pomodoro-bar');
@@ -1683,6 +1836,7 @@
             
             const { level, totalXp, xpIntoLevel, xpNeeded, progress, leveledUp, leveledDown, xpLost, source,
                     rank, rankZh, totalClicks, totalMessages, totalSessions, totalUptimeMs, currentStreak, longestStreak,
+                    totalStasis, deepestStasis,
                     hunger, energy } = xpData;
             
             levelBadge.textContent = 'LV ' + level;
@@ -1716,6 +1870,12 @@
             if (longestStreak !== undefined) {
                 statBest.textContent = longestStreak + (currentLang === 'zh' ? ' 天' : ' days');
             }
+            if (totalStasis !== undefined) {
+                statStasis.textContent = formatUptime(totalStasis);
+            }
+            if (deepestStasis !== undefined) {
+                statDeepest.textContent = formatUptime(deepestStasis);
+            }
             
             // Update needs
             if (hunger !== undefined) {
@@ -1724,6 +1884,9 @@
             
             // Level up animation
             if (leveledUp && animate) {
+                // Play level up sound
+                if (typeof SoundSystem !== 'undefined') SoundSystem.play('levelUp');
+                
                 levelBar.classList.add('level-up-flash');
                 levelBadge.style.animation = 'none';
                 levelBadge.offsetHeight; // Trigger reflow
@@ -1734,7 +1897,7 @@
                 const lvlMsg = currentLang === 'zh' 
                     ? '🎉 等级提升！已达到 ' + level + ' 级！ [' + newRank + ']'
                     : '🎉 LEVEL UP! Now level ' + level + '! [' + newRank + ']';
-                addMessage('system', lvlMsg);
+                addMessage('system', lvlMsg, false, null, true);
                 
                 setTimeout(() => {
                     levelBar.classList.remove('level-up-flash');
@@ -1743,12 +1906,15 @@
             
             // Level down animation (from decay)
             if (leveledDown && animate) {
+                // Play level down sound  
+                if (typeof SoundSystem !== 'undefined') SoundSystem.play('xpLoss');
+                
                 levelBar.classList.add('level-down-flash');
                 
                 const lvlMsg = currentLang === 'zh' 
                     ? '📉 等级下降！降至 ' + level + ' 级...'
                     : '📉 LEVEL DOWN! Dropped to level ' + level + '...';
-                addMessage('system', lvlMsg);
+                addMessage('system', lvlMsg, false, null, true);
                 
                 setTimeout(() => {
                     levelBar.classList.remove('level-down-flash');
@@ -1829,19 +1995,31 @@
         if (window.electronAPI && window.electronAPI.onAttentionEvent) {
             window.electronAPI.onAttentionEvent((data) => {
                 if (data.active) {
+                    // Play attention warning sound
+                    if (typeof SoundSystem !== 'undefined') SoundSystem.play('attentionStart');
                     // Show attention warning in chat
                     levelBar.classList.add('attention-warning');
                     const msg = currentLang === 'zh' 
                         ? '⚠️ 连接不稳定！确认信号！(每30秒损失XP)'
                         : '⚠️ LINK UNSTABLE! Confirm signal! (Losing XP every 30s)';
-                    addMessage('system', msg);
+                    attentionMsgEl = addMessage('system', msg, false, null, true);
+                    attentionMsgEl.classList.add('attention-msg');
                 } else {
                     levelBar.classList.remove('attention-warning');
                     if (data.resolved) {
+                        // Play resolved sound
+                        if (typeof SoundSystem !== 'undefined') SoundSystem.play('attentionEnd');
                         const msg = currentLang === 'zh' 
                             ? '✅ 握手确认！连接已恢复！'
                             : '✅ HANDSHAKE CONFIRMED! Link restored!';
-                        addMessage('system', msg);
+                        // Update existing message if it exists, otherwise add new
+                        if (attentionMsgEl) {
+                            attentionMsgEl.textContent = msg;
+                            attentionMsgEl.classList.remove('attention-msg');
+                            attentionMsgEl = null;
+                        } else {
+                            addMessage('system', msg, false, null, true);
+                        }
                     }
                 }
             });
@@ -1864,6 +2042,9 @@
         // Pomodoro complete listener
         if (window.electronAPI && window.electronAPI.onPomodoroComplete) {
             window.electronAPI.onPomodoroComplete((data) => {
+                // Play pomodoro complete sound
+                if (typeof SoundSystem !== 'undefined') SoundSystem.play('pomodoroComplete');
+                
                 const { mode, pomosCompleted, nextMode } = data;
                 let msg;
                 if (mode === 'work') {
@@ -1875,7 +2056,25 @@
                         ? '☕ 休息结束！准备好继续了吗？'
                         : '☕ BREAK OVER! Ready to focus?';
                 }
-                addMessage('system', msg);
+                addMessage('system', msg, false, null, true);
+            });
+        }
+        
+        // Activity log real-time updates
+        if (window.electronAPI && window.electronAPI.onActivityLogUpdate) {
+            window.electronAPI.onActivityLogUpdate((entry) => {
+                // Don't show duplicate activity entries (already shown via other events)
+                // This is for activity that happens while chat is open
+                // Skip level-up/down (already shown), attention (already shown), pomodoro (already shown)
+                if (['level-up', 'level-down', 'attention', 'attention-resolved', 'pomodoro'].includes(entry.type)) {
+                    return;
+                }
+                // Play milestone sound for clearance events
+                if (entry.type === 'milestone') {
+                    if (typeof SoundSystem !== 'undefined') SoundSystem.play('milestone');
+                }
+                const msg = currentLang === 'zh' ? entry.messageZh : entry.message;
+                addMessage('system', msg, false, null, true);
             });
         }
         
@@ -1883,6 +2082,10 @@
         toggleStats.addEventListener('click', () => {
             toggleStats.classList.toggle('active');
             statsPanel.classList.toggle('visible');
+            // Play open/close sound
+            if (typeof SoundSystem !== 'undefined') {
+                SoundSystem.play(statsPanel.classList.contains('visible') ? 'statsOpen' : 'statsClose');
+            }
         });
         
         // Pomodoro toggle (start/stop)
@@ -1891,15 +2094,26 @@
                 // Already active, stop it
                 if (window.electronAPI && window.electronAPI.pomodoroStop) {
                     window.electronAPI.pomodoroStop();
+                    const msg = currentLang === 'zh' 
+                        ? '⏹️ 番茄钟已停止'
+                        : '⏹️ POMODORO STOPPED';
+                    // Update existing message if it exists
+                    if (pomodoroMsgEl) {
+                        pomodoroMsgEl.textContent = msg;
+                        pomodoroMsgEl = null;
+                    } else {
+                        addMessage('system', msg, false, null, true);
+                    }
                 }
             } else {
                 // Start pomodoro
                 if (window.electronAPI && window.electronAPI.pomodoroStart) {
                     window.electronAPI.pomodoroStart('work');
+                    if (typeof SoundSystem !== 'undefined') SoundSystem.play('pomodoroStart');
                     const msg = currentLang === 'zh' 
                         ? '🍅 番茄钟开始！专注25分钟...'
                         : '🍅 POMODORO STARTED! Focus for 25 minutes...';
-                    addMessage('system', msg);
+                    pomodoroMsgEl = addMessage('system', msg, false, null, true);
                 }
             }
         });
@@ -1911,7 +2125,13 @@
                 const msg = currentLang === 'zh' 
                     ? '⏹️ 番茄钟已停止'
                     : '⏹️ POMODORO STOPPED';
-                addMessage('system', msg);
+                // Update existing message if it exists
+                if (pomodoroMsgEl) {
+                    pomodoroMsgEl.textContent = msg;
+                    pomodoroMsgEl = null;
+                } else {
+                    addMessage('system', msg, false, null, true);
+                }
             }
         });
         
@@ -1938,6 +2158,7 @@
                 mov: 'MOV',
                 col: 'COL',
                 sleep: 'ZZZ',
+                mute: 'MUTE',
                 stats: 'STAT',
                 pomo: 'POMO',
                 hunger: 'PWR',
@@ -1948,6 +2169,8 @@
                 sessions: 'SESSIONS',
                 streak: 'STREAK',
                 best: 'BEST',
+                stasis: 'STASIS',
+                deepest: 'DEEPEST',
                 days: 'days',
                 langToggle: '中文',
                 movOptions: { none: 'NONE', bounce: 'BOUNCE', follow: 'FOLLOW', wander: 'WANDER' },
@@ -1974,6 +2197,7 @@
                 mov: '动作',
                 col: '颜色',
                 sleep: '睡眠',
+                mute: '静音',
                 stats: '统计',
                 pomo: '番茄',
                 hunger: '能量',
@@ -1984,6 +2208,8 @@
                 sessions: '会话',
                 streak: '连续',
                 best: '最佳',
+                stasis: '休眠',
+                deepest: '最深',
                 days: '天',
                 langToggle: 'EN',
                 movOptions: { none: '无', bounce: '弹跳', follow: '跟随', wander: '漫游' },
@@ -2009,6 +2235,7 @@
             labelMov.textContent = t.mov;
             labelCol.textContent = t.col;
             labelSleep.textContent = t.sleep;
+            document.getElementById('label-mute').textContent = t.mute;
             labelStats.textContent = t.stats;
             labelPomo.textContent = t.pomo;
             toggleLang.textContent = t.langToggle;
@@ -2024,6 +2251,8 @@
             document.getElementById('label-sessions').textContent = t.sessions;
             document.getElementById('label-streak').textContent = t.streak;
             document.getElementById('label-best').textContent = t.best;
+            document.getElementById('label-stasis').textContent = t.stasis;
+            document.getElementById('label-deepest').textContent = t.deepest;
             
             // Update dropdown options
             Array.from(selectMovement.options).forEach(opt => {
@@ -2055,6 +2284,7 @@
         // Movement select
         selectMovement.addEventListener('change', () => {
             const mode = selectMovement.value;
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('selectChange');
             if (window.electronAPI && window.electronAPI.setMovementMode) {
                 window.electronAPI.setMovementMode(mode);
             }
@@ -2063,6 +2293,7 @@
         // Color select
         selectColor.addEventListener('change', () => {
             const color = selectColor.value;
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('selectChange');
             applyColor(color);
             if (window.electronAPI && window.electronAPI.setColor) {
                 window.electronAPI.setColor(color);
@@ -2077,12 +2308,34 @@
             
             if (sleeping) {
                 startSleepTimer();
+                if (typeof SoundSystem !== 'undefined') SoundSystem.play('sleepStart');
             } else {
                 stopSleepTimer();
+                if (typeof SoundSystem !== 'undefined') SoundSystem.play('sleepEnd');
             }
             
             if (window.electronAPI && window.electronAPI.setSleep) {
                 window.electronAPI.setSleep(sleeping);
+            }
+        });
+        
+        // Mute toggle (active = muted)
+        const toggleMute = document.getElementById('toggle-mute');
+        
+        // Initialize mute toggle state from SoundSystem
+        if (typeof SoundSystem !== 'undefined') {
+            if (!SoundSystem.isEnabled()) {
+                toggleMute.classList.add('active'); // Muted = active
+            }
+        }
+        
+        toggleMute.addEventListener('click', () => {
+            toggleMute.classList.toggle('active');
+            const isMuted = toggleMute.classList.contains('active');
+            if (typeof SoundSystem !== 'undefined') {
+                SoundSystem.setEnabled(!isMuted);
+                // Play a test click if unmuting
+                if (!isMuted) SoundSystem.play('click');
             }
         });
         
@@ -2091,6 +2344,10 @@
             toggleLang.classList.toggle('active');
             const newLang = toggleLang.classList.contains('active') ? 'zh' : 'en';
             toggleLang.textContent = newLang === 'zh' ? 'EN' : '中文';
+            // Play gong for Chinese, eagle screech for English
+            if (typeof SoundSystem !== 'undefined') {
+                SoundSystem.play(newLang === 'zh' ? 'gong' : 'eagleScreech');
+            }
             updateLanguage(newLang);
             if (window.electronAPI && window.electronAPI.setLanguage) {
                 window.electronAPI.setLanguage(newLang);

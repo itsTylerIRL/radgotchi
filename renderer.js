@@ -547,10 +547,10 @@ function spawnXpParticle(amount) {
     particle.className = 'rg-xp-particle';
     particle.textContent = `+${amount}`;
     
-    // Random horizontal offset
-    const offsetX = (Math.random() - 0.5) * 40;
-    particle.style.left = `calc(50% + ${offsetX}px)`;
-    particle.style.top = '40%';
+    // Position on left side of sprite, slight vertical randomness
+    const offsetY = (Math.random() - 0.5) * 20;
+    particle.style.left = '5px';
+    particle.style.top = `calc(50% + ${offsetY}px)`;
     
     container.appendChild(particle);
     
@@ -562,9 +562,11 @@ function spawnXpLossParticle(amount) {
     particle.className = 'rg-xp-loss-particle';
     particle.textContent = `-${amount}`;
     
-    const offsetX = (Math.random() - 0.5) * 30;
-    particle.style.left = `calc(50% + ${offsetX}px)`;
-    particle.style.top = '50%';
+    // Position on right side of sprite, slight vertical randomness
+    const offsetY = (Math.random() - 0.5) * 20;
+    particle.style.right = '5px';
+    particle.style.left = 'auto';
+    particle.style.top = `calc(50% + ${offsetY}px)`;
     
     container.appendChild(particle);
     
@@ -660,6 +662,9 @@ if (window.electronAPI && window.electronAPI.onXpUpdate) {
         
         // Level Up - CONFETTI TIME!
         if (data.leveledUp) {
+            // Play level up sound
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('levelUp');
+            
             faceImg.classList.remove('rg-level-up');
             void faceImg.offsetWidth;
             faceImg.classList.add('rg-level-up');
@@ -685,6 +690,11 @@ if (window.electronAPI && window.electronAPI.onXpUpdate) {
         
         // XP Lost
         if (data.xpLost) {
+            // Play subtle loss sound (not on every passive loss)
+            if (data.xpLost >= 5 && typeof SoundSystem !== 'undefined') {
+                SoundSystem.play('xpLoss');
+            }
+            
             faceImg.classList.remove('rg-xp-loss');
             void faceImg.offsetWidth;
             faceImg.classList.add('rg-xp-loss');
@@ -696,6 +706,9 @@ if (window.electronAPI && window.electronAPI.onXpUpdate) {
         
         // Level Down - DRAMATIC CRASH
         if (data.leveledDown) {
+            // Play level down sound
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('xpLoss');
+            
             faceImg.classList.remove('rg-level-down');
             void faceImg.offsetWidth;
             faceImg.classList.add('rg-level-down');

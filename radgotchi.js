@@ -714,6 +714,9 @@ const RG = (function() {
     faceEl.addEventListener('click', (e) => {
         lastInteractTime = Date.now();
         stopRoutine();
+        
+        // Play click sound
+        if (typeof SoundSystem !== 'undefined') SoundSystem.play('click');
 
         // Click counter for rapid clicks
         clickCount++;
@@ -806,12 +809,16 @@ const RG = (function() {
     function setSleep(sleeping) {
         isSleeping = sleeping;
         if (sleeping) {
+            // Play sleep sound
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('sleepStart');
             // Enter sleep mode - show sleep animation
             faceEl.src = faces['sleep'];
             const st = getStatusText();
             statusEl.textContent = pick(st.sleep);
             container.classList.add('sleeping');
         } else {
+            // Play wake sound
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('sleepEnd');
             // Wake up - return to normal
             container.classList.remove('sleeping');
             faceEl.src = faces['awake'];

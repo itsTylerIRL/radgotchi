@@ -628,11 +628,11 @@ body {
 @keyframes rg-xp-float {
     0% { 
         opacity: 1; 
-        transform: translateY(0) scale(1); 
+        transform: translateY(0) translateX(0) scale(1); 
     }
     100% { 
         opacity: 0; 
-        transform: translateY(-40px) scale(0.6); 
+        transform: translateY(-50px) translateX(-10px) scale(0.7); 
     }
 }
 
@@ -663,11 +663,11 @@ body {
 @keyframes rg-xp-sink {
     0% { 
         opacity: 1; 
-        transform: translateY(0) scale(1) rotate(0deg); 
+        transform: translateY(0) translateX(0) scale(1) rotate(0deg); 
     }
     100% { 
         opacity: 0; 
-        transform: translateY(20px) scale(0.5) rotate(-10deg); 
+        transform: translateY(40px) translateX(10px) scale(0.6) rotate(10deg); 
     }
 }
 
