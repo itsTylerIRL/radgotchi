@@ -533,3 +533,189 @@ if (window.electronAPI && window.electronAPI.onChatMood) {
         }
     });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// XP GAIN/LOSS VISUAL EFFECTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getCurrentColor() {
+    return getComputedStyle(document.documentElement).getPropertyValue('--rg-color').trim() || '#ff3344';
+}
+
+function spawnXpParticle(amount) {
+    const particle = document.createElement('div');
+    particle.className = 'rg-xp-particle';
+    particle.textContent = `+${amount}`;
+    
+    // Random horizontal offset
+    const offsetX = (Math.random() - 0.5) * 40;
+    particle.style.left = `calc(50% + ${offsetX}px)`;
+    particle.style.top = '40%';
+    
+    container.appendChild(particle);
+    
+    setTimeout(() => particle.remove(), 1000);
+}
+
+function spawnXpLossParticle(amount) {
+    const particle = document.createElement('div');
+    particle.className = 'rg-xp-loss-particle';
+    particle.textContent = `-${amount}`;
+    
+    const offsetX = (Math.random() - 0.5) * 30;
+    particle.style.left = `calc(50% + ${offsetX}px)`;
+    particle.style.top = '50%';
+    
+    container.appendChild(particle);
+    
+    setTimeout(() => particle.remove(), 800);
+}
+
+function spawnConfetti(count = 20) {
+    const color = getCurrentColor();
+    const colors = [color, '#ffffff', '#ffd700', color, '#00ffff'];
+    
+    for (let i = 0; i < count; i++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'rg-confetti';
+        
+        // Random color from palette
+        const c = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.background = c;
+        confetti.style.boxShadow = `0 0 4px ${c}, 0 0 8px ${c}88`;
+        
+        // Random trajectory
+        const angle = (Math.random() * Math.PI * 2);
+        const distance = 40 + Math.random() * 60;
+        const x = Math.cos(angle) * distance;
+        const y = Math.sin(angle) * distance - 20; // Bias upward
+        const rot = Math.random() * 720 - 360;
+        const duration = 0.8 + Math.random() * 0.7;
+        
+        confetti.style.setProperty('--confetti-x', x);
+        confetti.style.setProperty('--confetti-y', y);
+        confetti.style.setProperty('--confetti-rot', rot);
+        confetti.style.setProperty('--confetti-duration', `${duration}s`);
+        
+        // Center origin with slight randomness
+        confetti.style.left = `calc(50% + ${(Math.random() - 0.5) * 20}px)`;
+        confetti.style.top = '35%';
+        
+        // Random shapes
+        if (Math.random() > 0.5) {
+            confetti.style.borderRadius = '50%';
+        } else {
+            confetti.style.transform = `rotate(${Math.random() * 45}deg)`;
+        }
+        
+        container.appendChild(confetti);
+        
+        setTimeout(() => confetti.remove(), duration * 1000 + 100);
+    }
+}
+
+function spawnDebris(count = 10) {
+    for (let i = 0; i < count; i++) {
+        const debris = document.createElement('div');
+        debris.className = 'rg-debris';
+        
+        // Random falling trajectory
+        const x = (Math.random() - 0.5) * 80;
+        const y = 40 + Math.random() * 60;
+        const rot = Math.random() * 360;
+        const duration = 0.6 + Math.random() * 0.5;
+        
+        debris.style.setProperty('--debris-x', x);
+        debris.style.setProperty('--debris-y', y);
+        debris.style.setProperty('--debris-rot', rot);
+        debris.style.setProperty('--debris-duration', `${duration}s`);
+        
+        debris.style.left = `calc(50% + ${(Math.random() - 0.5) * 40}px)`;
+        debris.style.top = '30%';
+        
+        container.appendChild(debris);
+        
+        setTimeout(() => debris.remove(), duration * 1000 + 100);
+    }
+}
+
+// XP Update listener
+if (window.electronAPI && window.electronAPI.onXpUpdate) {
+    window.electronAPI.onXpUpdate((data) => {
+        // XP Gained
+        if (!data.xpLost && !data.leveledDown) {
+            // Pulse animation on face
+            faceImg.classList.remove('rg-xp-gain');
+            void faceImg.offsetWidth; // Force reflow
+            faceImg.classList.add('rg-xp-gain');
+            setTimeout(() => faceImg.classList.remove('rg-xp-gain'), 400);
+            
+            // Spawn floating +XP particle (skip for passive gains)
+            if (data.leveledUp || data.totalXp % 5 === 0) {
+                // Show particle on level up or every 5 XP to avoid spam
+                const gained = data.xpIntoLevel > 0 ? Math.min(data.xpIntoLevel, 10) : 1;
+                spawnXpParticle(gained);
+            }
+        }
+        
+        // Level Up - CONFETTI TIME!
+        if (data.leveledUp) {
+            faceImg.classList.remove('rg-level-up');
+            void faceImg.offsetWidth;
+            faceImg.classList.add('rg-level-up');
+            setTimeout(() => faceImg.classList.remove('rg-level-up'), 800);
+            
+            // Spawn confetti explosion
+            spawnConfetti(25);
+            
+            // Show happy mood
+            if (window.RG) {
+                const lang = (window.RG.language === 'zh') ? 'zh' : 'en';
+                const statusText = lang === 'zh' ? 
+                    `等级提升! LV.${data.level}` : 
+                    `LEVEL UP! LV.${data.level}`;
+                window.RG.setMood('excited', {
+                    priority: true,
+                    status: statusText,
+                    anim: 'bounce',
+                    duration: 3000
+                });
+            }
+        }
+        
+        // XP Lost
+        if (data.xpLost) {
+            faceImg.classList.remove('rg-xp-loss');
+            void faceImg.offsetWidth;
+            faceImg.classList.add('rg-xp-loss');
+            setTimeout(() => faceImg.classList.remove('rg-xp-loss'), 500);
+            
+            // Spawn sinking -XP particle
+            spawnXpLossParticle(data.xpLost);
+        }
+        
+        // Level Down - DRAMATIC CRASH
+        if (data.leveledDown) {
+            faceImg.classList.remove('rg-level-down');
+            void faceImg.offsetWidth;
+            faceImg.classList.add('rg-level-down');
+            setTimeout(() => faceImg.classList.remove('rg-level-down'), 800);
+            
+            // Spawn falling debris
+            spawnDebris(12);
+            
+            // Show sad mood
+            if (window.RG) {
+                const lang = (window.RG.language === 'zh') ? 'zh' : 'en';
+                const statusText = lang === 'zh' ? 
+                    `等级下降... LV.${data.level}` : 
+                    `LEVEL DOWN... LV.${data.level}`;
+                window.RG.setMood('sad', {
+                    priority: true,
+                    status: statusText,
+                    duration: 3000
+                });
+            }
+        }
+    });
+}

@@ -596,3 +596,169 @@ body {
     background: var(--rg-color);
     border-radius: 2px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   XP GAIN/LOSS ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* XP Gain flash pulse */
+@keyframes rg-xp-gain-pulse {
+    0% { filter: brightness(1); }
+    30% { filter: brightness(1.8) drop-shadow(0 0 20px var(--rg-color)); }
+    100% { filter: brightness(1); }
+}
+
+.rg-xp-gain {
+    animation: rg-xp-gain-pulse 0.4s ease-out;
+}
+
+/* XP Gain particle */
+.rg-xp-particle {
+    position: absolute;
+    pointer-events: none;
+    font-family: var(--rg-font);
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--rg-color);
+    text-shadow: 0 0 8px var(--rg-color), 0 0 12px var(--rg-glow);
+    z-index: 100;
+    animation: rg-xp-float 1s ease-out forwards;
+}
+
+@keyframes rg-xp-float {
+    0% { 
+        opacity: 1; 
+        transform: translateY(0) scale(1); 
+    }
+    100% { 
+        opacity: 0; 
+        transform: translateY(-40px) scale(0.6); 
+    }
+}
+
+/* XP Loss flash (red tint) */
+@keyframes rg-xp-loss-pulse {
+    0% { filter: brightness(1); }
+    20% { filter: brightness(0.5) saturate(0.3) sepia(0.5); }
+    100% { filter: brightness(1); }
+}
+
+.rg-xp-loss {
+    animation: rg-xp-loss-pulse 0.5s ease-out, rg-shake 0.3s ease-out;
+}
+
+/* XP Loss particle (negative) */
+.rg-xp-loss-particle {
+    position: absolute;
+    pointer-events: none;
+    font-family: var(--rg-font);
+    font-size: 10px;
+    font-weight: bold;
+    color: #ff4444;
+    text-shadow: 0 0 4px #ff0000, 0 0 8px #ff000088;
+    z-index: 100;
+    animation: rg-xp-sink 0.8s ease-out forwards;
+}
+
+@keyframes rg-xp-sink {
+    0% { 
+        opacity: 1; 
+        transform: translateY(0) scale(1) rotate(0deg); 
+    }
+    100% { 
+        opacity: 0; 
+        transform: translateY(20px) scale(0.5) rotate(-10deg); 
+    }
+}
+
+/* Level Up confetti particle */
+.rg-confetti {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    pointer-events: none;
+    z-index: 150;
+    animation: rg-confetti-burst var(--confetti-duration, 1.5s) ease-out forwards;
+}
+
+@keyframes rg-confetti-burst {
+    0% { 
+        opacity: 1;
+        transform: translate(0, 0) rotate(0deg) scale(1);
+    }
+    100% { 
+        opacity: 0;
+        transform: 
+            translate(
+                calc(var(--confetti-x, 0) * 1px), 
+                calc(var(--confetti-y, 0) * 1px)
+            ) 
+            rotate(calc(var(--confetti-rot, 360) * 1deg)) 
+            scale(0.3);
+    }
+}
+
+/* Level Up glow burst */
+@keyframes rg-level-up-burst {
+    0% { 
+        box-shadow: 0 0 0 0 var(--rg-color);
+        filter: brightness(1);
+    }
+    30% { 
+        box-shadow: 0 0 40px 20px var(--rg-color), 0 0 80px 40px var(--rg-glow);
+        filter: brightness(2);
+    }
+    100% { 
+        box-shadow: 0 0 0 0 transparent;
+        filter: brightness(1);
+    }
+}
+
+.rg-level-up {
+    animation: rg-level-up-burst 0.8s ease-out, rg-bounce 0.6s ease-out 0.1s;
+}
+
+/* Level Down crash effect */
+@keyframes rg-level-down-crash {
+    0%, 100% { 
+        transform: translateY(0);
+        filter: brightness(1) saturate(1);
+    }
+    15% { transform: translateY(-5px) rotate(-3deg); }
+    30% { transform: translateY(8px) rotate(2deg); filter: brightness(0.4) saturate(0.2); }
+    45% { transform: translateY(-3px) rotate(-2deg); }
+    60% { transform: translateY(5px) rotate(1deg); filter: brightness(0.6) saturate(0.5); }
+    75% { transform: translateY(-2px); }
+    90% { transform: translateY(2px); }
+}
+
+.rg-level-down {
+    animation: rg-level-down-crash 0.8s ease-out;
+}
+
+/* Falling debris for level down */
+.rg-debris {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #666;
+    pointer-events: none;
+    z-index: 100;
+    animation: rg-debris-fall var(--debris-duration, 1s) ease-in forwards;
+}
+
+@keyframes rg-debris-fall {
+    0% { 
+        opacity: 0.8;
+        transform: translate(0, 0) rotate(0deg);
+    }
+    100% { 
+        opacity: 0;
+        transform: 
+            translate(
+                calc(var(--debris-x, 0) * 1px), 
+                calc(var(--debris-y, 80) * 1px)
+            ) 
+            rotate(calc(var(--debris-rot, 180) * 1deg));
+    }
+}

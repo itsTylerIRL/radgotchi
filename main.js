@@ -106,6 +106,9 @@ let xpData = {
     longestStreak: 0,  // Days in a row
     currentStreak: 0,
     lastActiveDate: null,  // For streak tracking
+    // Sleep stats
+    stasisCycles: 0,       // Total number of sleeps
+    deepestStasis: 0,      // Longest sleep duration in ms
 };
 
 // Pet needs state (hunger/energy)
@@ -162,6 +165,8 @@ let attentionEvent = {
 // Sleep mode state
 let isSleeping = false;
 let sleepAnimationInterval = null;
+let sleepStartTime = 0;
+let modeBeforeSleep = 'none';
 
 // Intervals
 let passiveXpInterval = null;
@@ -191,6 +196,9 @@ function loadXpData() {
                 longestStreak: saved.longestStreak || 0,
                 currentStreak: saved.currentStreak || 0,
                 lastActiveDate: saved.lastActiveDate || null,
+                // Sleep stats
+                stasisCycles: saved.stasisCycles || 0,
+                deepestStasis: saved.deepestStasis || 0,
             };
             
             // Update streak
@@ -245,6 +253,9 @@ function saveXpData() {
             longestStreak: xpData.longestStreak,
             currentStreak: xpData.currentStreak,
             lastActiveDate: xpData.lastActiveDate,
+            // Sleep stats
+            stasisCycles: xpData.stasisCycles,
+            deepestStasis: xpData.deepestStasis,
             petNeeds: {
                 hunger: petNeeds.hunger,
                 energy: petNeeds.energy,
@@ -361,6 +372,9 @@ function getXpStatus() {
         totalUptimeMs,
         currentStreak: xpData.currentStreak,
         longestStreak: xpData.longestStreak,
+        // Sleep stats
+        stasisCycles: xpData.stasisCycles,
+        deepestStasis: xpData.deepestStasis,
         // Needs
         hunger: petNeeds.hunger,
         energy: petNeeds.energy,
@@ -1610,6 +1624,16 @@ let sleepAnimationIndex = 0;
 function startSleepMode() {
     if (isSleeping) return;
     isSleeping = true;
+    sleepStartTime = Date.now();
+    
+    // Force movement to none during sleep
+    modeBeforeSleep = movementMode;
+    if (movementMode !== 'none') {
+        setMovementMode('none');
+    }
+    
+    // Increment sleep count
+    xpData.stasisCycles++;
     
     // Clear any active attention event
     if (attentionEvent.active) {
@@ -1646,9 +1670,25 @@ function stopSleepMode() {
     if (!isSleeping) return;
     isSleeping = false;
     
+    // Calculate sleep duration and update deepest stasis record
+    const sleepDuration = Date.now() - sleepStartTime;
+    if (sleepDuration > xpData.deepestStasis) {
+        xpData.deepestStasis = sleepDuration;
+    }
+    sleepStartTime = 0;
+    
+    // Save stats
+    saveXpData();
+    
     if (sleepAnimationInterval) {
         clearInterval(sleepAnimationInterval);
         sleepAnimationInterval = null;
+    }
+    
+    // Restore movement mode if it was active before sleep
+    if (modeBeforeSleep !== 'none') {
+        setMovementMode(modeBeforeSleep);
+        modeBeforeSleep = 'none';
     }
     
     // Notify windows
