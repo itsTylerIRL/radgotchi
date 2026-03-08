@@ -12,7 +12,8 @@
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
     "build:portable": "electron-builder --win portable",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "demo": "node generate-demo.js"
   },
   "repository": {
     "type": "git",
@@ -37,6 +38,7 @@
   },
   "homepage": "https://github.com/itsTylerIRL/radgotchi#readme",
   "devDependencies": {
+    "canvas": "^2.11.2",
     "electron": "^28.3.3",
     "electron-builder": "^24.9.1"
   },

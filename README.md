@@ -22,6 +22,10 @@
 </p>
 
 <p align="center">
+  <img src="demo-assets/showcase.png" alt="Radgotchi Demo Showcase" width="600">
+</p>
+
+<p align="center">
   <a href="#system-capabilities">Capabilities</a> •
   <a href="#deployment">Deployment</a> •
   <a href="#operational-parameters">Operations</a> •
@@ -41,6 +45,10 @@ Radgotchi operates as a persistent desktop intelligence asset, continuously moni
 
 Your asset maintains situational awareness through an advanced mood state engine. Each state corresponds to specific environmental triggers, ensuring the visual representation matches current operational status.
 
+<p align="center">
+  <img src="demo-assets/behavioral-intelligence-preview.png" alt="Behavioral Intelligence" width="400">
+</p>
+
 | Capability | Description |
 |------------|-------------|
 | **Mood States** | 25+ expressive states with hand-crafted pixel art |
@@ -50,6 +58,10 @@ Your asset maintains situational awareness through an advanced mood state engine
 ### System Telemetry
 
 The asset continuously ingests system health data, translating raw metrics into behavioral responses. High-severity conditions trigger visual and auditory alerts.
+
+<p align="center">
+  <img src="demo-assets/system-telemetry.png" alt="System Telemetry" width="400">
+</p>
 
 | Feed | Response Behavior |
 |------|-------------------|
@@ -63,6 +75,10 @@ The asset continuously ingests system health data, translating raw metrics into 
 
 Select from four distinct movement behaviors to match your workflow. Each mode offers different levels of autonomy and screen utilization.
 
+<p align="center">
+  <img src="demo-assets/movement-protocols-preview.png" alt="Movement Protocols" width="400">
+</p>
+
 | Mode | Behavior |
 |------|----------|
 | `STATIC` | Fixed position, manual repositioning only |
@@ -73,6 +89,10 @@ Select from four distinct movement behaviors to match your workflow. Each mode o
 ### SIGINT Terminal
 
 The integrated communication interface provides direct access to local language models. All traffic remains local—no external API calls unless explicitly configured.
+
+<p align="center">
+  <img src="demo-assets/sigint-terminal.png" alt="SIGINT Terminal" width="400">
+</p>
 
 | Feature | Status |
 |---------|--------|
@@ -86,6 +106,10 @@ The integrated communication interface provides direct access to local language 
 
 All sound effects are generated procedurally via the Web Audio API—no external audio files required. Toggle mute from the command center or terminal interface.
 
+<p align="center">
+  <img src="demo-assets/audio-subsystem.png" alt="Audio Subsystem" width="400">
+</p>
+
 | Component | Specification |
 |-----------|---------------|
 | **Engine** | Web Audio API synthesis |
@@ -96,6 +120,10 @@ All sound effects are generated procedurally via the Web Audio API—no external
 
 Operational engagement is rewarded through a comprehensive progression framework. Sustained activity unlocks increasingly prestigious clearance designations.
 
+<p align="center">
+  <img src="demo-assets/clearance-system.png" alt="Clearance System" width="400">
+</p>
+
 | Mechanic | Description |
 |----------|-------------|
 | **Milestone Tracking** | Clicks, messages, sessions, XP, uptime |
@@ -105,6 +133,10 @@ Operational engagement is rewarded through a comprehensive progression framework
 ### Asset Maintenance
 
 Like any field asset, Radgotchi requires periodic care. Neglecting vital signs results in XP penalties; attentive operation yields bonus rewards.
+
+<p align="center">
+  <img src="demo-assets/asset-maintenance-preview.png" alt="Asset Maintenance" width="400">
+</p>
 
 | Need | Mechanism |
 |------|----------|
@@ -117,6 +149,10 @@ Like any field asset, Radgotchi requires periodic care. Neglecting vital signs r
 
 Integrated Pomodoro timer for sustained operational focus. Complete work cycles to earn XP bonuses and maintain peak productivity.
 
+<p align="center">
+  <img src="demo-assets/focus-operations.png" alt="Focus Operations" width="400">
+</p>
+
 | Parameter | Value |
 |-----------|-------|
 | **Work Cycle** | 25 minutes |
@@ -127,6 +163,10 @@ Integrated Pomodoro timer for sustained operational focus. Complete work cycles 
 ### Progression Engine
 
 The leveling system tracks cumulative engagement across all operational vectors—interactions, messages, sessions, and uptime. Advance through 13 clearance ranks from TRAINEE to PHANTOM.
+
+<p align="center">
+  <img src="demo-assets/progression-engine.png" alt="Progression Engine" width="400">
+</p>
 
 | Metric | Range |
 |--------|-------|
@@ -146,6 +186,10 @@ Full interface localization ensures global accessibility. All status messages, i
 ### Visual Fidelity
 
 Pixel-perfect rendering ensures your asset looks sharp at any scale. The floating window maintains transparency with always-on-top priority.
+
+<p align="center">
+  <img src="demo-assets/visual-themes.png" alt="Visual Themes" width="400">
+</p>
 
 | Feature | Implementation |
 |---------|----------------|
@@ -387,6 +431,10 @@ All interface elements and status messages localize automatically.
 ### Sleepy Mode
 
 Enable low-power display mode via terminal toggle. Reduces visual activity and prevents energy loss over time.
+
+<p align="center">
+  <img src="demo-assets/sleepy-mode-preview.png" alt="Sleepy Mode" width="400">
+</p>
 
 ### Style Variables
 
