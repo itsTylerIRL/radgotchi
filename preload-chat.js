@@ -20,5 +20,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addXp: (amount, source) => ipcRenderer.invoke('add-xp', { amount, source }),
     onXpUpdate: (callback) => ipcRenderer.on('xp-update', (_event, data) => callback(data)),
     // Attention events
-    onAttentionEvent: (callback) => ipcRenderer.on('attention-event', (_event, data) => callback(data))
+    onAttentionEvent: (callback) => ipcRenderer.on('attention-event', (_event, data) => callback(data)),
+    // Pet Needs
+    getNeeds: () => ipcRenderer.invoke('get-needs'),
+    feedPet: (amount, type) => ipcRenderer.invoke('feed-pet', { amount, type }),
+    onNeedsUpdate: (callback) => ipcRenderer.on('needs-update', (_event, data) => callback(data)),
+    // Pomodoro
+    pomodoroStart: (mode) => ipcRenderer.invoke('pomodoro-start', { mode }),
+    pomodoroStop: () => ipcRenderer.invoke('pomodoro-stop'),
+    pomodoroStatus: () => ipcRenderer.invoke('pomodoro-status'),
+    onPomodoroUpdate: (callback) => ipcRenderer.on('pomodoro-update', (_event, data) => callback(data)),
+    onPomodoroComplete: (callback) => ipcRenderer.on('pomodoro-complete', (_event, data) => callback(data)),
 });

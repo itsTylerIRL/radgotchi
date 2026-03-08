@@ -146,6 +146,38 @@
             gap: 12px;
         }
         
+        .header-center {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            -webkit-app-region: no-drag;
+        }
+        
+        .header-btn {
+            font-family: var(--font-mono);
+            font-size: 7px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: var(--term-dim);
+            background: transparent;
+            border: 1px solid var(--term-dim);
+            padding: 2px 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .header-btn:hover {
+            color: var(--term-green);
+            border-color: var(--term-green);
+        }
+        
+        .header-btn.active {
+            color: var(--term-green);
+            border-color: var(--term-green);
+            background: rgba(0, 255, 136, 0.15);
+            text-shadow: 0 0 4px var(--term-green);
+        }
+        
         .status-indicator {
             display: flex;
             align-items: center;
@@ -340,6 +372,215 @@
                 background: rgba(255, 50, 50, 0.2);
                 border-color: #ff5050;
             }
+        }
+        
+        /* Rank badge */
+        .rank-badge {
+            font-size: 7px;
+            color: var(--term-cyan);
+            background: rgba(0, 212, 255, 0.15);
+            border: 1px solid var(--term-cyan);
+            padding: 1px 4px;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Needs bars (hunger/energy) */
+        .needs-bar {
+            display: flex;
+            flex-shrink: 0;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            background: rgba(0, 255, 136, 0.02);
+            border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+            font-size: 7px;
+            letter-spacing: 1px;
+        }
+        
+        .need-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex: 1;
+        }
+        
+        .need-label {
+            color: var(--term-dim);
+            min-width: 24px;
+        }
+        
+        .need-progress {
+            flex: 1;
+            height: 4px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .need-fill {
+            height: 100%;
+            transition: width 0.3s ease, background 0.3s ease;
+        }
+        
+        .need-fill.hunger {
+            background: linear-gradient(90deg, #ff6b35, #ffaa00);
+        }
+        
+        .need-fill.energy {
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+        }
+        
+        .need-fill.low {
+            background: linear-gradient(90deg, #ff3344, #ff6600) !important;
+            animation: need-low-pulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes need-low-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        .need-value {
+            color: var(--term-dim);
+            min-width: 20px;
+            text-align: right;
+        }
+        
+        /* Stats panel */
+        .stats-panel {
+            display: none;
+            flex-shrink: 0;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+            font-size: 8px;
+            color: var(--term-dim);
+            letter-spacing: 0.5px;
+        }
+        
+        .stats-panel.visible {
+            display: block;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .stat-label {
+            color: var(--term-dim);
+            font-size: 7px;
+        }
+        
+        .stat-value {
+            color: var(--term-green);
+            font-size: 9px;
+            font-weight: 600;
+        }
+        
+        /* Pomodoro bar */
+        .pomodoro-bar {
+            display: none;
+            flex-shrink: 0;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(255, 100, 100, 0.05);
+            border-bottom: 1px solid rgba(255, 100, 100, 0.2);
+            font-size: 8px;
+        }
+        
+        .pomodoro-bar.visible {
+            display: flex;
+        }
+        
+        .pomodoro-bar.work-mode {
+            background: rgba(255, 100, 100, 0.08);
+            border-color: rgba(255, 100, 100, 0.3);
+        }
+        
+        .pomodoro-bar.break-mode {
+            background: rgba(100, 255, 100, 0.08);
+            border-color: rgba(100, 255, 100, 0.3);
+        }
+        
+        .pomo-mode {
+            font-weight: 700;
+            letter-spacing: 1px;
+            min-width: 40px;
+        }
+        
+        .pomo-mode.work { color: #ff6b6b; }
+        .pomo-mode.break { color: #6bff6b; }
+        
+        .pomo-timer {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--term-amber);
+            text-shadow: 0 0 8px var(--term-amber);
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .pomo-progress {
+            flex: 2;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .pomo-progress-fill {
+            height: 100%;
+            background: var(--term-amber);
+            transition: width 1s linear;
+        }
+        
+        .pomo-count {
+            color: var(--term-dim);
+            font-size: 7px;
+        }
+        
+        .pomo-btn {
+            font-family: var(--font-mono);
+            font-size: 7px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            padding: 3px 8px;
+            border: 1px solid;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .pomo-btn.start {
+            color: var(--term-green);
+            border-color: var(--term-green);
+        }
+        
+        .pomo-btn.start:hover {
+            background: var(--term-green);
+            color: #000;
+        }
+        
+        .pomo-btn.stop {
+            color: var(--term-red);
+            border-color: var(--term-red);
+        }
+        
+        .pomo-btn.stop:hover {
+            background: var(--term-red);
+            color: #000;
         }
         
         /* Messages area */
@@ -735,6 +976,14 @@
                 <span class="classification">RB//WR</span>
                 <span class="terminal-title">SIGINT TERMINAL</span>
             </div>
+            <div class="header-center">
+                <button class="header-btn" id="toggle-stats" title="Show stats">
+                    <span id="label-stats">STAT</span>
+                </button>
+                <button class="header-btn" id="toggle-pomo" title="Start Pomodoro">
+                    <span id="label-pomo">POMO</span>
+                </button>
+            </div>
             <div class="header-right">
                 <div class="status-indicator">
                     <span class="status-dot"></span>
@@ -750,6 +999,7 @@
         </div>
         <div class="level-bar" id="level-bar">
             <span class="level-badge" id="level-badge">LV 1</span>
+            <span class="rank-badge" id="rank-badge">TRAINEE</span>
             <div class="xp-progress-container">
                 <div class="xp-progress-label">
                     <span id="xp-label">XP: 0 / 50</span>
@@ -760,6 +1010,59 @@
                 </div>
             </div>
             <span class="xp-total" id="xp-total">TOTAL: 0</span>
+        </div>
+        <div class="needs-bar" id="needs-bar">
+            <div class="need-item">
+                <span class="need-label" id="label-hunger">PWR</span>
+                <div class="need-progress">
+                    <div class="need-fill hunger" id="hunger-fill" style="width: 100%"></div>
+                </div>
+                <span class="need-value" id="hunger-value">100</span>
+            </div>
+            <div class="need-item">
+                <span class="need-label" id="label-energy">BND</span>
+                <div class="need-progress">
+                    <div class="need-fill energy" id="energy-fill" style="width: 100%"></div>
+                </div>
+                <span class="need-value" id="energy-value">100</span>
+            </div>
+        </div>
+        <div class="stats-panel" id="stats-panel">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-label" id="label-uptime">UPTIME</span>
+                    <span class="stat-value" id="stat-uptime">0h 0m</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="label-clicks">CLICKS</span>
+                    <span class="stat-value" id="stat-clicks">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="label-msgs">MSGS</span>
+                    <span class="stat-value" id="stat-messages">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="label-sessions">SESSIONS</span>
+                    <span class="stat-value" id="stat-sessions">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="label-streak">STREAK</span>
+                    <span class="stat-value" id="stat-streak">0 days</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="label-best">BEST</span>
+                    <span class="stat-value" id="stat-best">0 days</span>
+                </div>
+            </div>
+        </div>
+        <div class="pomodoro-bar" id="pomodoro-bar">
+            <span class="pomo-mode work" id="pomo-mode">WORK</span>
+            <span class="pomo-timer" id="pomo-timer">25:00</span>
+            <div class="pomo-progress">
+                <div class="pomo-progress-fill" id="pomo-fill" style="width: 0%"></div>
+            </div>
+            <span class="pomo-count" id="pomo-count">🍅 0</span>
+            <button class="pomo-btn stop" id="pomo-stop-btn">STOP</button>
         </div>
         <div class="messages-area" id="messages"></div>
         <div class="input-area">
@@ -1067,26 +1370,101 @@
         const labelMov = document.getElementById('label-mov');
         const labelCol = document.getElementById('label-col');
         const labelExpr = document.getElementById('label-expr');
+        const toggleStats = document.getElementById('toggle-stats');
+        const togglePomo = document.getElementById('toggle-pomo');
+        const labelStats = document.getElementById('label-stats');
+        const labelPomo = document.getElementById('label-pomo');
         
         // XP elements
         const levelBar = document.getElementById('level-bar');
         const levelBadge = document.getElementById('level-badge');
+        const rankBadge = document.getElementById('rank-badge');
         const xpLabel = document.getElementById('xp-label');
         const xpPercent = document.getElementById('xp-percent');
         const xpFill = document.getElementById('xp-fill');
         const xpTotal = document.getElementById('xp-total');
         
+        // Needs elements
+        const needsBar = document.getElementById('needs-bar');
+        const hungerFill = document.getElementById('hunger-fill');
+        const hungerValue = document.getElementById('hunger-value');
+        const energyFill = document.getElementById('energy-fill');
+        const energyValue = document.getElementById('energy-value');
+        
+        // Stats elements
+        const statsPanel = document.getElementById('stats-panel');
+        const statUptime = document.getElementById('stat-uptime');
+        const statClicks = document.getElementById('stat-clicks');
+        const statMessages = document.getElementById('stat-messages');
+        const statSessions = document.getElementById('stat-sessions');
+        const statStreak = document.getElementById('stat-streak');
+        const statBest = document.getElementById('stat-best');
+        
+        // Pomodoro elements
+        const pomodoroBar = document.getElementById('pomodoro-bar');
+        const pomoMode = document.getElementById('pomo-mode');
+        const pomoTimer = document.getElementById('pomo-timer');
+        const pomoFill = document.getElementById('pomo-fill');
+        const pomoCount = document.getElementById('pomo-count');
+        const pomoStopBtn = document.getElementById('pomo-stop-btn');
+        
+        // Format time helper
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+        }
+        
+        function formatUptime(ms) {
+            const hours = Math.floor(ms / 3600000);
+            const minutes = Math.floor((ms % 3600000) / 60000);
+            return hours + 'h ' + minutes + 'm';
+        }
+        
         // Update XP display
         function updateXpDisplay(xpData, animate = false) {
             if (!xpData) return;
             
-            const { level, totalXp, xpIntoLevel, xpNeeded, progress, leveledUp, leveledDown, xpLost, source } = xpData;
+            const { level, totalXp, xpIntoLevel, xpNeeded, progress, leveledUp, leveledDown, xpLost, source,
+                    rank, rankZh, totalClicks, totalMessages, totalSessions, totalUptimeMs, currentStreak, longestStreak,
+                    hunger, energy } = xpData;
             
             levelBadge.textContent = 'LV ' + level;
             xpLabel.textContent = 'XP: ' + xpIntoLevel + ' / ' + xpNeeded;
             xpPercent.textContent = Math.round(progress * 100) + '%';
             xpFill.style.width = (progress * 100) + '%';
             xpTotal.textContent = 'TOTAL: ' + totalXp;
+            
+            // Update rank
+            if (rank) {
+                rankBadge.textContent = currentLang === 'zh' ? rankZh : rank;
+            }
+            
+            // Update stats
+            if (totalUptimeMs !== undefined) {
+                statUptime.textContent = formatUptime(totalUptimeMs);
+            }
+            if (totalClicks !== undefined) {
+                statClicks.textContent = totalClicks;
+            }
+            if (totalMessages !== undefined) {
+                statMessages.textContent = totalMessages;
+            }
+            if (totalSessions !== undefined) {
+                statSessions.textContent = totalSessions;
+            }
+            if (currentStreak !== undefined) {
+                statStreak.textContent = currentStreak + (currentLang === 'zh' ? ' 天' : ' days');
+            }
+            if (longestStreak !== undefined) {
+                statBest.textContent = longestStreak + (currentLang === 'zh' ? ' 天' : ' days');
+            }
+            
+            // Update needs
+            if (hunger !== undefined) {
+                updateNeedsDisplay({ hunger, energy });
+            }
             
             // Level up animation
             if (leveledUp && animate) {
@@ -1095,10 +1473,11 @@
                 levelBadge.offsetHeight; // Trigger reflow
                 levelBadge.style.animation = 'level-up-glow 1s ease-out';
                 
-                // Add level up message
+                // Add level up message with rank
+                const newRank = currentLang === 'zh' ? rankZh : rank;
                 const lvlMsg = currentLang === 'zh' 
-                    ? '🎉 等级提升！已达到 ' + level + ' 级！'
-                    : '🎉 LEVEL UP! Now level ' + level + '!';
+                    ? '🎉 等级提升！已达到 ' + level + ' 级！ [' + newRank + ']'
+                    : '🎉 LEVEL UP! Now level ' + level + '! [' + newRank + ']';
                 addMessage('system', lvlMsg);
                 
                 setTimeout(() => {
@@ -1127,6 +1506,60 @@
                     xpTotal.classList.remove('xp-loss-flash');
                 }, 300);
             }
+        }
+        
+        // Update needs display
+        function updateNeedsDisplay(needs) {
+            if (!needs) return;
+            
+            const { hunger, energy, hungerLow, energyLow } = needs;
+            
+            hungerFill.style.width = hunger + '%';
+            hungerValue.textContent = Math.round(hunger);
+            
+            energyFill.style.width = energy + '%';
+            energyValue.textContent = Math.round(energy);
+            
+            // Low state styling
+            if (hunger < 30 || hungerLow) {
+                hungerFill.classList.add('low');
+            } else {
+                hungerFill.classList.remove('low');
+            }
+            
+            if (energy < 30 || energyLow) {
+                energyFill.classList.add('low');
+            } else {
+                energyFill.classList.remove('low');
+            }
+        }
+        
+        // Update pomodoro display
+        function updatePomodoroDisplay(data) {
+            if (!data) return;
+            
+            const { active, mode, remaining, duration, pomosCompleted, progress } = data;
+            
+            if (active) {
+                pomodoroBar.classList.add('visible');
+                togglePomo.classList.add('active');
+                
+                pomodoroBar.classList.toggle('work-mode', mode === 'work');
+                pomodoroBar.classList.toggle('break-mode', mode === 'break');
+                
+                pomoMode.textContent = mode === 'work' ? 
+                    (currentLang === 'zh' ? '专注' : 'WORK') : 
+                    (currentLang === 'zh' ? '休息' : 'BREAK');
+                pomoMode.className = 'pomo-mode ' + mode;
+                
+                pomoTimer.textContent = formatTime(remaining);
+                pomoFill.style.width = (progress * 100) + '%';
+            } else {
+                pomodoroBar.classList.remove('visible');
+                togglePomo.classList.remove('active');
+            }
+            
+            pomoCount.textContent = '🍅 ' + pomosCompleted;
         }
         
         // Listen for XP updates from main process
@@ -1158,6 +1591,74 @@
             });
         }
         
+        // Needs update listener
+        if (window.electronAPI && window.electronAPI.onNeedsUpdate) {
+            window.electronAPI.onNeedsUpdate((data) => {
+                updateNeedsDisplay(data);
+            });
+        }
+        
+        // Pomodoro update listener
+        if (window.electronAPI && window.electronAPI.onPomodoroUpdate) {
+            window.electronAPI.onPomodoroUpdate((data) => {
+                updatePomodoroDisplay(data);
+            });
+        }
+        
+        // Pomodoro complete listener
+        if (window.electronAPI && window.electronAPI.onPomodoroComplete) {
+            window.electronAPI.onPomodoroComplete((data) => {
+                const { mode, pomosCompleted, nextMode } = data;
+                let msg;
+                if (mode === 'work') {
+                    msg = currentLang === 'zh' 
+                        ? '🍅 专注完成！已完成 ' + pomosCompleted + ' 个番茄钟。休息一下？'
+                        : '🍅 FOCUS SESSION COMPLETE! ' + pomosCompleted + ' pomodoros. Time for a break?';
+                } else {
+                    msg = currentLang === 'zh' 
+                        ? '☕ 休息结束！准备好继续了吗？'
+                        : '☕ BREAK OVER! Ready to focus?';
+                }
+                addMessage('system', msg);
+            });
+        }
+        
+        // Stats toggle
+        toggleStats.addEventListener('click', () => {
+            toggleStats.classList.toggle('active');
+            statsPanel.classList.toggle('visible');
+        });
+        
+        // Pomodoro toggle (start/stop)
+        togglePomo.addEventListener('click', () => {
+            if (togglePomo.classList.contains('active')) {
+                // Already active, stop it
+                if (window.electronAPI && window.electronAPI.pomodoroStop) {
+                    window.electronAPI.pomodoroStop();
+                }
+            } else {
+                // Start pomodoro
+                if (window.electronAPI && window.electronAPI.pomodoroStart) {
+                    window.electronAPI.pomodoroStart('work');
+                    const msg = currentLang === 'zh' 
+                        ? '🍅 番茄钟开始！专注25分钟...'
+                        : '🍅 POMODORO STARTED! Focus for 25 minutes...';
+                    addMessage('system', msg);
+                }
+            }
+        });
+        
+        // Pomodoro stop button
+        pomoStopBtn.addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.pomodoroStop) {
+                window.electronAPI.pomodoroStop();
+                const msg = currentLang === 'zh' 
+                    ? '⏹️ 番茄钟已停止'
+                    : '⏹️ POMODORO STOPPED';
+                addMessage('system', msg);
+            }
+        });
+        
         // Translations
         const translations = {
             en: {
@@ -1181,6 +1682,17 @@
                 mov: 'MOV',
                 col: 'COL',
                 expr: 'EXPR',
+                stats: 'STAT',
+                pomo: 'POMO',
+                hunger: 'PWR',
+                energy: 'BND',
+                uptime: 'UPTIME',
+                clicks: 'CLICKS',
+                msgs: 'MSGS',
+                sessions: 'SESSIONS',
+                streak: 'STREAK',
+                best: 'BEST',
+                days: 'days',
                 langToggle: '中文',
                 movOptions: { none: 'NONE', bounce: 'BOUNCE', follow: 'FOLLOW', wander: 'WANDER' },
                 colOptions: { '#ff3344': 'RED', '#00ffff': 'CYAN', '#39ff14': 'GREEN', '#bf00ff': 'PURPLE', '#ff1493': 'PINK', '#ff6600': 'ORANGE', '#ffd700': 'YELLOW', '#00bfff': 'BLUE', '#00ff00': 'LIME', '#ffffff': 'WHITE' }
@@ -1206,6 +1718,17 @@
                 mov: '动作',
                 col: '颜色',
                 expr: '表情',
+                stats: '统计',
+                pomo: '番茄',
+                hunger: '能量',
+                energy: '带宽',
+                uptime: '运行',
+                clicks: '点击',
+                msgs: '消息',
+                sessions: '会话',
+                streak: '连续',
+                best: '最佳',
+                days: '天',
                 langToggle: 'EN',
                 movOptions: { none: '无', bounce: '弹跳', follow: '跟随', wander: '漫游' },
                 colOptions: { '#ff3344': '红', '#00ffff': '青', '#39ff14': '绿', '#bf00ff': '紫', '#ff1493': '粉', '#ff6600': '橙', '#ffd700': '黄', '#00bfff': '蓝', '#00ff00': '草绿', '#ffffff': '白' }
@@ -1230,7 +1753,21 @@
             labelMov.textContent = t.mov;
             labelCol.textContent = t.col;
             labelExpr.textContent = t.expr;
+            labelStats.textContent = t.stats;
+            labelPomo.textContent = t.pomo;
             toggleLang.querySelector('.toggle-label').textContent = t.langToggle;
+            
+            // Update needs labels
+            document.getElementById('label-hunger').textContent = t.hunger;
+            document.getElementById('label-energy').textContent = t.energy;
+            
+            // Update stats labels
+            document.getElementById('label-uptime').textContent = t.uptime;
+            document.getElementById('label-clicks').textContent = t.clicks;
+            document.getElementById('label-msgs').textContent = t.msgs;
+            document.getElementById('label-sessions').textContent = t.sessions;
+            document.getElementById('label-streak').textContent = t.streak;
+            document.getElementById('label-best').textContent = t.best;
             
             // Update dropdown options
             Array.from(selectMovement.options).forEach(opt => {

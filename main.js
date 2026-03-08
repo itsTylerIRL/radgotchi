@@ -68,14 +68,83 @@ const LEVEL_THRESHOLDS = [
     21000,  // Level 21+: continues...
 ];
 
+// Ranks based on level (Palantir/Intel style)
+const RANKS = [
+    { minLevel: 1, name: 'TRAINEE', nameZh: '实习生' },
+    { minLevel: 3, name: 'ANALYST', nameZh: '分析员' },
+    { minLevel: 6, name: 'AGENT', nameZh: '特工' },
+    { minLevel: 10, name: 'HANDLER', nameZh: '处理者' },
+    { minLevel: 15, name: 'DIRECTOR', nameZh: '主管' },
+    { minLevel: 20, name: 'EXECUTIVE', nameZh: '执行官' },
+    { minLevel: 25, name: 'OVERSEER', nameZh: '监察官' },
+];
+
+function getRank(level) {
+    for (let i = RANKS.length - 1; i >= 0; i--) {
+        if (level >= RANKS[i].minLevel) return RANKS[i];
+    }
+    return RANKS[0];
+}
+
 // XP state
 let xpData = {
     totalXp: 0,
     level: 1,
     lastClickXpTime: 0,
     sessionStartTime: Date.now(),
-    totalSessionTime: 0  // Accumulated from previous sessions
+    totalSessionTime: 0,  // Accumulated from previous sessions
+    // Stats
+    totalClicks: 0,
+    totalMessages: 0,
+    totalSessions: 0,
+    longestStreak: 0,  // Days in a row
+    currentStreak: 0,
+    lastActiveDate: null,  // For streak tracking
 };
+
+// Pet needs state (hunger/energy)
+const NEEDS_CONFIG = {
+    MAX_VALUE: 100,
+    DECAY_INTERVAL_MS: 60000,     // Decay every 60 seconds
+    HUNGER_DECAY: 0.5,            // Lose 0.5 hunger per minute
+    ENERGY_DECAY: 0.3,            // Lose 0.3 energy per minute
+    CLICK_FEED: 2,                // Clicking feeds +2
+    MESSAGE_FEED: 5,              // Messaging feeds +5
+    MESSAGE_ENERGY: 3,            // Messaging gives energy +3
+    LOW_THRESHOLD: 30,            // Below this = warning state
+    CRITICAL_THRESHOLD: 10,       // Below this = critical
+    XP_PENALTY_THRESHOLD: 20,     // Below this = reduced XP gain
+    XP_PENALTY_MULTIPLIER: 0.5,   // 50% XP when needs are low
+};
+
+let petNeeds = {
+    hunger: 100,
+    energy: 100,
+    lastDecayTime: Date.now(),
+};
+
+let needsDecayInterval = null;
+
+// Pomodoro state
+const POMODORO_CONFIG = {
+    WORK_DURATION_MS: 25 * 60 * 1000,    // 25 minutes
+    BREAK_DURATION_MS: 5 * 60 * 1000,    // 5 minutes
+    LONG_BREAK_MS: 15 * 60 * 1000,       // 15 minutes (every 4 pomos)
+    WORK_XP: 25,                          // XP for completing work session
+    BREAK_XP: 5,                          // XP for completing break
+    FOCUS_BONUS_XP: 10,                   // Bonus for no interruptions
+};
+
+let pomodoroState = {
+    active: false,
+    mode: 'work',  // 'work' or 'break'
+    startTime: 0,
+    duration: 0,
+    pomosCompleted: 0,
+    interrupted: false,
+};
+
+let pomodoroInterval = null;
 
 // Attention event state
 let attentionEvent = {
@@ -99,12 +168,51 @@ function loadXpData() {
         if (fs.existsSync(dataPath)) {
             const data = fs.readFileSync(dataPath, 'utf8');
             const saved = JSON.parse(data);
+            
+            // Load XP and stats
             xpData = { 
                 ...xpData, 
                 totalXp: saved.totalXp || 0,
                 level: saved.level || 1,
-                totalSessionTime: saved.totalSessionTime || 0 
+                totalSessionTime: saved.totalSessionTime || 0,
+                totalClicks: saved.totalClicks || 0,
+                totalMessages: saved.totalMessages || 0,
+                totalSessions: (saved.totalSessions || 0) + 1,  // Increment on load
+                longestStreak: saved.longestStreak || 0,
+                currentStreak: saved.currentStreak || 0,
+                lastActiveDate: saved.lastActiveDate || null,
             };
+            
+            // Update streak
+            const today = new Date().toDateString();
+            const lastActive = xpData.lastActiveDate;
+            if (lastActive) {
+                const lastDate = new Date(lastActive);
+                const daysDiff = Math.floor((new Date(today) - lastDate) / (1000 * 60 * 60 * 24));
+                if (daysDiff === 1) {
+                    // Consecutive day
+                    xpData.currentStreak++;
+                    if (xpData.currentStreak > xpData.longestStreak) {
+                        xpData.longestStreak = xpData.currentStreak;
+                    }
+                } else if (daysDiff > 1) {
+                    // Streak broken
+                    xpData.currentStreak = 1;
+                }
+                // daysDiff === 0 means same day, no change
+            } else {
+                xpData.currentStreak = 1;
+            }
+            xpData.lastActiveDate = today;
+            
+            // Load pet needs (with decay since last save)
+            if (saved.petNeeds) {
+                const timeSinceSave = Date.now() - (saved.lastSaved || Date.now());
+                const decayMinutes = timeSinceSave / 60000;
+                petNeeds.hunger = Math.max(0, (saved.petNeeds.hunger || 100) - (decayMinutes * NEEDS_CONFIG.HUNGER_DECAY));
+                petNeeds.energy = Math.max(0, (saved.petNeeds.energy || 100) - (decayMinutes * NEEDS_CONFIG.ENERGY_DECAY));
+            }
+            
             // Recalculate level in case thresholds changed
             xpData.level = calculateLevel(xpData.totalXp);
         }
@@ -121,6 +229,16 @@ function saveXpData() {
             totalXp: xpData.totalXp,
             level: xpData.level,
             totalSessionTime: xpData.totalSessionTime + currentSessionDuration,
+            totalClicks: xpData.totalClicks,
+            totalMessages: xpData.totalMessages,
+            totalSessions: xpData.totalSessions,
+            longestStreak: xpData.longestStreak,
+            currentStreak: xpData.currentStreak,
+            lastActiveDate: xpData.lastActiveDate,
+            petNeeds: {
+                hunger: petNeeds.hunger,
+                energy: petNeeds.energy,
+            },
             lastSaved: Date.now()
         };
         fs.writeFileSync(getXpDataPath(), JSON.stringify(dataToSave, null, 2));
@@ -155,9 +273,26 @@ function getXpForCurrentLevel(level) {
 }
 
 function addXp(amount, source = 'unknown') {
+    // Apply needs penalty if hunger or energy is low
+    let finalAmount = amount;
+    if (petNeeds.hunger < NEEDS_CONFIG.XP_PENALTY_THRESHOLD || 
+        petNeeds.energy < NEEDS_CONFIG.XP_PENALTY_THRESHOLD) {
+        finalAmount = Math.ceil(amount * NEEDS_CONFIG.XP_PENALTY_MULTIPLIER);
+    }
+    
     const oldLevel = xpData.level;
-    xpData.totalXp += amount;
+    xpData.totalXp += finalAmount;
     xpData.level = calculateLevel(xpData.totalXp);
+    
+    // Track stats and feed pet based on source
+    if (source === 'click') {
+        xpData.totalClicks++;
+        feedPet(NEEDS_CONFIG.CLICK_FEED, 'hunger');
+    } else if (source === 'message-send' || source === 'message-receive') {
+        xpData.totalMessages++;
+        feedPet(NEEDS_CONFIG.MESSAGE_FEED, 'hunger');
+        feedPet(NEEDS_CONFIG.MESSAGE_ENERGY, 'energy');
+    }
     
     const leveledUp = xpData.level > oldLevel;
     
@@ -191,6 +326,11 @@ function getXpStatus() {
     const xpIntoLevel = xpData.totalXp - currentLevelXp;
     const xpNeeded = nextLevelXp - currentLevelXp;
     const progress = xpNeeded > 0 ? xpIntoLevel / xpNeeded : 1;
+    const rank = getRank(xpData.level);
+    
+    // Calculate uptime
+    const currentSessionMs = Date.now() - xpData.sessionStartTime;
+    const totalUptimeMs = xpData.totalSessionTime + currentSessionMs;
     
     return {
         level: xpData.level,
@@ -198,7 +338,27 @@ function getXpStatus() {
         xpIntoLevel,
         xpNeeded,
         progress: Math.min(1, Math.max(0, progress)),
-        nextLevelXp
+        nextLevelXp,
+        rank: rank.name,
+        rankZh: rank.nameZh,
+        // Stats
+        totalClicks: xpData.totalClicks,
+        totalMessages: xpData.totalMessages,
+        totalSessions: xpData.totalSessions,
+        totalUptimeMs,
+        currentStreak: xpData.currentStreak,
+        longestStreak: xpData.longestStreak,
+        // Needs
+        hunger: petNeeds.hunger,
+        energy: petNeeds.energy,
+        // Pomodoro
+        pomodoro: {
+            active: pomodoroState.active,
+            mode: pomodoroState.mode,
+            remaining: pomodoroState.active ? 
+                Math.max(0, pomodoroState.duration - (Date.now() - pomodoroState.startTime)) : 0,
+            pomosCompleted: pomodoroState.pomosCompleted,
+        }
     };
 }
 
@@ -362,6 +522,178 @@ function resolveAttentionEvent() {
     addXp(XP_CONFIG.ATTENTION_RESOLVE_XP, 'attention-resolve');
     
     return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pet Needs (Hunger / Energy)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function startNeedsDecay() {
+    if (needsDecayInterval) return;
+    
+    needsDecayInterval = setInterval(() => {
+        const oldHunger = petNeeds.hunger;
+        const oldEnergy = petNeeds.energy;
+        
+        petNeeds.hunger = Math.max(0, petNeeds.hunger - NEEDS_CONFIG.HUNGER_DECAY);
+        petNeeds.energy = Math.max(0, petNeeds.energy - NEEDS_CONFIG.ENERGY_DECAY);
+        
+        // Only broadcast if there's a meaningful change
+        if (Math.floor(oldHunger) !== Math.floor(petNeeds.hunger) ||
+            Math.floor(oldEnergy) !== Math.floor(petNeeds.energy)) {
+            broadcastNeeds();
+        }
+    }, NEEDS_CONFIG.DECAY_INTERVAL_MS);
+}
+
+function stopNeedsDecay() {
+    if (needsDecayInterval) {
+        clearInterval(needsDecayInterval);
+        needsDecayInterval = null;
+    }
+}
+
+function feedPet(amount, type = 'hunger') {
+    if (type === 'hunger' || type === 'both') {
+        petNeeds.hunger = Math.min(NEEDS_CONFIG.MAX_VALUE, petNeeds.hunger + amount);
+    }
+    if (type === 'energy' || type === 'both') {
+        petNeeds.energy = Math.min(NEEDS_CONFIG.MAX_VALUE, petNeeds.energy + amount);
+    }
+    broadcastNeeds();
+}
+
+function broadcastNeeds() {
+    const needsData = {
+        hunger: petNeeds.hunger,
+        energy: petNeeds.energy,
+        hungerLow: petNeeds.hunger < NEEDS_CONFIG.LOW_THRESHOLD,
+        energyLow: petNeeds.energy < NEEDS_CONFIG.LOW_THRESHOLD,
+        hungerCritical: petNeeds.hunger < NEEDS_CONFIG.CRITICAL_THRESHOLD,
+        energyCritical: petNeeds.energy < NEEDS_CONFIG.CRITICAL_THRESHOLD,
+    };
+    
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('needs-update', needsData);
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('needs-update', needsData);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pomodoro Timer
+// ═══════════════════════════════════════════════════════════════════════════
+
+function startPomodoro(mode = 'work') {
+    if (pomodoroState.active) return false;
+    
+    const isLongBreak = mode === 'break' && pomodoroState.pomosCompleted > 0 && 
+                        pomodoroState.pomosCompleted % 4 === 0;
+    
+    pomodoroState.active = true;
+    pomodoroState.mode = mode;
+    pomodoroState.startTime = Date.now();
+    pomodoroState.duration = mode === 'work' ? POMODORO_CONFIG.WORK_DURATION_MS :
+                             isLongBreak ? POMODORO_CONFIG.LONG_BREAK_MS :
+                             POMODORO_CONFIG.BREAK_DURATION_MS;
+    pomodoroState.interrupted = false;
+    
+    // Start the completion check interval
+    pomodoroInterval = setInterval(() => {
+        const elapsed = Date.now() - pomodoroState.startTime;
+        const remaining = Math.max(0, pomodoroState.duration - elapsed);
+        
+        // Broadcast tick for UI update
+        broadcastPomodoro();
+        
+        if (remaining <= 0) {
+            completePomodoro();
+        }
+    }, 1000);
+    
+    broadcastPomodoro();
+    return true;
+}
+
+function stopPomodoro() {
+    if (!pomodoroState.active) return false;
+    
+    if (pomodoroInterval) {
+        clearInterval(pomodoroInterval);
+        pomodoroInterval = null;
+    }
+    
+    pomodoroState.active = false;
+    pomodoroState.interrupted = true;
+    
+    broadcastPomodoro();
+    return true;
+}
+
+function completePomodoro() {
+    if (pomodoroInterval) {
+        clearInterval(pomodoroInterval);
+        pomodoroInterval = null;
+    }
+    
+    const completedMode = pomodoroState.mode;
+    
+    // Award XP
+    if (completedMode === 'work') {
+        pomodoroState.pomosCompleted++;
+        addXp(POMODORO_CONFIG.WORK_XP, 'pomodoro-work');
+        if (!pomodoroState.interrupted) {
+            addXp(POMODORO_CONFIG.FOCUS_BONUS_XP, 'pomodoro-focus-bonus');
+        }
+        // Also restore some energy
+        feedPet(15, 'energy');
+    } else {
+        addXp(POMODORO_CONFIG.BREAK_XP, 'pomodoro-break');
+        // Breaks restore both hunger and energy a bit
+        feedPet(10, 'both');
+    }
+    
+    pomodoroState.active = false;
+    
+    // Notify completion
+    const notification = {
+        completed: true,
+        mode: completedMode,
+        pomosCompleted: pomodoroState.pomosCompleted,
+        nextMode: completedMode === 'work' ? 'break' : 'work',
+    };
+    
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('pomodoro-complete', notification);
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('pomodoro-complete', notification);
+    }
+    
+    broadcastPomodoro();
+}
+
+function broadcastPomodoro() {
+    const remaining = pomodoroState.active ? 
+        Math.max(0, pomodoroState.duration - (Date.now() - pomodoroState.startTime)) : 0;
+    
+    const data = {
+        active: pomodoroState.active,
+        mode: pomodoroState.mode,
+        remaining,
+        duration: pomodoroState.duration,
+        pomosCompleted: pomodoroState.pomosCompleted,
+        progress: pomodoroState.active ? 
+            (Date.now() - pomodoroState.startTime) / pomodoroState.duration : 0,
+    };
+    
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('pomodoro-update', data);
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('pomodoro-update', data);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1045,6 +1377,40 @@ function createWindow() {
     // Attention event status check
     ipcMain.handle('get-attention-status', async () => {
         return { active: attentionEvent.active };
+    });
+
+    // Pomodoro IPC handlers
+    ipcMain.handle('pomodoro-start', async (event, { mode }) => {
+        return startPomodoro(mode || 'work');
+    });
+
+    ipcMain.handle('pomodoro-stop', async () => {
+        return stopPomodoro();
+    });
+
+    ipcMain.handle('pomodoro-status', async () => {
+        const remaining = pomodoroState.active ? 
+            Math.max(0, pomodoroState.duration - (Date.now() - pomodoroState.startTime)) : 0;
+        return {
+            active: pomodoroState.active,
+            mode: pomodoroState.mode,
+            remaining,
+            duration: pomodoroState.duration,
+            pomosCompleted: pomodoroState.pomosCompleted,
+        };
+    });
+
+    // Pet needs IPC handlers
+    ipcMain.handle('get-needs', async () => {
+        return {
+            hunger: petNeeds.hunger,
+            energy: petNeeds.energy,
+        };
+    });
+
+    ipcMain.handle('feed-pet', async (event, { amount, type }) => {
+        feedPet(amount || 10, type || 'hunger');
+        return { hunger: petNeeds.hunger, energy: petNeeds.energy };
     });
 
     mainWindow.on('closed', () => {
@@ -1776,6 +2142,7 @@ function initializeApp() {
     createWindow();
     createTray();
     startPassiveXpGain();
+    startNeedsDecay();
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -1806,6 +2173,8 @@ app.on('will-quit', () => {
     stopPassiveXpGain();
     stopIdleDecay();
     stopAttentionEventChecks();
+    stopNeedsDecay();
+    stopPomodoro();
     if (attentionEvent.lossInterval) clearInterval(attentionEvent.lossInterval);
     saveXpData();
 });
