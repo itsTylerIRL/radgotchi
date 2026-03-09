@@ -1349,6 +1349,49 @@
             box-shadow: 0 0 4px currentColor;
         }
         
+        /* Zoom controls */
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .zoom-btn {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 700;
+            width: 18px;
+            height: 18px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--term-dim);
+            background: transparent;
+            border: 1px solid var(--term-dim);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .zoom-btn:hover {
+            color: var(--term-green);
+            border-color: var(--term-green);
+            box-shadow: 0 0 6px rgba(0, 255, 136, 0.4);
+            transform: scale(1.1);
+        }
+        
+        .zoom-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .zoom-level {
+            font-size: 8px;
+            color: var(--term-dim);
+            min-width: 32px;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+        
         .control-divider {
             width: 1px;
             height: 14px;
@@ -1368,6 +1411,633 @@
         .messages-area::-webkit-scrollbar-thumb {
             background: var(--term-green);
             border-radius: 2px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════
+           HOVER ANIMATIONS - Retro-tech interactive feedback
+           ═══════════════════════════════════════════════════════════════════════ */
+        
+        /* Glitch text effect on hover */
+        @keyframes glitch-text {
+            0%, 100% { clip-path: inset(0 0 0 0); transform: translate(0); }
+            20% { clip-path: inset(10% 0 60% 0); transform: translate(-2px, 0); }
+            40% { clip-path: inset(40% 0 30% 0); transform: translate(2px, 0); }
+            60% { clip-path: inset(70% 0 10% 0); transform: translate(-1px, 0); }
+            80% { clip-path: inset(20% 0 50% 0); transform: translate(1px, 0); }
+        }
+        
+        @keyframes scan-line {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        
+        @keyframes data-flicker {
+            0%, 100% { opacity: 1; }
+            92% { opacity: 1; }
+            93% { opacity: 0.3; }
+            94% { opacity: 1; }
+            96% { opacity: 0.5; }
+            97% { opacity: 1; }
+        }
+        
+        @keyframes power-surge {
+            0% { filter: brightness(1); }
+            50% { filter: brightness(1.3); }
+            100% { filter: brightness(1); }
+        }
+        
+        @keyframes border-trace {
+            0% { background-position: 0% 0%; }
+            100% { background-position: 200% 0%; }
+        }
+        
+        @keyframes glow-pulse {
+            0%, 100% { box-shadow: 0 0 5px currentColor; }
+            50% { box-shadow: 0 0 15px currentColor, 0 0 25px currentColor; }
+        }
+        
+        @keyframes lift-shadow {
+            0% { transform: translateY(0); box-shadow: none; }
+            100% { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3); }
+        }
+        
+        @keyframes spin-gear {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Classification badge - danger pulse */
+        .classification {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .classification:hover {
+            background: rgba(255, 51, 68, 0.3);
+            box-shadow: 0 0 12px rgba(255, 51, 68, 0.5), inset 0 0 20px rgba(255, 51, 68, 0.1);
+            animation: data-flicker 0.5s ease;
+            transform: scale(1.05);
+        }
+        
+        .classification::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 51, 68, 0.4), transparent);
+            transition: left 0.4s ease;
+        }
+        
+        .classification:hover::after {
+            left: 150%;
+        }
+        
+        /* Terminal title - glow intensify */
+        .terminal-title {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .terminal-title:hover {
+            text-shadow: 0 0 10px var(--term-green), 0 0 20px var(--term-green), 0 0 30px var(--term-green);
+            letter-spacing: 2px;
+        }
+        
+        /* Header buttons - enhanced hover with scan effect */
+        .header-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header-btn::before {
+            content: '';
+            position: absolute;
+            top: -100%;
+            left: 0;
+            width: 100%;
+            height: 200%;
+            background: linear-gradient(180deg, transparent, rgba(0, 255, 136, 0.15), transparent);
+            transition: top 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .header-btn:hover::before {
+            top: 100%;
+        }
+        
+        .header-btn:hover {
+            transform: scale(1.1);
+            text-shadow: 0 0 8px var(--term-green);
+        }
+        
+        .header-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* Settings button - gear spin on hover */
+        .settings-btn:hover::before {
+            animation: spin-gear 0.5s ease-out;
+        }
+        
+        /* Close button - X rotation and red glow */
+        .close-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .close-btn:hover {
+            transform: rotate(90deg) scale(1.1);
+            background: rgba(255, 51, 68, 0.2);
+        }
+        
+        .close-btn:active {
+            transform: rotate(90deg) scale(0.9);
+        }
+        
+        /* Status indicator - enhanced pulse on hover */
+        .status-indicator {
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+        
+        .status-indicator:hover {
+            color: var(--term-green);
+            text-shadow: 0 0 6px var(--term-green);
+        }
+        
+        .status-indicator:hover .status-dot {
+            animation: glow-pulse 0.5s ease infinite;
+            transform: scale(1.3);
+        }
+        
+        /* Level badge - power surge effect */
+        .level-badge {
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+        
+        .level-badge:hover {
+            animation: power-surge 0.4s ease;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px var(--term-amber), inset 0 0 10px rgba(255, 170, 0, 0.2);
+        }
+        
+        /* XP progress bar - glow on hover */
+        .xp-progress-bar {
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+        
+        .xp-progress-bar:hover {
+            border-color: var(--term-amber);
+            box-shadow: 0 0 10px rgba(255, 170, 0, 0.4);
+        }
+        
+        .xp-progress-bar:hover .xp-progress-fill::after {
+            animation-duration: 0.8s;
+        }
+        
+        /* Rank badge - expand hint */
+        .rank-badge {
+            transition: all 0.2s ease;
+        }
+        
+        .rank-badge:hover {
+            background: rgba(0, 212, 255, 0.25);
+            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+        }
+        
+        /* Rank tooltip items - highlight on hover */
+        .rank-list-item {
+            transition: all 0.15s ease;
+            padding: 2px 4px;
+            margin: 0 -4px;
+            border-radius: 2px;
+        }
+        
+        .rank-list-item:hover {
+            background: rgba(0, 212, 255, 0.1);
+            transform: translateX(3px);
+        }
+        
+        .rank-list-item.current:hover {
+            background: rgba(0, 212, 255, 0.2);
+        }
+        
+        /* Needs bar items - bar reaction */
+        .need-item {
+            transition: all 0.2s ease;
+            padding: 2px 4px;
+            margin: 0 -4px;
+            border-radius: 3px;
+            cursor: default;
+        }
+        
+        .need-item:hover {
+            background: rgba(0, 255, 136, 0.05);
+        }
+        
+        .need-item:hover .need-fill {
+            filter: brightness(1.3);
+            box-shadow: 0 0 8px currentColor;
+        }
+        
+        .need-item:hover .need-value {
+            color: var(--term-green);
+            text-shadow: 0 0 4px var(--term-green);
+        }
+        
+        /* Stats row - data highlight */
+        .stats-row {
+            transition: all 0.2s ease;
+            padding: 2px 4px;
+            margin: 0 -4px;
+            border-radius: 2px;
+        }
+        
+        .stats-row:hover {
+            background: rgba(0, 255, 136, 0.08);
+            border-color: rgba(0, 255, 136, 0.3);
+        }
+        
+        .stat-item {
+            transition: all 0.2s ease;
+            cursor: default;
+        }
+        
+        .stat-item:hover .stat-value {
+            text-shadow: 0 0 8px var(--term-green), 0 0 12px var(--term-green);
+            transform: scale(1.05);
+        }
+        
+        .stat-item:hover .stat-label {
+            color: var(--term-green);
+        }
+        
+        .stat-value {
+            transition: all 0.2s ease;
+            display: inline-block;
+        }
+        
+        /* Pomodoro bar - timer glow */
+        .pomo-timer {
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+        
+        .pomo-timer:hover {
+            text-shadow: 0 0 15px var(--term-amber), 0 0 25px var(--term-amber);
+            transform: scale(1.1);
+        }
+        
+        /* Pomodoro buttons - enhanced */
+        .pomo-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .pomo-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s ease, height 0.3s ease;
+        }
+        
+        .pomo-btn:hover::after {
+            width: 150%;
+            height: 150%;
+        }
+        
+        /* Messages - lift and glow on hover */
+        .message {
+            transition: all 0.2s ease;
+        }
+        
+        .message:hover {
+            transform: translateX(3px);
+            box-shadow: -4px 0 12px rgba(0, 255, 136, 0.1);
+        }
+        
+        .message.user:hover {
+            box-shadow: 4px 0 12px rgba(0, 212, 255, 0.15);
+            border-color: color-mix(in srgb, var(--term-cyan) 100%, white);
+        }
+        
+        .message.assistant:hover {
+            box-shadow: -4px 0 12px rgba(0, 255, 136, 0.15);
+            border-color: color-mix(in srgb, var(--term-green) 100%, white);
+        }
+        
+        .message.system:hover {
+            box-shadow: 0 0 15px rgba(255, 170, 0, 0.2);
+            text-shadow: 0 0 10px var(--term-amber);
+        }
+        
+        /* Message wrapper - avatar reactions */
+        .message-wrapper:hover .message-avatar {
+            transform: scale(1.08);
+        }
+        
+        .message-avatar {
+            transition: all 0.3s ease;
+        }
+        
+        .message-wrapper.user:hover .message-avatar {
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.5), 0 0 25px rgba(0, 212, 255, 0.2);
+        }
+        
+        .message-wrapper.assistant:hover .message-avatar {
+            filter: brightness(1.2) drop-shadow(0 0 8px var(--term-green));
+        }
+        
+        /* Code block copy button - enhanced */
+        .copy-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .copy-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.3), transparent);
+            transition: left 0.3s ease;
+        }
+        
+        .copy-btn:hover::before {
+            left: 100%;
+        }
+        
+        .copy-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .copy-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* Input area - enhanced focus */
+        .message-input {
+            transition: all 0.3s ease;
+        }
+        
+        .message-input:hover:not(:focus) {
+            border-color: rgba(0, 255, 136, 0.5);
+            background: rgba(0, 0, 0, 0.6);
+        }
+        
+        /* Send button - pulse ready state */
+        .send-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .send-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.4s ease;
+        }
+        
+        .send-btn:hover:not(:disabled)::before {
+            left: 150%;
+        }
+        
+        .send-btn:hover:not(:disabled) {
+            transform: scale(1.05);
+        }
+        
+        .send-btn:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        
+        /* Language toggle button */
+        .lang-toggle-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .lang-toggle-btn::before {
+            content: '';
+            position: absolute;
+            top: -100%;
+            left: 0;
+            width: 100%;
+            height: 200%;
+            background: linear-gradient(180deg, transparent, rgba(0, 255, 136, 0.2), transparent);
+            transition: top 0.3s ease;
+        }
+        
+        .lang-toggle-btn:hover::before {
+            top: 100%;
+        }
+        
+        .lang-toggle-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+        
+        .lang-toggle-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* Control toggle - enhanced feedback */
+        .control-toggle {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .control-toggle::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(0, 255, 136, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s ease, height 0.3s ease;
+        }
+        
+        .control-toggle:hover::before {
+            width: 120%;
+            height: 200%;
+        }
+        
+        .control-toggle:hover .toggle-indicator {
+            transform: scale(1.2);
+            box-shadow: 0 0 8px currentColor;
+        }
+        
+        .toggle-indicator {
+            transition: all 0.2s ease;
+        }
+        
+        /* Control select - dropdown glow */
+        .control-select {
+            transition: all 0.2s ease;
+        }
+        
+        .control-select:hover {
+            transform: scale(1.02);
+        }
+        
+        /* Color picker trigger - enhanced */
+        .color-picker-trigger {
+            transition: all 0.2s ease;
+        }
+        
+        .color-picker-trigger:hover {
+            transform: scale(1.05);
+            background: rgba(0, 255, 136, 0.1);
+        }
+        
+        .color-picker-trigger:hover .active-color-preview {
+            box-shadow: 0 0 8px currentColor;
+        }
+        
+        .active-color-preview {
+            transition: all 0.2s ease;
+        }
+        
+        /* Color swatch - enhanced (already has some) */
+        .color-swatch {
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .color-swatch:hover {
+            transform: scale(1.4) translateY(-2px);
+            border-radius: 2px;
+        }
+        
+        .color-swatch:active {
+            transform: scale(1.2);
+        }
+        
+        /* Info bar elements - subtle highlight */
+        .info-bar span {
+            transition: all 0.2s ease;
+            cursor: default;
+        }
+        
+        .info-bar span:hover {
+            color: var(--term-green);
+            text-shadow: 0 0 4px var(--term-green);
+        }
+        
+        .timestamp {
+            transition: all 0.2s ease;
+        }
+        
+        .timestamp:hover {
+            letter-spacing: 1.5px;
+            text-shadow: 0 0 6px var(--term-cyan);
+            color: var(--term-cyan) !important;
+        }
+        
+        /* Session ID - interactive */
+        #session-id {
+            transition: all 0.2s ease;
+        }
+        
+        #session-id:hover {
+            color: var(--term-cyan);
+            letter-spacing: 1px;
+        }
+        
+        /* Links in messages - enhanced underline */
+        .message a {
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .message a::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--term-cyan);
+            box-shadow: 0 0 4px var(--term-cyan);
+            transition: width 0.3s ease;
+        }
+        
+        .message a:hover::after {
+            width: 100%;
+        }
+        
+        .message a:hover {
+            color: #00ffff;
+            border-bottom-color: transparent;
+        }
+        
+        /* Code inline - hover glow */
+        .message code {
+            transition: all 0.2s ease;
+        }
+        
+        .message code:hover {
+            background: rgba(0, 255, 136, 0.15);
+            border-color: var(--term-green);
+            box-shadow: 0 0 6px rgba(0, 255, 136, 0.3);
+        }
+        
+        /* Code block wrapper - subtle lift */
+        .code-block-wrapper {
+            transition: all 0.2s ease;
+        }
+        
+        .code-block-wrapper:hover {
+            transform: translateY(-1px);
+        }
+        
+        .code-block-wrapper:hover pre {
+            border-color: rgba(0, 255, 136, 0.3);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .code-block-wrapper pre {
+            transition: all 0.2s ease;
+        }
+        
+        /* Blockquote - border glow */
+        .message blockquote {
+            transition: all 0.2s ease;
+        }
+        
+        .message blockquote:hover {
+            border-left-color: var(--term-green);
+            background: rgba(0, 255, 136, 0.03);
+            box-shadow: -2px 0 8px rgba(0, 255, 136, 0.2);
+        }
+
+        /* Input prefix - glow sync with input */
+        .input-prefix {
+            transition: all 0.3s ease;
+        }
+        
+        .message-input:focus ~ .send-btn,
+        .message-input:hover ~ .send-btn {
+            border-color: var(--term-green);
+            box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
         }
     </style>
 </head>
@@ -1494,6 +2164,12 @@
             <button class="lang-toggle-btn" id="toggle-lang">中文</button>
         </div>
         <div class="controls-bar">
+            <div class="control-group zoom-controls">
+                <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
+                <span class="zoom-level" id="zoom-level">100%</span>
+                <button class="zoom-btn" id="zoom-in" title="Zoom in">+</button>
+            </div>
+            <span class="control-divider"></span>
             <div class="control-group">
                 <span class="control-label" id="label-col">COL</span>
                 <div class="color-picker-wrapper" id="color-picker-wrapper">
@@ -2154,6 +2830,24 @@
             // Update sprite state color and refresh bro avatars
             spriteState.color = color;
             updateBroAvatars();
+            
+            // Update the active color preview in the controls bar
+            const activePreview = document.getElementById('active-color-preview');
+            if (activePreview) {
+                activePreview.style.background = color;
+            }
+            
+            // Update the active swatch state
+            const swatchBar = document.getElementById('color-swatch-bar');
+            if (swatchBar) {
+                const swatches = swatchBar.querySelectorAll('.color-swatch');
+                swatches.forEach(swatch => {
+                    swatch.classList.remove('active');
+                    if (swatch.dataset.color && swatch.dataset.color.toLowerCase() === color.toLowerCase()) {
+                        swatch.classList.add('active');
+                    }
+                });
+            }
         }
         
         if (window.electronAPI && window.electronAPI.onSetColor) {
@@ -2835,6 +3529,35 @@
             }
         });
         
+        // Zoom controls
+        const zoomInBtn = document.getElementById('zoom-in');
+        const zoomOutBtn = document.getElementById('zoom-out');
+        const zoomLevelEl = document.getElementById('zoom-level');
+        let currentZoom = 100;
+        const MIN_ZOOM = 50;
+        const MAX_ZOOM = 150;
+        const ZOOM_STEP = 10;
+        
+        function updateZoom(newZoom) {
+            currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+            zoomLevelEl.textContent = currentZoom + '%';
+            document.body.style.zoom = currentZoom / 100;
+            // Also adjust webFrame if available (Electron)
+            if (window.electronAPI && typeof window.electronAPI.setZoom === 'function') {
+                window.electronAPI.setZoom(currentZoom / 100);
+            }
+            // Play sound
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('selectChange');
+        }
+        
+        zoomInBtn.addEventListener('click', () => {
+            updateZoom(currentZoom + ZOOM_STEP);
+        });
+        
+        zoomOutBtn.addEventListener('click', () => {
+            updateZoom(currentZoom - ZOOM_STEP);
+        });
+        
         // Language toggle
         toggleLang.addEventListener('click', () => {
             toggleLang.classList.toggle('active');
@@ -2884,6 +3607,59 @@
                     stopSleepTimer();
                 }
             });
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // HOVER SOUND EFFECTS - Subtle audio feedback for interactive elements
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        // Throttle hover sounds to prevent audio spam
+        let lastHoverSoundTime = 0;
+        const HOVER_SOUND_COOLDOWN = 80; // ms between hover sounds
+        
+        function playHoverSound() {
+            const now = Date.now();
+            if (now - lastHoverSoundTime >= HOVER_SOUND_COOLDOWN) {
+                lastHoverSoundTime = now;
+                if (typeof SoundSystem !== 'undefined') {
+                    SoundSystem.play('selectChange');
+                }
+            }
+        }
+        
+        // Add hover sounds to interactive elements
+        const hoverSoundElements = [
+            '.header-btn',
+            '.close-btn',
+            '.settings-btn',
+            '.send-btn',
+            '.lang-toggle-btn',
+            '.control-toggle',
+            '.control-select',
+            '.color-picker-trigger',
+            '.color-swatch',
+            '.pomo-btn',
+            '.copy-btn',
+            '.rank-badge',
+            '.level-badge',
+            '.classification',
+            '.zoom-btn'
+        ];
+        
+        hoverSoundElements.forEach(selector => {
+            document.querySelectorAll(selector).forEach(el => {
+                el.addEventListener('mouseenter', playHoverSound);
+            });
+        });
+        
+        // Also add to dynamically created copy buttons
+        const messagesArea = document.querySelector('.messages-area');
+        if (messagesArea) {
+            messagesArea.addEventListener('mouseenter', (e) => {
+                if (e.target.classList.contains('copy-btn')) {
+                    playHoverSound();
+                }
+            }, true);
         }
     </script>
 </body>

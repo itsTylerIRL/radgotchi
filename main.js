@@ -994,7 +994,6 @@ if (isLinux) {
 
 // System event tracking state
 let lastCpuTimes = null;
-let lastNetworkStats = null;
 let lastWindowCount = 0;
 let systemEventInterval = null;
 let windowCountInterval = null;
@@ -1453,6 +1452,30 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    
+    // Apply strong always-on-top level for reliable behavior
+    if (isAlwaysOnTop) {
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    }
+    
+    // Re-assert always-on-top periodically (some apps/games can steal focus)
+    setInterval(() => {
+        if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop) {
+            mainWindow.setAlwaysOnTop(true, 'screen-saver');
+        }
+    }, 5000);
+    
+    // Also re-assert on focus events
+    mainWindow.on('blur', () => {
+        if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop) {
+            // Small delay then re-assert
+            setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop) {
+                    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+                }
+            }, 100);
+        }
+    });
 
     // Allow dragging from renderer
     ipcMain.on('start-drag', () => {
@@ -1980,12 +2003,14 @@ ipcMain.on('chat-mood', (event, mood) => {
     }
 });
 
-// Forward color changes to chat window
+// Forward color changes to chat window and settings window
 ipcMain.on('sync-chat-color', (event, color) => {
     currentSpriteState.color = color;
     if (chatWindow && chatWindow.webContents) {
         chatWindow.webContents.send('set-color', color);
     }
+    // Sync to settings window
+    syncColorToSettingsWindow(color);
 });
 
 // IPC: Sprite state update (from main window when mood changes)
@@ -2012,6 +2037,8 @@ ipcMain.on('chat-set-color', (event, color) => {
     if (chatWindow && chatWindow.webContents) {
         chatWindow.webContents.send('set-color', color);
     }
+    // Sync to settings window
+    syncColorToSettingsWindow(color);
 });
 
 // IPC: Chat panel controls language
@@ -2456,9 +2483,9 @@ function showChatSettingsDialog() {
 
     settingsWindow = new BrowserWindow({
         width: 500,
-        height: 750,
+        height: 520,
         minWidth: 480,
-        minHeight: 700,
+        minHeight: 480,
         modal: false,
         resizable: true,
         minimizable: false,
@@ -3128,6 +3155,40 @@ function showChatSettingsDialog() {
     });
 }
 
+// Helper to sync color to settings window
+function syncColorToSettingsWindow(color) {
+    if (settingsWindow && settingsWindow.webContents) {
+        const hex = color.replace('#', '');
+        settingsWindow.webContents.executeJavaScript(`
+            document.documentElement.style.setProperty('--term-green', '${color}');
+            // Calculate dim color (reduce brightness)
+            const hex = '${hex}';
+            const r = Math.round(parseInt(hex.substr(0,2), 16) * 0.65);
+            const g = Math.round(parseInt(hex.substr(2,2), 16) * 0.65);
+            const b = Math.round(parseInt(hex.substr(4,2), 16) * 0.65);
+            const dim = '#' + r.toString(16).padStart(2,'0') + g.toString(16).padStart(2,'0') + b.toString(16).padStart(2,'0');
+            document.documentElement.style.setProperty('--term-dim', dim);
+            // Border color (darker version)
+            const br = Math.round(parseInt(hex.substr(0,2), 16) * 0.25);
+            const bg = Math.round(parseInt(hex.substr(2,2), 16) * 0.25);
+            const bb = Math.round(parseInt(hex.substr(4,2), 16) * 0.25);
+            document.documentElement.style.setProperty('--term-border', '#' + br.toString(16).padStart(2,'0') + bg.toString(16).padStart(2,'0') + bb.toString(16).padStart(2,'0'));
+        `).catch(() => {});
+    }
+}
+
+// Helper to sync color to all windows
+function broadcastColor(color) {
+    currentSpriteState.color = color;
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('set-color', color);
+    }
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('set-color', color);
+    }
+    syncColorToSettingsWindow(color);
+}
+
 function createTray() {
     const iconPath = getAssetPath('radbro.png');
     let trayIcon;
@@ -3157,9 +3218,7 @@ function createTray() {
     const colorSubmenu = colorPresets.map(preset => ({
         label: preset.label,
         click: () => {
-            if (mainWindow) {
-                mainWindow.webContents.send('set-color', preset.color);
-            }
+            broadcastColor(preset.color);
         }
     }));
 
@@ -3175,7 +3234,11 @@ function createTray() {
             checked: isAlwaysOnTop,
             click: (menuItem) => {
                 isAlwaysOnTop = menuItem.checked;
-                mainWindow.setAlwaysOnTop(isAlwaysOnTop);
+                if (isAlwaysOnTop) {
+                    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+                } else {
+                    mainWindow.setAlwaysOnTop(false);
+                }
             }
         },
         {
