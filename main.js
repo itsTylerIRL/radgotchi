@@ -314,6 +314,76 @@ function addActivityLogEntry(type, message, messageZh = null) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WINDOW STATE PERSISTENCE
+// ═══════════════════════════════════════════════════════════════════════════
+
+let windowStates = {};
+
+function getWindowStatePath() {
+    return path.join(app.getPath('userData'), 'window-states.json');
+}
+
+function loadWindowStates() {
+    try {
+        const statePath = getWindowStatePath();
+        if (fs.existsSync(statePath)) {
+            const data = fs.readFileSync(statePath, 'utf8');
+            windowStates = JSON.parse(data);
+        }
+    } catch (e) {
+        console.error('Failed to load window states:', e);
+        windowStates = {};
+    }
+}
+
+function saveWindowStates() {
+    try {
+        fs.writeFileSync(getWindowStatePath(), JSON.stringify(windowStates, null, 2));
+    } catch (e) {
+        console.error('Failed to save window states:', e);
+    }
+}
+
+function saveWindowState(windowName, win) {
+    if (!win || win.isDestroyed()) return;
+    
+    const bounds = win.getBounds();
+    windowStates[windowName] = {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        savedAt: Date.now()
+    };
+    saveWindowStates();
+}
+
+function getWindowState(windowName, defaults) {
+    const saved = windowStates[windowName];
+    if (!saved) return defaults;
+    
+    // Validate bounds are still on a visible display
+    const displays = screen.getAllDisplays();
+    const isVisible = displays.some(display => {
+        const db = display.bounds;
+        // Check if window center is within display bounds
+        const centerX = saved.x + saved.width / 2;
+        const centerY = saved.y + saved.height / 2;
+        return centerX >= db.x && centerX < db.x + db.width &&
+               centerY >= db.y && centerY < db.y + db.height;
+    });
+    
+    if (!isVisible) return defaults;
+    
+    return {
+        x: saved.x,
+        y: saved.y,
+        width: saved.width || defaults.width,
+        height: saved.height || defaults.height
+    };
+}
+
 function loadXpData() {
     try {
         const dataPath = getXpDataPath();
@@ -337,6 +407,8 @@ function loadXpData() {
                 stasisCycles: saved.stasisCycles || 0,
                 deepestStasis: saved.deepestStasis || 0,
                 totalStasis: saved.totalStasis || 0,
+                // Work session stats
+                workStarted: saved.workStarted || 0,
             };
             
             // Update streak
@@ -406,6 +478,8 @@ function saveXpData() {
             stasisCycles: xpData.stasisCycles,
             deepestStasis: xpData.deepestStasis,
             totalStasis: xpData.totalStasis,
+            // Work session stats
+            workStarted: xpData.workStarted || 0,
             petNeeds: {
                 hunger: petNeeds.hunger,
                 energy: petNeeds.energy,
@@ -553,7 +627,10 @@ function getXpStatus() {
             remaining: pomodoroState.active ? 
                 Math.max(0, pomodoroState.duration - (Date.now() - pomodoroState.startTime)) : 0,
             pomosCompleted: pomodoroState.pomosCompleted,
-        }
+        },
+        // Work session tracking
+        workStarted: xpData.workStarted || 0,
+        workCompleted: pomodoroState.pomosCompleted,
     };
 }
 
@@ -827,6 +904,12 @@ function startPomodoro(mode = 'work') {
                              isLongBreak ? POMODORO_CONFIG.LONG_BREAK_MS :
                              POMODORO_CONFIG.BREAK_DURATION_MS;
     pomodoroState.interrupted = false;
+    
+    // Track work sessions started (for stats)
+    if (mode === 'work') {
+        xpData.workStarted = (xpData.workStarted || 0) + 1;
+        saveXpData();
+    }
     
     // Start work animation for focus mode
     if (mode === 'work') {
@@ -1896,23 +1979,27 @@ function createChatWindow() {
         return;
     }
 
-    // Position chat window near Radgotchi but offset
-    let chatX, chatY;
+    // Position chat window - use saved state or position near Radgotchi
+    let chatBounds;
+    const defaultChatBounds = { width: 480, height: 420, x: 0, y: 0 };
+    
     if (mainWindow) {
         const [mainX, mainY] = mainWindow.getPosition();
-        chatX = mainX + 50;
-        chatY = mainY + 150;
+        defaultChatBounds.x = mainX + 50;
+        defaultChatBounds.y = mainY + 150;
     } else {
         const primaryDisplay = screen.getPrimaryDisplay();
-        chatX = primaryDisplay.bounds.width - 400;
-        chatY = primaryDisplay.bounds.height - 450;
+        defaultChatBounds.x = primaryDisplay.bounds.width - 400;
+        defaultChatBounds.y = primaryDisplay.bounds.height - 450;
     }
+    
+    chatBounds = getWindowState('chatWindow', defaultChatBounds);
 
     chatWindow = new BrowserWindow({
-        width: 480,
-        height: 420,
-        x: chatX,
-        y: chatY,
+        width: chatBounds.width,
+        height: chatBounds.height,
+        x: chatBounds.x,
+        y: chatBounds.y,
         frame: false,
         transparent: false,
         backgroundColor: '#0a0a0f',
@@ -1930,6 +2017,10 @@ function createChatWindow() {
 
     chatWindow.loadFile('chat.html');
     chatWindow.setVisibleOnAllWorkspaces(true);
+    
+    // Save window state on move/resize
+    chatWindow.on('moved', () => saveWindowState('chatWindow', chatWindow));
+    chatWindow.on('resized', () => saveWindowState('chatWindow', chatWindow));
 
     // Send config status once loaded
     chatWindow.webContents.on('did-finish-load', () => {
@@ -2481,9 +2572,21 @@ function showChatSettingsDialog() {
         return;
     }
 
-    settingsWindow = new BrowserWindow({
+    // Get saved state or use defaults
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const defaultBounds = {
         width: 500,
         height: 520,
+        x: Math.floor((primaryDisplay.bounds.width - 500) / 2),
+        y: Math.floor((primaryDisplay.bounds.height - 520) / 2)
+    };
+    const settingsBounds = getWindowState('settingsWindow', defaultBounds);
+
+    settingsWindow = new BrowserWindow({
+        width: settingsBounds.width,
+        height: settingsBounds.height,
+        x: settingsBounds.x,
+        y: settingsBounds.y,
         minWidth: 480,
         minHeight: 480,
         modal: false,
@@ -2500,6 +2603,10 @@ function showChatSettingsDialog() {
             preload: path.join(__dirname, 'preload.js')
         }
     });
+    
+    // Save window state on move/resize
+    settingsWindow.on('moved', () => saveWindowState('settingsWindow', settingsWindow));
+    settingsWindow.on('resized', () => saveWindowState('settingsWindow', settingsWindow));
 
     // Build inline HTML for settings dialog
     const settingsHtml = `
@@ -3317,6 +3424,7 @@ function initializeApp() {
     loadLlmConfig();
     loadXpData();
     loadChatData();
+    loadWindowStates();
     createWindow();
     createTray();
     startPassiveXpGain();

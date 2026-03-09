@@ -250,6 +250,131 @@
             box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
         }
         
+        /* Clear chat button */
+        .clear-btn {
+            -webkit-app-region: no-drag;
+            background: transparent;
+            border: 1px solid var(--term-dim);
+            color: var(--term-dim);
+            font-size: 9px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .clear-btn::before {
+            content: '⎚';
+            font-size: 10px;
+        }
+        
+        .clear-btn:hover {
+            border-color: var(--term-amber);
+            color: var(--term-amber);
+            box-shadow: 0 0 8px rgba(255, 170, 0, 0.5);
+        }
+        
+        /* Volume control popup */
+        .volume-btn {
+            -webkit-app-region: no-drag;
+            background: transparent;
+            border: 1px solid var(--term-dim);
+            color: var(--term-dim);
+            font-size: 9px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .volume-btn::before {
+            content: '🔊';
+            font-size: 9px;
+        }
+        
+        .volume-btn.muted::before {
+            content: '🔇';
+        }
+        
+        .volume-btn:hover {
+            border-color: var(--term-green);
+            color: var(--term-green);
+            box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        }
+        
+        /* Boot animation overlay */
+        .boot-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--term-bg);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+        
+        .boot-overlay.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .boot-text {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--term-green);
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--term-green);
+        }
+        
+        .boot-progress {
+            width: 200px;
+            height: 4px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--term-green);
+            overflow: hidden;
+        }
+        
+        .boot-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--term-green);
+            box-shadow: 0 0 10px var(--term-green);
+            transition: width 0.1s linear;
+        }
+        
+        .boot-status {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            color: var(--term-dim);
+            letter-spacing: 1px;
+            min-height: 12px;
+        }
+        
+        /* Exit animation */
+        .exit-animation {
+            animation: exit-fade 0.4s ease-out forwards;
+        }
+        
+        @keyframes exit-fade {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0.95); }
+        }
+        
         /* Info bar */
         .info-bar {
             display: flex;
@@ -1127,6 +1252,32 @@
         .send-btn:disabled {
             opacity: 0.3;
             cursor: not-allowed;
+        }
+        
+        /* WORK button in input area */
+        .input-btn {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--term-amber);
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid var(--term-amber);
+            padding: 8px 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .input-btn:hover {
+            background: var(--term-amber);
+            color: #000;
+            box-shadow: 0 0 12px var(--term-amber);
+        }
+        
+        .input-btn.active {
+            background: var(--term-amber);
+            color: #000;
+            box-shadow: 0 0 12px var(--term-amber);
         }
         
         /* Language toggle button (fixed width) */
@@ -2042,6 +2193,15 @@
     </style>
 </head>
 <body>
+    <!-- Boot Animation Overlay -->
+    <div class="boot-overlay" id="boot-overlay">
+        <div class="boot-text">RAD TERMINAL v2.0</div>
+        <div class="boot-progress">
+            <div class="boot-progress-fill" id="boot-progress-fill"></div>
+        </div>
+        <div class="boot-status" id="boot-status"></div>
+    </div>
+    
     <div class="terminal-container">
         <div class="terminal-header">
             <div class="header-left">
@@ -2049,18 +2209,14 @@
                 <span class="terminal-title">RAD TERMINAL</span>
             </div>
             <div class="header-center">
-                <button class="header-btn" id="toggle-stats" title="Show stats">
-                    <span id="label-stats">STAT</span>
-                </button>
-                <button class="header-btn" id="toggle-pomo" title="Start Work">
-                    <span id="label-pomo">WORK</span>
-                </button>
             </div>
             <div class="header-right">
                 <div class="status-indicator">
                     <span class="status-dot"></span>
                     <span>ENCRYPTED</span>
                 </div>
+                <button class="volume-btn" id="volume-btn" title="Toggle mute"></button>
+                <button class="clear-btn" id="clear-btn" title="Clear chat"></button>
                 <button class="settings-btn" id="settings-btn" title="LLM Settings"></button>
                 <button class="close-btn" id="close-btn">×</button>
             </div>
@@ -2144,7 +2300,10 @@
                     <span class="stat-label" id="label-deepest">DEEPEST</span>
                     <span class="stat-value" id="stat-deepest">0h 0m</span>
                 </div>
-                <div class="stat-item"></div>
+                <div class="stat-item">
+                    <span class="stat-label" id="label-work">WORK</span>
+                    <span class="stat-value" id="stat-work">0 (0)</span>
+                </div>
             </div>
         </div>
         <div class="pomodoro-bar" id="pomodoro-bar">
@@ -2161,6 +2320,9 @@
             <span class="input-prefix">&gt;</span>
             <input type="text" class="message-input" id="input" placeholder="ENTER QUERY..." autocomplete="off">
             <button class="send-btn" id="send-btn">XMIT</button>
+            <button class="header-btn input-btn" id="toggle-pomo" title="Start Work">
+                <span id="label-pomo">WORK</span>
+            </button>
             <button class="lang-toggle-btn" id="toggle-lang">中文</button>
         </div>
         <div class="controls-bar">
@@ -2207,9 +2369,9 @@
                 <span class="toggle-label" id="label-sleep">ZZZ</span>
             </button>
             <span class="control-divider"></span>
-            <button class="control-toggle" id="toggle-mute" title="Mute sounds">
+            <button class="control-toggle" id="toggle-stats" title="Show stats">
                 <span class="toggle-indicator"></span>
-                <span class="toggle-label" id="label-mute">MUTE</span>
+                <span class="toggle-label" id="label-stats">STAT</span>
             </button>
         </div>
     </div>
@@ -2250,6 +2412,59 @@
         }
         document.addEventListener('click', initAudioOnInteraction, { once: true });
         document.addEventListener('keydown', initAudioOnInteraction, { once: true });
+        
+        // Boot animation sequence
+        (function runBootAnimation() {
+            const bootOverlay = document.getElementById('boot-overlay');
+            const bootProgressFill = document.getElementById('boot-progress-fill');
+            const bootStatus = document.getElementById('boot-status');
+            
+            if (!bootOverlay) return;
+            
+            // Play boot sound
+            if (typeof SoundSystem !== 'undefined') {
+                SoundSystem.play('boot');
+            }
+            
+            const bootMessages = [
+                'INITIALIZING NEURAL INTERFACE...',
+                'LOADING RAD PROTOCOLS...',
+                'ESTABLISHING CONNECTION...',
+                'SYSTEM READY'
+            ];
+            
+            let progress = 0;
+            let msgIndex = 0;
+            
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15 + 5;
+                if (progress > 100) progress = 100;
+                bootProgressFill.style.width = progress + '%';
+                
+                // Update status message based on progress
+                const newMsgIndex = Math.min(Math.floor(progress / 30), bootMessages.length - 1);
+                if (newMsgIndex !== msgIndex) {
+                    msgIndex = newMsgIndex;
+                    bootStatus.textContent = bootMessages[msgIndex];
+                }
+                
+                if (progress >= 100) {
+                    clearInterval(progressInterval);
+                    bootStatus.textContent = bootMessages[bootMessages.length - 1];
+                    
+                    // Fade out after a brief pause
+                    setTimeout(() => {
+                        bootOverlay.classList.add('fade-out');
+                        setTimeout(() => {
+                            bootOverlay.style.display = 'none';
+                        }, 500);
+                    }, 300);
+                }
+            }, 100);
+            
+            // Start with first message
+            bootStatus.textContent = bootMessages[0];
+        })();
         
         // Sleep timer state
         let sleepTimerEl = null;
@@ -2478,6 +2693,49 @@
         settingsBtn.addEventListener('click', () => {
             if (typeof SoundSystem !== 'undefined') SoundSystem.play('click');
             window.electronAPI.openSettings();
+        });
+        
+        // Clear chat button
+        const clearBtn = document.getElementById('clear-btn');
+        clearBtn.addEventListener('click', () => {
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('click');
+            // Clear the messages display
+            const msgEls = messagesEl.querySelectorAll('.message-wrapper, .message.system');
+            msgEls.forEach(el => el.remove());
+            // Clear the chat history array
+            chatHistory = [];
+            // Notify main process to clear stored history
+            if (window.electronAPI.clearChatHistory) {
+                window.electronAPI.clearChatHistory();
+            }
+            // Add system message confirming clear
+            addMessage('system', '[ CHAT HISTORY CLEARED ]');
+        });
+        
+        // Volume/Mute toggle button
+        const volumeBtn = document.getElementById('volume-btn');
+        let isMuted = false;
+        
+        // Load saved mute state
+        try {
+            const savedMuted = localStorage.getItem('radgotchi-muted');
+            if (savedMuted === 'true') {
+                isMuted = true;
+                volumeBtn.classList.add('muted');
+                if (typeof SoundSystem !== 'undefined') {
+                    SoundSystem.setEnabled(false);
+                }
+            }
+        } catch(e) {}
+        
+        volumeBtn.addEventListener('click', () => {
+            isMuted = !isMuted;
+            volumeBtn.classList.toggle('muted', isMuted);
+            if (typeof SoundSystem !== 'undefined') {
+                SoundSystem.setEnabled(!isMuted);
+                if (!isMuted) SoundSystem.play('click');
+            }
+            localStorage.setItem('radgotchi-muted', isMuted);
         });
         
         // Get current time string
@@ -2940,6 +3198,7 @@
         const statBest = document.getElementById('stat-best');
         const statStasis = document.getElementById('stat-stasis');
         const statDeepest = document.getElementById('stat-deepest');
+        const statWork = document.getElementById('stat-work');
         
         // Pomodoro elements
         const pomodoroBar = document.getElementById('pomodoro-bar');
@@ -2997,7 +3256,7 @@
             
             const { level, totalXp, xpIntoLevel, xpNeeded, progress, leveledUp, leveledDown, xpLost, source,
                     rank, rankZh, totalClicks, totalMessages, totalSessions, totalUptimeMs, currentStreak, longestStreak,
-                    totalStasis, deepestStasis,
+                    totalStasis, deepestStasis, workStarted, workCompleted,
                     hunger, energy } = xpData;
             
             levelBadge.textContent = 'LV ' + level;
@@ -3036,6 +3295,9 @@
             }
             if (deepestStasis !== undefined) {
                 statDeepest.textContent = formatUptime(deepestStasis);
+            }
+            if (workCompleted !== undefined && workStarted !== undefined) {
+                statWork.textContent = workCompleted + ' (' + workStarted + ')';
             }
             
             // Update needs
@@ -3319,7 +3581,6 @@
                 mov: 'MOV',
                 col: 'COL',
                 sleep: 'ZZZ',
-                mute: 'MUTE',
                 stats: 'STAT',
                 pomo: 'POMO',
                 hunger: 'PWR',
@@ -3332,6 +3593,7 @@
                 best: 'BEST',
                 stasis: 'STASIS',
                 deepest: 'DEEPEST',
+                work: 'WORK',
                 days: 'days',
                 langToggle: '中文',
                 movOptions: { none: 'NONE', bounce: 'BOUNCE', follow: 'FOLLOW', wander: 'WANDER' },
@@ -3358,7 +3620,6 @@
                 mov: '动作',
                 col: '颜色',
                 sleep: '睡眠',
-                mute: '静音',
                 stats: '统计',
                 pomo: '番茄',
                 hunger: '能量',
@@ -3371,6 +3632,7 @@
                 best: '最佳',
                 stasis: '休眠',
                 deepest: '最深',
+                work: '专注',
                 days: '天',
                 langToggle: 'EN',
                 movOptions: { none: '无', bounce: '弹跳', follow: '跟随', wander: '漫游' },
@@ -3396,7 +3658,6 @@
             labelMov.textContent = t.mov;
             labelCol.textContent = t.col;
             labelSleep.textContent = t.sleep;
-            document.getElementById('label-mute').textContent = t.mute;
             labelStats.textContent = t.stats;
             labelPomo.textContent = t.pomo;
             toggleLang.textContent = t.langToggle;
@@ -3414,6 +3675,7 @@
             document.getElementById('label-best').textContent = t.best;
             document.getElementById('label-stasis').textContent = t.stasis;
             document.getElementById('label-deepest').textContent = t.deepest;
+            document.getElementById('label-work').textContent = t.work;
             
             // Update dropdown options
             Array.from(selectMovement.options).forEach(opt => {
@@ -3506,26 +3768,6 @@
             
             if (window.electronAPI && window.electronAPI.setSleep) {
                 window.electronAPI.setSleep(sleeping);
-            }
-        });
-        
-        // Mute toggle (active = muted)
-        const toggleMute = document.getElementById('toggle-mute');
-        
-        // Initialize mute toggle state from SoundSystem
-        if (typeof SoundSystem !== 'undefined') {
-            if (!SoundSystem.isEnabled()) {
-                toggleMute.classList.add('active'); // Muted = active
-            }
-        }
-        
-        toggleMute.addEventListener('click', () => {
-            toggleMute.classList.toggle('active');
-            const isMuted = toggleMute.classList.contains('active');
-            if (typeof SoundSystem !== 'undefined') {
-                SoundSystem.setEnabled(!isMuted);
-                // Play a test click if unmuting
-                if (!isMuted) SoundSystem.play('click');
             }
         });
         

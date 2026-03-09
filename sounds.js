@@ -436,6 +436,61 @@ const SoundSystem = (function() {
             createNoise(now, 0.05, 0.04);
             createNoise(now + 0.35, 0.04, 0.03);
             createNoise(now + 0.65, 0.06, 0.04);
+        },
+
+        // Boot sound - system initialization sequence
+        boot: function() {
+            if (!enabled) return;
+            const ctx = getContext();
+            if (!ctx) return;
+            const now = ctx.currentTime;
+            
+            // Initial power-on hum
+            createOscillator('sine', 60, now, 0.3, 0.15);
+            
+            // Digital initialization beeps
+            createOscillator('square', 200, now + 0.1, 0.05, 0.2);
+            createOscillator('square', 300, now + 0.18, 0.05, 0.2);
+            createOscillator('square', 400, now + 0.26, 0.05, 0.2);
+            createOscillator('square', 600, now + 0.34, 0.08, 0.25);
+            
+            // Data stream noise
+            createNoise(now + 0.15, 0.25, 0.06);
+            
+            // Success chime
+            createOscillator('sine', 880, now + 0.5, 0.15, 0.3);
+            createOscillator('sine', 1100, now + 0.55, 0.2, 0.25);
+            createOscillator('sine', 1320, now + 0.62, 0.25, 0.2);
+        },
+
+        // Shutdown sound - system powering down
+        shutdown: function() {
+            if (!enabled) return;
+            const ctx = getContext();
+            if (!ctx) return;
+            const now = ctx.currentTime;
+            
+            // Descending power-down sequence
+            createOscillator('square', 600, now, 0.08, 0.2);
+            createOscillator('square', 400, now + 0.08, 0.08, 0.18);
+            createOscillator('square', 250, now + 0.16, 0.1, 0.15);
+            createOscillator('square', 150, now + 0.26, 0.15, 0.1);
+            
+            // Power-down hum fade
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(100, now + 0.3);
+            osc.frequency.exponentialRampToValueAtTime(30, now + 0.7);
+            gain.gain.setValueAtTime(0.15, now + 0.3);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+            osc.connect(gain);
+            gain.connect(masterGain);
+            osc.start(now + 0.3);
+            osc.stop(now + 0.8);
+            
+            // Static fade
+            createNoise(now + 0.1, 0.4, 0.08);
         }
     };
 
