@@ -1932,6 +1932,46 @@
             text-shadow: 0 0 10px var(--term-amber);
         }
         
+        /* System message close button */
+        .message.system {
+            position: relative;
+        }
+        
+        .system-close-btn {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            background: transparent;
+            border: 1px solid var(--term-amber);
+            border-radius: 2px;
+            color: var(--term-amber);
+            font-size: 10px;
+            line-height: 14px;
+            text-align: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+            font-family: var(--font-mono);
+            padding: 0;
+        }
+        
+        .message.system:hover .system-close-btn {
+            opacity: 0.7;
+        }
+        
+        .system-close-btn:hover {
+            opacity: 1 !important;
+            background: color-mix(in srgb, var(--term-amber) 20%, transparent);
+            transform: translateY(-50%) scale(1.1);
+        }
+        
+        .system-close-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+        
         /* Message wrapper - avatar reactions */
         .message-wrapper:hover .message-avatar {
             transform: scale(1.08);
@@ -2887,7 +2927,25 @@
             msgEl.className = `message ${role}${isThinking ? ' thinking' : ''}`;
             msgEl.setAttribute('data-time', timestamp ? formatTimestamp(timestamp) : getTimeStr());
             msgEl.style.setProperty('--system-label', '"' + t.system + '"');
-            msgEl.textContent = content;
+            
+            // Add text content as span to allow close button positioning
+            const textSpan = document.createElement('span');
+            textSpan.textContent = content;
+            msgEl.appendChild(textSpan);
+            
+            // Add close button for system messages
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'system-close-btn';
+            closeBtn.textContent = '×';
+            closeBtn.title = 'Dismiss';
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                msgEl.style.opacity = '0';
+                msgEl.style.transform = 'translateY(-10px)';
+                msgEl.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+                setTimeout(() => msgEl.remove(), 200);
+            });
+            msgEl.appendChild(closeBtn);
             
             messagesEl.appendChild(msgEl);
             messagesEl.scrollTop = messagesEl.scrollHeight;

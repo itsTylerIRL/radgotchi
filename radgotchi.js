@@ -882,21 +882,29 @@ const RG = (function() {
     let audioContext = null;
     let audioAnalyser = null;
     let audioStream = null;
+    let audioSource = null;
     let audioAnimationFrame = null;
     let lastAudioReaction = 0;
     let currentAudioMode = null; // 'music', 'voice', or null
     let audioReactionTimeout = null;
+    let audioHealthCheckInterval = null;
+    let consecutiveZeroFrames = 0;
+    let isRestartingAudio = false;
     
     // Audio detection thresholds
     const AUDIO_CONFIG = {
-        VOLUME_THRESHOLD: 8,         // Min volume to react (0-255 scale) - lower for system audio
+        VOLUME_THRESHOLD: 2,         // Min volume to react (0-255 scale)
+        BASS_THRESHOLD: 1,          // Min bass energy to trigger vibe mode
         MUSIC_BEAT_THRESHOLD: 0.4,   // Beat detection sensitivity
         VOICE_FREQUENCY_MIN: 85,     // Human voice ~85-255 Hz
         VOICE_FREQUENCY_MAX: 255,
         MUSIC_BASS_MAX: 150,         // Bass frequencies for beat detection
         REACTION_COOLDOWN: 200,      // ms between animation updates
         MODE_SWITCH_DELAY: 500,      // ms before switching music/voice mode
-        SILENCE_TIMEOUT: 2000        // ms of silence before stopping reaction
+        SILENCE_TIMEOUT: 2000,       // ms of silence before stopping reaction
+        HEALTH_CHECK_INTERVAL: 5000, // ms between stream health checks
+        ZERO_FRAME_THRESHOLD: 300,   // consecutive zero-data frames before considering dead
+        RESTART_COOLDOWN: 10000      // ms between restart attempts
     };
     
     // Status messages for audio modes - tiered by intensity
@@ -952,6 +960,7 @@ const RG = (function() {
     
     async function startAudioListening() {
         if (audioListening) return true;
+        if (isRestartingAudio) return false;
         
         let usingMicFallback = false;
         
@@ -1008,6 +1017,14 @@ const RG = (function() {
                 });
             }
             
+            // Monitor audio tracks for unexpected endings
+            audioStream.getAudioTracks().forEach(track => {
+                track.onended = () => {
+                    console.warn('Audio track ended unexpectedly, will restart...');
+                    scheduleAudioRestart();
+                };
+            });
+            
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             
             // Resume AudioContext if suspended (browser autoplay policy)
@@ -1016,15 +1033,33 @@ const RG = (function() {
                 await audioContext.resume();
             }
             
+            // Monitor AudioContext state changes
+            audioContext.onstatechange = () => {
+                console.log('AudioContext state changed to:', audioContext.state);
+                if (audioContext.state === 'suspended' && audioListening) {
+                    audioContext.resume().catch(err => {
+                        console.warn('Failed to resume AudioContext:', err);
+                    });
+                } else if (audioContext.state === 'closed' && audioListening) {
+                    console.warn('AudioContext closed, will restart...');
+                    scheduleAudioRestart();
+                }
+            };
+            
             audioAnalyser = audioContext.createAnalyser();
             audioAnalyser.fftSize = 256;
             audioAnalyser.smoothingTimeConstant = 0.8;
             
-            const source = audioContext.createMediaStreamSource(audioStream);
-            source.connect(audioAnalyser);
+            audioSource = audioContext.createMediaStreamSource(audioStream);
+            audioSource.connect(audioAnalyser);
             
             audioListening = true;
+            consecutiveZeroFrames = 0;
             console.log('Audio listening started, mode:', usingMicFallback ? 'microphone' : 'system audio');
+            
+            // Start health check interval
+            startAudioHealthCheck();
+            
             analyzeAudio();
             
             const st = getAudioStatus();
@@ -1037,9 +1072,79 @@ const RG = (function() {
         }
     }
     
-    function stopAudioListening() {
+    let lastRestartAttempt = 0;
+    
+    function scheduleAudioRestart() {
+        if (isRestartingAudio) return;
+        
+        const now = Date.now();
+        const timeSinceLastRestart = now - lastRestartAttempt;
+        
+        // Respect restart cooldown
+        if (timeSinceLastRestart < AUDIO_CONFIG.RESTART_COOLDOWN) {
+            console.log('Restart cooldown active, waiting...');
+            return;
+        }
+        
+        isRestartingAudio = true;
+        lastRestartAttempt = now;
+        
+        console.log('Scheduling audio restart...');
+        
+        // Clean up and restart
+        stopAudioListeningInternal();
+        
+        setTimeout(() => {
+            isRestartingAudio = false;
+            startAudioListening().then(success => {
+                if (success) {
+                    console.log('Audio successfully restarted');
+                } else {
+                    console.warn('Audio restart failed, will retry...');
+                }
+            });
+        }, 1000);
+    }
+    
+    function startAudioHealthCheck() {
+        if (audioHealthCheckInterval) {
+            clearInterval(audioHealthCheckInterval);
+        }
+        
+        audioHealthCheckInterval = setInterval(() => {
+            if (!audioListening) return;
+            
+            // Check if AudioContext is suspended
+            if (audioContext && audioContext.state === 'suspended') {
+                console.log('Health check: AudioContext suspended, resuming...');
+                audioContext.resume().catch(() => {});
+            }
+            
+            // Check if audio tracks are still active
+            if (audioStream) {
+                const audioTracks = audioStream.getAudioTracks();
+                const hasLiveTracks = audioTracks.some(track => track.readyState === 'live');
+                
+                if (!hasLiveTracks && audioTracks.length > 0) {
+                    console.warn('Health check: No live audio tracks, restarting...');
+                    scheduleAudioRestart();
+                }
+            }
+        }, AUDIO_CONFIG.HEALTH_CHECK_INTERVAL);
+    }
+    
+    function stopAudioHealthCheck() {
+        if (audioHealthCheckInterval) {
+            clearInterval(audioHealthCheckInterval);
+            audioHealthCheckInterval = null;
+        }
+    }
+    
+    // Internal cleanup (used during restart - doesn't stop health check)
+    function stopAudioListeningInternal() {
         audioListening = false;
         currentAudioMode = null;
+        consecutiveZeroFrames = 0;
         
         if (audioAnimationFrame) {
             cancelAnimationFrame(audioAnimationFrame);
@@ -1051,13 +1156,23 @@ const RG = (function() {
             audioReactionTimeout = null;
         }
         
+        // Disconnect source before stopping tracks
+        if (audioSource) {
+            try { audioSource.disconnect(); } catch(e) {}
+            audioSource = null;
+        }
+        
         if (audioStream) {
-            audioStream.getTracks().forEach(track => track.stop());
+            audioStream.getTracks().forEach(track => {
+                track.onended = null; // Remove handler to prevent restart during cleanup
+                track.stop();
+            });
             audioStream = null;
         }
         
         if (audioContext) {
-            audioContext.close();
+            audioContext.onstatechange = null; // Remove handler
+            try { audioContext.close(); } catch(e) {}
             audioContext = null;
             audioAnalyser = null;
         }
@@ -1067,8 +1182,22 @@ const RG = (function() {
         faceEl.classList.remove('rg-audio-music', 'rg-audio-voice');
     }
     
+    function stopAudioListening() {
+        stopAudioHealthCheck();
+        stopAudioListeningInternal();
+    }
+    
     function analyzeAudio() {
-        if (!audioListening || !audioAnalyser) return;
+        if (!audioListening || !audioAnalyser) {
+            console.log('analyzeAudio early return: audioListening=', audioListening, 'audioAnalyser=', !!audioAnalyser);
+            return;
+        }
+        
+        // Check AudioContext health - resume if suspended
+        if (audioContext && audioContext.state === 'suspended') {
+            console.log('AudioContext suspended, resuming...');
+            audioContext.resume().catch(() => {});
+        }
         
         // Skip analysis if paused due to app's own sounds
         if (audioReactionPaused) {
@@ -1082,10 +1211,33 @@ const RG = (function() {
         
         // Calculate overall volume
         let sum = 0;
+        let hasAnyData = false;
         for (let i = 0; i < bufferLength; i++) {
             sum += dataArray[i];
+            if (dataArray[i] > 0) hasAnyData = true;
         }
         const avgVolume = sum / bufferLength;
+        
+        // Debug logging every 60 frames (~1 second)
+        if (Math.random() < 0.017) {
+            console.log('Audio levels - avgVolume:', avgVolume.toFixed(1), 'hasData:', hasAnyData, 'consecutiveZero:', consecutiveZeroFrames);
+        }
+        
+        // Track consecutive frames with absolutely zero data (indicates dead stream)
+        // Note: this is different from silence - silence has some noise floor
+        if (!hasAnyData && sum === 0) {
+            consecutiveZeroFrames++;
+            // Too many consecutive zero frames indicates stream is dead
+            if (consecutiveZeroFrames > AUDIO_CONFIG.ZERO_FRAME_THRESHOLD) {
+                console.warn('Detected dead audio stream (sustained zero data), restarting...');
+                consecutiveZeroFrames = 0;
+                scheduleAudioRestart();
+                return;
+            }
+        } else {
+            // Reset counter when we get any data
+            consecutiveZeroFrames = 0;
+        }
         
         // Calculate bass energy (for beat detection)
         const bassEnd = Math.floor(AUDIO_CONFIG.MUSIC_BASS_MAX / (audioContext.sampleRate / audioAnalyser.fftSize));
@@ -1106,10 +1258,11 @@ const RG = (function() {
         
         const now = Date.now();
         
+        // React if volume exceeds threshold - bass threshold gates the intensity of animation
         if (avgVolume > AUDIO_CONFIG.VOLUME_THRESHOLD) {
             lastAudioReaction = now;
             
-            // React to audio intensity directly (simplified - no music/voice split)
+            // React to audio intensity - pass bass for animation intensity selection
             reactToAudio(avgVolume, bassEnergy);
         } else {
             // Silence - fade out reactions after timeout
@@ -1166,10 +1319,11 @@ const RG = (function() {
     }
     
     // Vibe face rotation for variety (not just sunglasses pulsing)
-    const vibeFaces = ['cool', 'look_l', 'look_r', 'cool', 'happy', 'cool'];
+    // Cool appears more often and stays longer
+    const vibeFaces = ['cool', 'cool', 'look_l', 'cool', 'cool', 'look_r', 'cool', 'happy', 'cool', 'cool'];
     let lastVibeFaceIndex = 0;
     let lastVibeFaceChange = 0;
-    const VIBE_FACE_INTERVAL = 400; // Change face every 400ms during vibing
+    const VIBE_FACE_INTERVAL = 800; // Change face every 800ms during vibing (slower, more chill)
     
     // Beat detection for syncing direction changes
     const BEAT_HISTORY_SIZE = 43; // ~43 frames at 60fps = ~700ms of history

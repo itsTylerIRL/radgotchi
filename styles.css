@@ -4,6 +4,8 @@
     --rg-color: #ff3344;
     --rg-glow: #ff334488;
     --rg-status-color: #cc2233;
+    --rg-vibe-color: #00ccbb;
+    --rg-vibe-glow: #00ccbb88;
     --rg-font: 'Segoe UI', 'Consolas', 'Courier New', monospace;
     --rg-bg: rgba(10, 10, 15, 0.85);
 }
@@ -266,10 +268,11 @@ body {
     90% { transform: translateY(0) rotate(0deg); }
 }
 
-/* Audio reactive glow effects */
+/* Audio reactive glow effects - uses inverted theme color */
 .rg-audio-music {
-    filter: drop-shadow(0 0 8px var(--pet-color, #00ff9d)) 
-            drop-shadow(0 0 15px var(--pet-color, #00ff9d)) !important;
+    filter: drop-shadow(0 0 8px var(--rg-vibe-color, #ff0062)) 
+            drop-shadow(0 0 15px var(--rg-vibe-color, #ff0062))
+            drop-shadow(0 0 25px var(--rg-vibe-glow, #ff006288)) !important;
 }
 
 .rg-audio-voice {

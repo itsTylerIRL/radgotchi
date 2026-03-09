@@ -404,8 +404,8 @@ const SoundSystem = (function() {
                 osc.frequency.setValueAtTime(note.freq, now + note.time);
                 
                 gain.gain.setValueAtTime(0, now + note.time);
-                gain.gain.linearRampToValueAtTime(0.2, now + note.time + 0.02);
-                gain.gain.setValueAtTime(0.18, now + note.time + note.dur * 0.7);
+                gain.gain.linearRampToValueAtTime(0.08, now + note.time + 0.02);
+                gain.gain.setValueAtTime(0.07, now + note.time + note.dur * 0.7);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + note.time + note.dur);
                 
                 osc.connect(gain);
@@ -423,7 +423,7 @@ const SoundSystem = (function() {
                 osc.frequency.setValueAtTime(note.freq / 2, now + note.time);
                 
                 gain.gain.setValueAtTime(0, now + note.time);
-                gain.gain.linearRampToValueAtTime(0.1, now + note.time + 0.02);
+                gain.gain.linearRampToValueAtTime(0.04, now + note.time + 0.02);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + note.time + note.dur);
                 
                 osc.connect(gain);
@@ -433,9 +433,9 @@ const SoundSystem = (function() {
             });
             
             // Subtle snare-like hits on downbeats for marching feel
-            createNoise(now, 0.05, 0.04);
-            createNoise(now + 0.35, 0.04, 0.03);
-            createNoise(now + 0.65, 0.06, 0.04);
+            createNoise(now, 0.05, 0.02);
+            createNoise(now + 0.35, 0.04, 0.015);
+            createNoise(now + 0.65, 0.06, 0.02);
         },
 
         // Boot sound - system initialization sequence

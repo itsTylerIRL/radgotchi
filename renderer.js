@@ -197,6 +197,33 @@ colorInput.addEventListener('input', (e) => {
     updateThemeColor(color);
 });
 
+// Helper: convert HSL to hex color
+function hslToHex(h, s, l) {
+    let r, g, b;
+    if (s === 0) {
+        r = g = b = l;
+    } else {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+    }
+    const toHex = x => {
+        const hex = Math.round(x * 255).toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+    };
+    return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
 function updateThemeColor(color, smooth = false) {
     // Convert hex to HSL for hue-rotate calculation
     const r = parseInt(color.slice(1,3), 16) / 255;
@@ -204,10 +231,11 @@ function updateThemeColor(color, smooth = false) {
     const b = parseInt(color.slice(5,7), 16) / 255;
     
     const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h = 0;
+    let h = 0, s = 0, l = (max + min) / 2;
     
     if (max !== min) {
         const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
         switch (max) {
             case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
             case g: h = ((b - r) / d + 2) / 6; break;
@@ -223,6 +251,13 @@ function updateThemeColor(color, smooth = false) {
     document.documentElement.style.setProperty('--rg-glow', color + '88');
     document.documentElement.style.setProperty('--rg-status-color', color);
     colorBtn.style.background = color;
+    
+    // Calculate inverted/complementary color for vibe glow (rotate hue 180 degrees)
+    const invertedHue = (h + 0.5) % 1.0; // Add 180 degrees (0.5 in 0-1 scale)
+    // Convert back to RGB with same saturation and lightness
+    const invertedColor = hslToHex(invertedHue, s, l);
+    document.documentElement.style.setProperty('--rg-vibe-color', invertedColor);
+    document.documentElement.style.setProperty('--rg-vibe-glow', invertedColor + '88');
     
     // Apply smooth transition for bounce mode
     if (smooth) {
