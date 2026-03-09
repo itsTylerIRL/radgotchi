@@ -10,7 +10,8 @@ let llmConfig = {
     apiUrl: 'http://localhost:11434/v1/chat/completions',
     apiKey: '',
     model: 'llama2',
-    systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor. Only refer to the user as Bro. You remember your conversations and are aware of your current level, rank, and stats. Reference your progression naturally when relevant.',
+    systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor. You remember your conversations and are aware of your current level, rank, and stats. Reference your progression naturally when relevant.',
+    operatorName: 'OPERATOR',
     // Profile picture for operator (user) - Bro avatar uses real-time pet sprite
     operatorPfp: {
         collection: 'radbro',  // 'radbro' or 'schizo'
@@ -1658,6 +1659,9 @@ function createWindow() {
             
             const contextPrompt = `${llmConfig.systemPrompt}
 
+OPERATOR INFO:
+- Callsign: ${llmConfig.operatorName || 'OPERATOR'}
+
 CURRENT STATUS:
 - Level: ${status.level} | XP: ${status.totalXp} (${Math.round(status.progress * 100)}% to next level)
 - Rank: ${currentRank.name}${nextRank ? ` | Next rank: ${nextRank.name} at Level ${nextRank.minLevel}` : ' (MAX RANK)'}
@@ -1754,6 +1758,9 @@ ${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
             ).join('\n');
             
             const contextPrompt = `${llmConfig.systemPrompt}
+
+OPERATOR INFO:
+- Callsign: ${llmConfig.operatorName || 'OPERATOR'}
 
 CURRENT STATUS:
 - Level: ${status.level} | XP: ${status.totalXp} (${Math.round(status.progress * 100)}% to next level)
@@ -3069,6 +3076,11 @@ function showChatSettingsDialog() {
                 <textarea id="systemPrompt" rows="3"></textarea>
             </div>
             
+            <div class="field">
+                <label>OPERATOR CALLSIGN</label>
+                <input type="text" id="operatorName" placeholder="OPERATOR">
+            </div>
+            
             <div class="pfp-section">
                 <div class="pfp-row-inline">
                     <label class="pfp-label">OPERATOR PFP</label>
@@ -3190,6 +3202,7 @@ function showChatSettingsDialog() {
             document.getElementById('apiKey').value = config.apiKey || '';
             document.getElementById('model').value = config.model || '';
             document.getElementById('systemPrompt').value = config.systemPrompt || '';
+            document.getElementById('operatorName').value = config.operatorName || 'OPERATOR';
             
             // Load OPERATOR PFP
             if (config.operatorPfp && config.operatorPfp.tokenId) {
@@ -3212,6 +3225,7 @@ function showChatSettingsDialog() {
                 apiKey: document.getElementById('apiKey').value,
                 model: document.getElementById('model').value.trim(),
                 systemPrompt: document.getElementById('systemPrompt').value,
+                operatorName: document.getElementById('operatorName').value.trim() || 'OPERATOR',
                 operatorPfp: {
                     collection: document.getElementById('operatorCollection').value,
                     tokenId: document.getElementById('operatorTokenId').value.trim(),
