@@ -899,17 +899,52 @@ const RG = (function() {
         SILENCE_TIMEOUT: 2000        // ms of silence before stopping reaction
     };
     
-    // Status messages for audio modes
+    // Status messages for audio modes - tiered by intensity
     const audioStatusEN = {
-        music: ['VIBING', 'SICK BEAT', 'GROOVING', 'FEELING IT', 'RAD TUNES', 'BANGER ALERT'],
-        voice: ['LISTENING', 'TAKING NOTES', 'PROCESSING', 'RECORDING', 'ATTENTION', 'COPY THAT'],
-        silent: ['AUDIO IDLE', 'MONITORING...', 'SYS AUDIO ON']
+        low: ['CHILLIN', 'VIBES', 'MELLOW'],                    // Low volume, gentle vibes
+        medium: ['VIBING', 'FEELING IT', 'GROOVING'],           // Medium sustained volume
+        high: ['SICK BEAT', 'RAD TUNES', 'PUMPING'],            // High volume
+        banger: ['BANGER ALERT', 'ABSOLUTE UNIT', 'LEGENDARY'], // Sustained high volume (5+ seconds)
+        silent: ['AUDIO IDLE', 'MONITORING...', 'SYS AUDIO ON'] // No audio detected
     };
     const audioStatusZH = {
-        music: ['摇摆中', '节奏感', '氛围拉满', '感受旋律', '好听', '神曲警告'],
-        voice: ['聆听中', '记录中', '处理中', '录音中', '注意', '收到'],
+        low: ['悠闲', '氛围', '轻柔'],
+        medium: ['摇摆中', '感受旋律', '节奏感'],
+        high: ['好听', '氛围拉满', '嗨起来'],
+        banger: ['神曲警告', '绝绝子', '传奇时刻'],
         silent: ['音频待机', '监听中...', '系统音频开启']
     };
+    
+    // Sustained volume tracking for status tiers
+    let highVolumeStartTime = 0;
+    let isInHighVolume = false;
+    const HIGH_VOLUME_THRESHOLD = 100;
+    const BANGER_SUSTAIN_TIME = 5000; // 5 seconds of sustained high volume for "BANGER ALERT"
+    
+    function getAudioStatusTier(avgVolume) {
+        const now = Date.now();
+        
+        // Track sustained high volume
+        if (avgVolume > HIGH_VOLUME_THRESHOLD) {
+            if (!isInHighVolume) {
+                isInHighVolume = true;
+                highVolumeStartTime = now;
+            }
+        } else {
+            isInHighVolume = false;
+        }
+        
+        // Determine tier based on volume and sustain
+        if (isInHighVolume && (now - highVolumeStartTime > BANGER_SUSTAIN_TIME)) {
+            return 'banger';
+        } else if (avgVolume > HIGH_VOLUME_THRESHOLD) {
+            return 'high';
+        } else if (avgVolume > 50) {
+            return 'medium';
+        } else {
+            return 'low';
+        }
+    }
     
     function getAudioStatus() {
         return currentLang === 'zh' ? audioStatusZH : audioStatusEN;
@@ -1083,6 +1118,14 @@ const RG = (function() {
                 faceEl.classList.remove('rg-dance', 'rg-vibe', 'rg-headbob', 'rg-notes');
                 faceEl.classList.remove('rg-audio-music', 'rg-audio-voice');
                 
+                // Re-enable breathing animation
+                faceFlipWrapper.classList.add('rg-breathing');
+                
+                // Reset vibe direction state
+                desiredLookDir = 'right';
+                currentVibeFace = 'cool';
+                lastDirectionChange = 0;
+                
                 // Return to neutral
                 if (!locked && !isSleeping && !isWorking) {
                     faceEl.src = faces['awake'];
@@ -1122,6 +1165,93 @@ const RG = (function() {
         window.electronAPI.onSoundPlayed(pauseAudioReaction);
     }
     
+    // Vibe face rotation for variety (not just sunglasses pulsing)
+    const vibeFaces = ['cool', 'look_l', 'look_r', 'cool', 'happy', 'cool'];
+    let lastVibeFaceIndex = 0;
+    let lastVibeFaceChange = 0;
+    const VIBE_FACE_INTERVAL = 400; // Change face every 400ms during vibing
+    
+    // Beat detection for syncing direction changes
+    const BEAT_HISTORY_SIZE = 43; // ~43 frames at 60fps = ~700ms of history
+    const BEAT_THRESHOLD_MULTIPLIER = 1.6; // Current bass must be 60% above average to trigger beat
+    const BEAT_MIN_INTERVAL = 800; // Minimum ms between direction changes (holds each direction longer)
+    const bassHistory = [];
+    let lastBeatTime = 0;
+    
+    // Detect if there's a beat based on bass energy spike
+    function detectBeat(bassEnergy) {
+        const now = Date.now();
+        
+        // Add to history
+        bassHistory.push(bassEnergy);
+        if (bassHistory.length > BEAT_HISTORY_SIZE) {
+            bassHistory.shift();
+        }
+        
+        // Need enough history
+        if (bassHistory.length < BEAT_HISTORY_SIZE / 2) return false;
+        
+        // Calculate average bass energy
+        const avgBass = bassHistory.reduce((a, b) => a + b, 0) / bassHistory.length;
+        
+        // Beat detected if current bass exceeds threshold and enough time has passed
+        if (bassEnergy > avgBass * BEAT_THRESHOLD_MULTIPLIER && 
+            bassEnergy > 30 && // Minimum absolute threshold
+            now - lastBeatTime > BEAT_MIN_INTERVAL) {
+            lastBeatTime = now;
+            return true;
+        }
+        return false;
+    }
+    
+    // Get flip wrapper for direction control during vibe
+    const faceFlipWrapper = document.getElementById('face-flip-wrapper');
+    
+    // Track desired look direction ('left' or 'right') and current vibe face
+    let desiredLookDir = 'right';
+    let currentVibeFace = 'cool';
+    let lastDirectionChange = 0;
+    const DIRECTION_CHANGE_INTERVAL = 1500; // Flip direction at least every 1.5 seconds
+    
+    // Get the correct scaleX value for a face and desired direction
+    // Some faces are already drawn looking a certain way:
+    // - look_l: asset faces left, so scaleX(1) = left, scaleX(-1) = right
+    // - look_r: asset faces right, so scaleX(1) = right, scaleX(-1) = left
+    // - other faces: neutral, scaleX(-1) = left, scaleX(1) = right
+    function getScaleForDirection(faceName, direction) {
+        if (faceName === 'look_l') {
+            // Asset faces left: no flip for left, flip for right
+            return direction === 'left' ? 1 : -1;
+        } else if (faceName === 'look_r') {
+            // Asset faces right: no flip for right, flip for left
+            return direction === 'left' ? -1 : 1;
+        } else {
+            // Neutral faces: flip for left, no flip for right
+            return direction === 'left' ? -1 : 1;
+        }
+    }
+    
+    // Apply the current direction to the face
+    function applyVibeDirection() {
+        if (!faceFlipWrapper) return;
+        const scale = getScaleForDirection(currentVibeFace, desiredLookDir);
+        faceFlipWrapper.style.setProperty('--flip-dir', scale);
+        faceFlipWrapper.style.transform = `scaleX(${scale})`;
+    }
+    
+    // Flip direction (alternates left/right)
+    function flipDirection() {
+        desiredLookDir = desiredLookDir === 'left' ? 'right' : 'left';
+        lastDirectionChange = Date.now();
+        applyVibeDirection();
+    }
+    
+    // Set the current vibe face and update direction accordingly
+    function setVibeFace(faceName) {
+        currentVibeFace = faceName;
+        applyVibeDirection();
+    }
+    
     function reactToAudio(avgVolume, bassEnergy) {
         // Skip if paused due to app's own sounds
         if (audioReactionPaused) return;
@@ -1133,28 +1263,57 @@ const RG = (function() {
         faceEl.classList.remove('rg-vibe', 'rg-headbob', 'rg-notes');
         faceEl.classList.add('rg-audio-music');
         
+        // Disable breathing animation during vibe (its CSS transform conflicts with direction control)
+        faceFlipWrapper.classList.remove('rg-breathing', 'rg-breathing-slow');
+        
         const now = Date.now();
         const shouldUpdateStatus = now - lastAudioStatusUpdate > AUDIO_STATUS_COOLDOWN;
+        const shouldChangeFace = now - lastVibeFaceChange > VIBE_FACE_INTERVAL;
+        
+        // Direction flipping: on beat OR at regular intervals (whichever comes first)
+        const beatDetected = detectBeat(bassEnergy);
+        const intervalElapsed = now - lastDirectionChange > DIRECTION_CHANGE_INTERVAL;
+        
+        if ((beatDetected && avgVolume > 50) || intervalElapsed) {
+            flipDirection();
+        }
+        
+        // Always apply direction on every frame to prevent drift
+        applyVibeDirection();
         
         // Choose animation based on volume intensity
         if (avgVolume > 100) {
-            // High energy - full dance
+            // High energy - full dance with face variety
             faceEl.classList.remove('rg-vibe', 'rg-headbob');
             faceEl.classList.add('rg-dance');
-            faceEl.src = faces['excited'];
+            if (shouldChangeFace) {
+                lastVibeFaceIndex = (lastVibeFaceIndex + 1) % vibeFaces.length;
+                const newFace = vibeFaces[lastVibeFaceIndex];
+                faceEl.src = faces[newFace];
+                setVibeFace(newFace);
+                lastVibeFaceChange = now;
+            }
             if (shouldUpdateStatus) {
                 const st = getAudioStatus();
-                statusEl.textContent = pick(st.music);
+                const tier = getAudioStatusTier(avgVolume);
+                statusEl.textContent = pick(st[tier]);
                 lastAudioStatusUpdate = now;
             }
         } else if (avgVolume > 50) {
-            // Medium energy - vibe
+            // Medium energy - vibe with face variety
             faceEl.classList.remove('rg-dance', 'rg-headbob');
             faceEl.classList.add('rg-vibe');
-            faceEl.src = faces['cool'];
+            if (shouldChangeFace) {
+                lastVibeFaceIndex = (lastVibeFaceIndex + 1) % vibeFaces.length;
+                const newFace = vibeFaces[lastVibeFaceIndex];
+                faceEl.src = faces[newFace];
+                setVibeFace(newFace);
+                lastVibeFaceChange = now;
+            }
             if (shouldUpdateStatus) {
                 const st = getAudioStatus();
-                statusEl.textContent = pick(st.music);
+                const tier = getAudioStatusTier(avgVolume);
+                statusEl.textContent = pick(st[tier]);
                 lastAudioStatusUpdate = now;
             }
         } else {

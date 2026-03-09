@@ -105,6 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
 async function updateEyeDirection() {
     if (!window.electronAPI || !window.electronAPI.getMousePosition) return;
     
+    // Skip mouse tracking while vibing to audio (let the vibe control direction)
+    const faceEl = document.getElementById('radgotchi-face');
+    if (faceEl && faceEl.classList.contains('rg-audio-music')) {
+        return; // Let audio reactive mode control the face direction
+    }
+    
     try {
         const pos = await window.electronAPI.getMousePosition();
         // Calculate center of the pet window
