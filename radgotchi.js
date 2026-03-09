@@ -874,6 +874,241 @@ const RG = (function() {
         statusEl.textContent = pick(st[animation] || st.smart);
     }
 
+    // === Audio Reactive System ===
+    // Listens to system audio (music/voice) and triggers pet reactions
+    
+    let audioListening = false;
+    let audioContext = null;
+    let audioAnalyser = null;
+    let audioStream = null;
+    let audioAnimationFrame = null;
+    let lastAudioReaction = 0;
+    let currentAudioMode = null; // 'music', 'voice', or null
+    let audioReactionTimeout = null;
+    
+    // Audio detection thresholds
+    const AUDIO_CONFIG = {
+        VOLUME_THRESHOLD: 15,        // Min volume to react (0-255 scale)
+        MUSIC_BEAT_THRESHOLD: 0.4,   // Beat detection sensitivity
+        VOICE_FREQUENCY_MIN: 85,     // Human voice ~85-255 Hz
+        VOICE_FREQUENCY_MAX: 255,
+        MUSIC_BASS_MAX: 150,         // Bass frequencies for beat detection
+        REACTION_COOLDOWN: 200,      // ms between animation updates
+        MODE_SWITCH_DELAY: 500,      // ms before switching music/voice mode
+        SILENCE_TIMEOUT: 2000        // ms of silence before stopping reaction
+    };
+    
+    // Status messages for audio modes
+    const audioStatusEN = {
+        music: ['VIBING', 'SICK BEAT', 'GROOVING', 'FEELING IT', 'RAD TUNES', 'BANGER ALERT'],
+        voice: ['LISTENING', 'TAKING NOTES', 'PROCESSING', 'RECORDING', 'ATTENTION', 'COPY THAT'],
+        silent: ['AUDIO IDLE', 'LISTENING...', 'AWAITING INPUT']
+    };
+    const audioStatusZH = {
+        music: ['摇摆中', '节奏感', '氛围拉满', '感受旋律', '好听', '神曲警告'],
+        voice: ['聆听中', '记录中', '处理中', '录音中', '注意', '收到'],
+        silent: ['音频待机', '聆听中...', '等待输入']
+    };
+    
+    function getAudioStatus() {
+        return currentLang === 'zh' ? audioStatusZH : audioStatusEN;
+    }
+    
+    async function startAudioListening() {
+        if (audioListening) return true;
+        
+        try {
+            // Request microphone access
+            audioStream = await navigator.mediaDevices.getUserMedia({ 
+                audio: { 
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false
+                } 
+            });
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioAnalyser = audioContext.createAnalyser();
+            audioAnalyser.fftSize = 256;
+            audioAnalyser.smoothingTimeConstant = 0.8;
+            
+            const source = audioContext.createMediaStreamSource(audioStream);
+            source.connect(audioAnalyser);
+            
+            audioListening = true;
+            analyzeAudio();
+            
+            const st = getAudioStatus();
+            statusEl.textContent = pick(st.silent);
+            
+            return true;
+        } catch (err) {
+            console.error('Audio access denied:', err);
+            return false;
+        }
+    }
+    
+    function stopAudioListening() {
+        audioListening = false;
+        currentAudioMode = null;
+        
+        if (audioAnimationFrame) {
+            cancelAnimationFrame(audioAnimationFrame);
+            audioAnimationFrame = null;
+        }
+        
+        if (audioReactionTimeout) {
+            clearTimeout(audioReactionTimeout);
+            audioReactionTimeout = null;
+        }
+        
+        if (audioStream) {
+            audioStream.getTracks().forEach(track => track.stop());
+            audioStream = null;
+        }
+        
+        if (audioContext) {
+            audioContext.close();
+            audioContext = null;
+            audioAnalyser = null;
+        }
+        
+        // Clear audio-reactive classes
+        faceEl.classList.remove('rg-dance', 'rg-vibe', 'rg-headbob', 'rg-notes');
+        faceEl.classList.remove('rg-audio-music', 'rg-audio-voice');
+    }
+    
+    function analyzeAudio() {
+        if (!audioListening || !audioAnalyser) return;
+        
+        const bufferLength = audioAnalyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        audioAnalyser.getByteFrequencyData(dataArray);
+        
+        // Calculate overall volume
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+            sum += dataArray[i];
+        }
+        const avgVolume = sum / bufferLength;
+        
+        // Calculate bass energy (for beat detection)
+        const bassEnd = Math.floor(AUDIO_CONFIG.MUSIC_BASS_MAX / (audioContext.sampleRate / audioAnalyser.fftSize));
+        let bassSum = 0;
+        for (let i = 0; i < Math.min(bassEnd, bufferLength); i++) {
+            bassSum += dataArray[i];
+        }
+        const bassEnergy = bassSum / Math.min(bassEnd, bufferLength);
+        
+        // Calculate mid-frequency energy (voice range)
+        const voiceStart = Math.floor(AUDIO_CONFIG.VOICE_FREQUENCY_MIN / (audioContext.sampleRate / audioAnalyser.fftSize));
+        const voiceEnd = Math.floor(AUDIO_CONFIG.VOICE_FREQUENCY_MAX / (audioContext.sampleRate / audioAnalyser.fftSize));
+        let voiceSum = 0;
+        for (let i = voiceStart; i < Math.min(voiceEnd, bufferLength); i++) {
+            voiceSum += dataArray[i];
+        }
+        const voiceEnergy = voiceSum / (Math.min(voiceEnd, bufferLength) - voiceStart);
+        
+        const now = Date.now();
+        
+        if (avgVolume > AUDIO_CONFIG.VOLUME_THRESHOLD) {
+            lastAudioReaction = now;
+            
+            // Determine if music or voice based on frequency distribution
+            const isMusicLikely = bassEnergy > voiceEnergy * 0.8 && bassEnergy > 30;
+            const isVoiceLikely = voiceEnergy > bassEnergy * 1.2 && voiceEnergy > 25;
+            
+            const detectedMode = isMusicLikely ? 'music' : (isVoiceLikely ? 'voice' : currentAudioMode);
+            
+            if (detectedMode && detectedMode !== currentAudioMode) {
+                // Mode switch with small delay to prevent flickering
+                if (!audioReactionTimeout) {
+                    audioReactionTimeout = setTimeout(() => {
+                        currentAudioMode = detectedMode;
+                        audioReactionTimeout = null;
+                    }, AUDIO_CONFIG.MODE_SWITCH_DELAY);
+                }
+            }
+            
+            // Apply audio reaction
+            if (currentAudioMode === 'music') {
+                reactToMusic(bassEnergy, avgVolume);
+            } else if (currentAudioMode === 'voice') {
+                reactToVoice(voiceEnergy);
+            }
+        } else {
+            // Silence - fade out reactions after timeout
+            if (now - lastAudioReaction > AUDIO_CONFIG.SILENCE_TIMEOUT && currentAudioMode) {
+                currentAudioMode = null;
+                faceEl.classList.remove('rg-dance', 'rg-vibe', 'rg-headbob', 'rg-notes');
+                faceEl.classList.remove('rg-audio-music', 'rg-audio-voice');
+                
+                // Return to neutral
+                if (!locked && !isSleeping && !isWorking) {
+                    faceEl.src = faces['awake'];
+                    const st = getAudioStatus();
+                    statusEl.textContent = pick(st.silent);
+                }
+            }
+        }
+        
+        audioAnimationFrame = requestAnimationFrame(analyzeAudio);
+    }
+    
+    function reactToMusic(bassEnergy, avgVolume) {
+        if (isSleeping || isWorking || locked) return;
+        
+        // Choose animation based on intensity
+        faceEl.classList.remove('rg-vibe', 'rg-headbob', 'rg-notes');
+        faceEl.classList.add('rg-audio-music');
+        
+        if (bassEnergy > 80) {
+            // High energy - full dance
+            faceEl.classList.remove('rg-vibe', 'rg-headbob');
+            faceEl.classList.add('rg-dance');
+            faceEl.src = faces['excited'];
+        } else if (bassEnergy > 50) {
+            // Medium energy - vibe
+            faceEl.classList.remove('rg-dance', 'rg-headbob');
+            faceEl.classList.add('rg-vibe');
+            faceEl.src = faces['cool'];
+        } else {
+            // Low energy - head bob
+            faceEl.classList.remove('rg-dance', 'rg-vibe');
+            faceEl.classList.add('rg-headbob');
+            faceEl.src = faces['happy'];
+        }
+        
+        const st = getAudioStatus();
+        statusEl.textContent = pick(st.music);
+    }
+    
+    function reactToVoice(voiceEnergy) {
+        if (isSleeping || isWorking || locked) return;
+        
+        faceEl.classList.remove('rg-dance', 'rg-vibe', 'rg-headbob', 'rg-audio-music');
+        faceEl.classList.add('rg-notes', 'rg-audio-voice');
+        
+        // Alternate between listening expressions
+        if (voiceEnergy > 50) {
+            faceEl.src = faces['smart'];
+        } else {
+            faceEl.src = faces['debug'];
+        }
+        
+        const st = getAudioStatus();
+        statusEl.textContent = pick(st.voice);
+    }
+    
+    function setAudioListening(enabled) {
+        if (enabled) {
+            return startAudioListening();
+        } else {
+            stopAudioListening();
+            return Promise.resolve(true);
+        }
+    }
+
     // === Initialization ===
 
     // === Public API ===
@@ -888,11 +1123,13 @@ const RG = (function() {
         setSleepAnimation: setSleepAnimation,
         setWork: setWork,
         setWorkAnimation: setWorkAnimation,
+        setAudioListening: setAudioListening,
         get mood() { return mood; },
         get petCount() { return petCount; },
         get language() { return currentLang; },
         get isSleeping() { return isSleeping; },
-        get isWorking() { return isWorking; }
+        get isWorking() { return isWorking; },
+        get isListeningAudio() { return audioListening; }
     };
 
 })();

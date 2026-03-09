@@ -70,5 +70,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onXpUpdate: (callback) => safeOn('xp-update', (_event, data) => callback(data)),
     
     // Attention events (requires interaction to stop XP loss)
-    onAttentionEvent: (callback) => safeOn('attention-event', (_event, data) => callback(data))
+    onAttentionEvent: (callback) => safeOn('attention-event', (_event, data) => callback(data)),
+    
+    // Audio reactive mode (dance to music, notes for voice)
+    onSetAudioListening: (callback) => safeOn('set-audio-listening', (_event, enabled) => callback(enabled)),
+    setAudioListening: (enabled) => ipcRenderer.send('set-audio-listening', enabled),
+    getAudioListening: () => ipcRenderer.invoke('get-audio-listening')
 });

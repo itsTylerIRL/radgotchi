@@ -368,6 +368,15 @@ if (window.electronAPI && window.electronAPI.onWorkAnimation) {
     });
 }
 
+// Audio reactive mode listener (dance to music, notes for voice)
+if (window.electronAPI && window.electronAPI.onSetAudioListening) {
+    window.electronAPI.onSetAudioListening((enabled) => {
+        if (window.RG && typeof window.RG.setAudioListening === 'function') {
+            window.RG.setAudioListening(enabled);
+        }
+    });
+}
+
 // System event listener
 if (window.electronAPI && window.electronAPI.onSystemEvent) {
     window.electronAPI.onSystemEvent((event) => {

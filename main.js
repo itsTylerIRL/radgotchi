@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, powerMonitor, dialog, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, powerMonitor, dialog, shell, session } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -1965,6 +1965,20 @@ ${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
         return { hunger: petNeeds.hunger, energy: petNeeds.energy };
     });
 
+    // Audio reactive mode (dance to music, take notes for voice)
+    let audioListeningEnabled = false;
+    
+    ipcMain.on('set-audio-listening', (event, enabled) => {
+        audioListeningEnabled = enabled;
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('set-audio-listening', enabled);
+        }
+    });
+    
+    ipcMain.handle('get-audio-listening', async () => {
+        return audioListeningEnabled;
+    });
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
@@ -3363,6 +3377,16 @@ function createTray() {
             }
         },
         {
+            label: 'Audio Reactive',
+            type: 'checkbox',
+            checked: false,
+            click: (menuItem) => {
+                if (mainWindow && mainWindow.webContents) {
+                    mainWindow.webContents.send('set-audio-listening', menuItem.checked);
+                }
+            }
+        },
+        {
             label: 'Reset Position',
             click: () => {
                 if (!mainWindow) return;
@@ -3457,6 +3481,15 @@ function initializeApp() {
 }
 
 app.whenReady().then(() => {
+    // Grant microphone permission for audio reactive mode
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+        if (permission === 'media') {
+            callback(true); // Grant microphone access
+        } else {
+            callback(false);
+        }
+    });
+    
     if (process.platform === 'linux') {
         // Linux needs a short delay for transparent visuals
         setTimeout(initializeApp, 100);
