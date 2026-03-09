@@ -310,6 +310,45 @@
             box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
         }
         
+        /* Vibe/Audio reactive toggle */
+        .vibe-btn {
+            -webkit-app-region: no-drag;
+            background: transparent;
+            border: 1px solid var(--term-green);
+            color: var(--term-green);
+            font-size: 9px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 0 4px rgba(0, 255, 136, 0.3);
+        }
+        
+        .vibe-btn::before {
+            content: '🎵';
+            font-size: 9px;
+        }
+        
+        .vibe-btn.disabled {
+            border-color: var(--term-dim);
+            color: var(--term-dim);
+            box-shadow: none;
+        }
+        
+        .vibe-btn.disabled::before {
+            content: '🔕';
+        }
+        
+        .vibe-btn:hover {
+            border-color: var(--term-green);
+            color: var(--term-green);
+            box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        }
+        
         /* Boot animation overlay */
         .boot-overlay {
             position: fixed;
@@ -2215,6 +2254,7 @@
                     <span class="status-dot"></span>
                     <span>ENCRYPTED</span>
                 </div>
+                <button class="vibe-btn" id="vibe-btn" title="Toggle audio reactive mode"></button>
                 <button class="volume-btn" id="volume-btn" title="Toggle mute"></button>
                 <button class="clear-btn" id="clear-btn" title="Clear chat"></button>
                 <button class="settings-btn" id="settings-btn" title="LLM Settings"></button>
@@ -2736,6 +2776,30 @@
                 if (!isMuted) SoundSystem.play('click');
             }
             localStorage.setItem('radgotchi-muted', isMuted);
+        });
+        
+        // Vibe/Audio reactive toggle button
+        const vibeBtn = document.getElementById('vibe-btn');
+        let isVibeDisabled = false;
+        
+        // Load saved vibe state (enabled by default)
+        try {
+            const savedVibeDisabled = localStorage.getItem('radgotchi-vibe-disabled');
+            if (savedVibeDisabled === 'true') {
+                isVibeDisabled = true;
+                vibeBtn.classList.add('disabled');
+            }
+        } catch(e) {}
+        
+        vibeBtn.addEventListener('click', () => {
+            isVibeDisabled = !isVibeDisabled;
+            vibeBtn.classList.toggle('disabled', isVibeDisabled);
+            if (typeof SoundSystem !== 'undefined' && !isMuted) SoundSystem.play('click');
+            localStorage.setItem('radgotchi-vibe-disabled', isVibeDisabled);
+            // Notify main window to toggle audio listening
+            if (window.electronAPI && window.electronAPI.setVibeMode) {
+                window.electronAPI.setVibeMode(!isVibeDisabled);
+            }
         });
         
         // Get current time string

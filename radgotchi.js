@@ -918,46 +918,69 @@ const RG = (function() {
     async function startAudioListening() {
         if (audioListening) return true;
         
+        let usingMicFallback = false;
+        
         try {
-            // Get desktop sources for system audio capture
-            if (!window.electronAPI || !window.electronAPI.getDesktopSources) {
-                console.error('Desktop capturer not available');
-                return false;
-            }
+            // Try desktop/system audio capture first
+            let captureSuccess = false;
             
-            const sources = await window.electronAPI.getDesktopSources();
-            if (!sources || sources.length === 0) {
-                console.error('No desktop sources found');
-                return false;
-            }
-            
-            // Use the first screen source (captures all system audio)
-            const screenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
-            
-            // Request system audio via desktop capturer
-            // Note: This captures audio playing on the system, not microphone
-            audioStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    mandatory: {
-                        chromeMediaSource: 'desktop',
-                        chromeMediaSourceId: screenSource.id
+            if (window.electronAPI && window.electronAPI.getDesktopSources) {
+                try {
+                    const sources = await window.electronAPI.getDesktopSources();
+                    if (sources && sources.length > 0) {
+                        // Use the first screen source (captures all system audio)
+                        const screenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+                        
+                        // Request system audio via desktop capturer
+                        audioStream = await navigator.mediaDevices.getUserMedia({
+                            audio: {
+                                mandatory: {
+                                    chromeMediaSource: 'desktop',
+                                    chromeMediaSourceId: screenSource.id
+                                }
+                            },
+                            video: {
+                                mandatory: {
+                                    chromeMediaSource: 'desktop',
+                                    chromeMediaSourceId: screenSource.id,
+                                    maxWidth: 1,
+                                    maxHeight: 1,
+                                    maxFrameRate: 1
+                                }
+                            }
+                        });
+                        
+                        // We only need audio, stop the video track
+                        audioStream.getVideoTracks().forEach(track => track.stop());
+                        captureSuccess = true;
+                        console.log('System audio capture started');
                     }
-                },
-                video: {
-                    mandatory: {
-                        chromeMediaSource: 'desktop',
-                        chromeMediaSourceId: screenSource.id,
-                        maxWidth: 1,
-                        maxHeight: 1,
-                        maxFrameRate: 1
-                    }
+                } catch (desktopErr) {
+                    console.warn('Desktop audio capture failed (HDR/GPU issue?), falling back to microphone:', desktopErr.message);
                 }
-            });
+            }
             
-            // We only need audio, stop the video track
-            audioStream.getVideoTracks().forEach(track => track.stop());
+            // Fallback to microphone if desktop capture failed
+            if (!captureSuccess) {
+                console.log('Falling back to microphone audio capture');
+                usingMicFallback = true;
+                audioStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
+            }
             
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Resume AudioContext if suspended (browser autoplay policy)
+            if (audioContext.state === 'suspended') {
+                console.log('AudioContext suspended, resuming...');
+                await audioContext.resume();
+            }
+            
             audioAnalyser = audioContext.createAnalyser();
             audioAnalyser.fftSize = 256;
             audioAnalyser.smoothingTimeConstant = 0.8;
@@ -966,14 +989,15 @@ const RG = (function() {
             source.connect(audioAnalyser);
             
             audioListening = true;
+            console.log('Audio listening started, mode:', usingMicFallback ? 'microphone' : 'system audio');
             analyzeAudio();
             
             const st = getAudioStatus();
-            statusEl.textContent = pick(st.silent);
+            statusEl.textContent = usingMicFallback ? 'MIC LISTEN' : pick(st.silent);
             
             return true;
         } catch (err) {
-            console.error('System audio capture failed:', err);
+            console.error('Audio capture failed:', err);
             return false;
         }
     }
@@ -1011,6 +1035,12 @@ const RG = (function() {
     function analyzeAudio() {
         if (!audioListening || !audioAnalyser) return;
         
+        // Skip analysis if paused due to app's own sounds
+        if (audioReactionPaused) {
+            audioAnimationFrame = requestAnimationFrame(analyzeAudio);
+            return;
+        }
+        
         const bufferLength = audioAnalyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
         audioAnalyser.getByteFrequencyData(dataArray);
@@ -1044,28 +1074,8 @@ const RG = (function() {
         if (avgVolume > AUDIO_CONFIG.VOLUME_THRESHOLD) {
             lastAudioReaction = now;
             
-            // Determine if music or voice based on frequency distribution
-            const isMusicLikely = bassEnergy > voiceEnergy * 0.8 && bassEnergy > 30;
-            const isVoiceLikely = voiceEnergy > bassEnergy * 1.2 && voiceEnergy > 25;
-            
-            const detectedMode = isMusicLikely ? 'music' : (isVoiceLikely ? 'voice' : currentAudioMode);
-            
-            if (detectedMode && detectedMode !== currentAudioMode) {
-                // Mode switch with small delay to prevent flickering
-                if (!audioReactionTimeout) {
-                    audioReactionTimeout = setTimeout(() => {
-                        currentAudioMode = detectedMode;
-                        audioReactionTimeout = null;
-                    }, AUDIO_CONFIG.MODE_SWITCH_DELAY);
-                }
-            }
-            
-            // Apply audio reaction
-            if (currentAudioMode === 'music') {
-                reactToMusic(bassEnergy, avgVolume);
-            } else if (currentAudioMode === 'voice') {
-                reactToVoice(voiceEnergy);
-            }
+            // React to audio intensity directly (simplified - no music/voice split)
+            reactToAudio(avgVolume, bassEnergy);
         } else {
             // Silence - fade out reactions after timeout
             if (now - lastAudioReaction > AUDIO_CONFIG.SILENCE_TIMEOUT && currentAudioMode) {
@@ -1085,6 +1095,80 @@ const RG = (function() {
         audioAnimationFrame = requestAnimationFrame(analyzeAudio);
     }
     
+    let lastAudioStatusUpdate = 0;
+    const AUDIO_STATUS_COOLDOWN = 2000; // Only update status text every 2 seconds
+    
+    // Pause audio reaction briefly when app plays its own sounds
+    let audioReactionPaused = false;
+    let audioReactionPauseTimeout = null;
+    const AUDIO_SELF_SOUND_PAUSE = 2500; // Ignore audio for 2.5 seconds after app plays sound (accounts for mic latency)
+    
+    // Helper to pause audio reaction
+    function pauseAudioReaction(soundName) {
+        audioReactionPaused = true;
+        if (audioReactionPauseTimeout) clearTimeout(audioReactionPauseTimeout);
+        audioReactionPauseTimeout = setTimeout(() => {
+            audioReactionPaused = false;
+        }, AUDIO_SELF_SOUND_PAUSE);
+    }
+    
+    // Register with SoundSystem to pause during self-sounds (local sounds in main window)
+    if (typeof SoundSystem !== 'undefined' && SoundSystem.onSoundPlay) {
+        SoundSystem.onSoundPlay(pauseAudioReaction);
+    }
+    
+    // Also listen for IPC sound notifications (sounds from chat window or other windows)
+    if (window.electronAPI && window.electronAPI.onSoundPlayed) {
+        window.electronAPI.onSoundPlayed(pauseAudioReaction);
+    }
+    
+    function reactToAudio(avgVolume, bassEnergy) {
+        // Skip if paused due to app's own sounds
+        if (audioReactionPaused) return;
+        if (isSleeping || isWorking || locked) return;
+        
+        currentAudioMode = 'vibing';
+        
+        // Clear previous animation classes
+        faceEl.classList.remove('rg-vibe', 'rg-headbob', 'rg-notes');
+        faceEl.classList.add('rg-audio-music');
+        
+        const now = Date.now();
+        const shouldUpdateStatus = now - lastAudioStatusUpdate > AUDIO_STATUS_COOLDOWN;
+        
+        // Choose animation based on volume intensity
+        if (avgVolume > 100) {
+            // High energy - full dance
+            faceEl.classList.remove('rg-vibe', 'rg-headbob');
+            faceEl.classList.add('rg-dance');
+            faceEl.src = faces['excited'];
+            if (shouldUpdateStatus) {
+                const st = getAudioStatus();
+                statusEl.textContent = pick(st.music);
+                lastAudioStatusUpdate = now;
+            }
+        } else if (avgVolume > 50) {
+            // Medium energy - vibe
+            faceEl.classList.remove('rg-dance', 'rg-headbob');
+            faceEl.classList.add('rg-vibe');
+            faceEl.src = faces['cool'];
+            if (shouldUpdateStatus) {
+                const st = getAudioStatus();
+                statusEl.textContent = pick(st.music);
+                lastAudioStatusUpdate = now;
+            }
+        } else {
+            // Low energy - head bob
+            faceEl.classList.remove('rg-dance', 'rg-vibe');
+            faceEl.classList.add('rg-headbob');
+            faceEl.src = faces['happy'];
+            if (shouldUpdateStatus) {
+                statusEl.textContent = 'CHILLIN';
+                lastAudioStatusUpdate = now;
+            }
+        }
+    }
+
     function reactToMusic(bassEnergy, avgVolume) {
         if (isSleeping || isWorking || locked) return;
         

@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     closeChat: () => ipcRenderer.send('close-chat'),
     openSettings: () => ipcRenderer.send('open-settings'),
+    // Sound played notification (for audio reactive mode to ignore self-sounds)
+    notifySoundPlayed: (soundName) => ipcRenderer.send('sound-played', soundName),
     sendChatMessage: (messages) => ipcRenderer.invoke('send-chat-message', { messages }),
     // Streaming chat
     sendChatMessageStream: (messages) => ipcRenderer.send('send-chat-message-stream', { messages }),
@@ -25,6 +27,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Sleep mode (pauses XP and shows sleep animation)
     setSleep: (sleeping) => ipcRenderer.send('chat-set-sleep', sleeping),
     onSetSleep: (callback) => ipcRenderer.on('set-sleep', (_event, sleeping) => callback(sleeping)),
+    // Audio reactive (vibe) mode
+    setVibeMode: (enabled) => ipcRenderer.send('chat-set-vibe', enabled),
     // XP System
     getXpStatus: () => ipcRenderer.invoke('get-xp-status'),
     addXp: (amount, source) => ipcRenderer.invoke('add-xp', { amount, source }),

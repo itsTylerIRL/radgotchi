@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, powerMonitor, dialog, shell, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, powerMonitor, dialog, shell, session, desktopCapturer } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -1966,7 +1966,7 @@ ${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
     });
 
     // Audio reactive mode (dance to music, take notes for voice)
-    let audioListeningEnabled = false;
+    let audioListeningEnabled = true; // Audio reactive mode enabled by default
     
     ipcMain.on('set-audio-listening', (event, enabled) => {
         audioListeningEnabled = enabled;
@@ -1977,6 +1977,20 @@ ${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
     
     ipcMain.handle('get-audio-listening', async () => {
         return audioListeningEnabled;
+    });
+    
+    // Desktop audio capture sources (for audio reactive mode)
+    ipcMain.handle('get-desktop-sources', async () => {
+        try {
+            const sources = await desktopCapturer.getSources({
+                types: ['screen', 'window'],
+                fetchWindowIcons: false
+            });
+            return sources.map(s => ({ id: s.id, name: s.name }));
+        } catch (err) {
+            console.error('Failed to get desktop sources:', err);
+            return [];
+        }
     });
 
     mainWindow.on('closed', () => {
@@ -2123,6 +2137,14 @@ ipcMain.on('sync-chat-color', (event, color) => {
     }
     // Sync to settings window
     syncColorToSettingsWindow(color);
+});
+
+// IPC: Sound played notification (from any window, relay to main window for audio pause)
+ipcMain.on('sound-played', (event, soundName) => {
+    // Relay to main window so it can pause audio detection
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('sound-played', soundName);
+    }
 });
 
 // IPC: Sprite state update (from main window when mood changes)
@@ -2318,6 +2340,13 @@ ipcMain.on('chat-set-sleep', (event, sleeping) => {
         startSleepMode();
     } else {
         stopSleepMode();
+    }
+});
+
+// IPC: Chat panel controls audio reactive (vibe) mode
+ipcMain.on('chat-set-vibe', (event, enabled) => {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('set-audio-listening', enabled);
     }
 });
 
@@ -3373,16 +3402,6 @@ function createTray() {
                     mainWindow.setAlwaysOnTop(true, 'screen-saver');
                 } else {
                     mainWindow.setAlwaysOnTop(false);
-                }
-            }
-        },
-        {
-            label: 'Vibe to System Audio',
-            type: 'checkbox',
-            checked: false,
-            click: (menuItem) => {
-                if (mainWindow && mainWindow.webContents) {
-                    mainWindow.webContents.send('set-audio-listening', menuItem.checked);
                 }
             }
         },

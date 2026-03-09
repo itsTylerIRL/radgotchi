@@ -377,6 +377,22 @@ if (window.electronAPI && window.electronAPI.onSetAudioListening) {
     });
 }
 
+// Auto-start audio listening (enabled by default, respects saved preference)
+(function autoStartAudioListening() {
+    // Check saved preference
+    let vibeDisabled = false;
+    try {
+        vibeDisabled = localStorage.getItem('radgotchi-vibe-disabled') === 'true';
+    } catch(e) {}
+    
+    if (!vibeDisabled && window.RG && typeof window.RG.setAudioListening === 'function') {
+        // Small delay to ensure everything is initialized
+        setTimeout(() => {
+            window.RG.setAudioListening(true);
+        }, 1000);
+    }
+})();
+
 // System event listener
 if (window.electronAPI && window.electronAPI.onSystemEvent) {
     window.electronAPI.onSystemEvent((event) => {

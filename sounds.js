@@ -498,15 +498,31 @@ const SoundSystem = (function() {
     // PUBLIC API
     // ═══════════════════════════════════════════════════════════════════════
 
+    // Callback for when sounds are played (for audio reactive mode to ignore self-sounds)
+    let onSoundPlayCallback = null;
+    
     return {
         play: function(soundName) {
             try {
                 if (sounds[soundName]) {
                     sounds[soundName]();
+                    // Notify listeners that a sound was played (local callback)
+                    if (onSoundPlayCallback) {
+                        onSoundPlayCallback(soundName);
+                    }
+                    // Also notify via IPC for cross-window coordination
+                    if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.notifySoundPlayed) {
+                        window.electronAPI.notifySoundPlayed(soundName);
+                    }
                 }
             } catch (e) {
                 console.warn('SoundSystem: Error playing sound', soundName, e);
             }
+        },
+        
+        // Register callback for when sounds play (used to pause audio reaction)
+        onSoundPlay: function(callback) {
+            onSoundPlayCallback = callback;
         },
         
         setEnabled: function(isEnabled) {

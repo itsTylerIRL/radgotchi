@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer, desktopCapturer } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 // Helper: register a listener that replaces any previous one for the same channel.
 // Prevents duplicate listeners if the renderer ever re-registers callbacks.
@@ -17,11 +17,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Window resizing
     resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
     
+    // Sound played notification (for audio reactive mode to ignore self-sounds)
+    notifySoundPlayed: (soundName) => ipcRenderer.send('sound-played', soundName),
+    onSoundPlayed: (callback) => safeOn('sound-played', (_event, soundName) => callback(soundName)),
+    
     // Desktop audio capture (for audio reactive mode)
-    getDesktopSources: () => desktopCapturer.getSources({ 
-        types: ['screen', 'window'],
-        fetchWindowIcons: false
-    }),
+    getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
 
     // System metrics (invoke = request/response, safe to call repeatedly)
     getSystemMetrics: () => ipcRenderer.invoke('get-system-metrics'),
