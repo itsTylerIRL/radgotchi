@@ -3377,7 +3377,7 @@ function createTray() {
             }
         },
         {
-            label: 'Audio Reactive',
+            label: 'Vibe to System Audio',
             type: 'checkbox',
             checked: false,
             click: (menuItem) => {
@@ -3481,13 +3481,22 @@ function initializeApp() {
 }
 
 app.whenReady().then(() => {
-    // Grant microphone permission for audio reactive mode
+    // Grant permissions for audio reactive mode (system audio capture)
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+        // Allow media permissions for desktop audio capture
         if (permission === 'media') {
-            callback(true); // Grant microphone access
+            callback(true);
         } else {
             callback(false);
         }
+    });
+    
+    // Also handle permission check requests
+    session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+        if (permission === 'media') {
+            return true; // Allow media access for system audio
+        }
+        return false;
     });
     
     if (process.platform === 'linux') {

@@ -876,6 +876,7 @@ const RG = (function() {
 
     // === Audio Reactive System ===
     // Listens to system audio (music/voice) and triggers pet reactions
+    // Uses Electron's desktopCapturer to capture system audio output
     
     let audioListening = false;
     let audioContext = null;
@@ -888,7 +889,7 @@ const RG = (function() {
     
     // Audio detection thresholds
     const AUDIO_CONFIG = {
-        VOLUME_THRESHOLD: 15,        // Min volume to react (0-255 scale)
+        VOLUME_THRESHOLD: 8,         // Min volume to react (0-255 scale) - lower for system audio
         MUSIC_BEAT_THRESHOLD: 0.4,   // Beat detection sensitivity
         VOICE_FREQUENCY_MIN: 85,     // Human voice ~85-255 Hz
         VOICE_FREQUENCY_MAX: 255,
@@ -902,12 +903,12 @@ const RG = (function() {
     const audioStatusEN = {
         music: ['VIBING', 'SICK BEAT', 'GROOVING', 'FEELING IT', 'RAD TUNES', 'BANGER ALERT'],
         voice: ['LISTENING', 'TAKING NOTES', 'PROCESSING', 'RECORDING', 'ATTENTION', 'COPY THAT'],
-        silent: ['AUDIO IDLE', 'LISTENING...', 'AWAITING INPUT']
+        silent: ['AUDIO IDLE', 'MONITORING...', 'SYS AUDIO ON']
     };
     const audioStatusZH = {
         music: ['摇摆中', '节奏感', '氛围拉满', '感受旋律', '好听', '神曲警告'],
         voice: ['聆听中', '记录中', '处理中', '录音中', '注意', '收到'],
-        silent: ['音频待机', '聆听中...', '等待输入']
+        silent: ['音频待机', '监听中...', '系统音频开启']
     };
     
     function getAudioStatus() {
@@ -918,14 +919,43 @@ const RG = (function() {
         if (audioListening) return true;
         
         try {
-            // Request microphone access
-            audioStream = await navigator.mediaDevices.getUserMedia({ 
-                audio: { 
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false
-                } 
+            // Get desktop sources for system audio capture
+            if (!window.electronAPI || !window.electronAPI.getDesktopSources) {
+                console.error('Desktop capturer not available');
+                return false;
+            }
+            
+            const sources = await window.electronAPI.getDesktopSources();
+            if (!sources || sources.length === 0) {
+                console.error('No desktop sources found');
+                return false;
+            }
+            
+            // Use the first screen source (captures all system audio)
+            const screenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+            
+            // Request system audio via desktop capturer
+            // Note: This captures audio playing on the system, not microphone
+            audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: screenSource.id
+                    }
+                },
+                video: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: screenSource.id,
+                        maxWidth: 1,
+                        maxHeight: 1,
+                        maxFrameRate: 1
+                    }
+                }
             });
+            
+            // We only need audio, stop the video track
+            audioStream.getVideoTracks().forEach(track => track.stop());
             
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             audioAnalyser = audioContext.createAnalyser();
@@ -943,7 +973,7 @@ const RG = (function() {
             
             return true;
         } catch (err) {
-            console.error('Audio access denied:', err);
+            console.error('System audio capture failed:', err);
             return false;
         }
     }
