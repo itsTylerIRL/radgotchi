@@ -904,7 +904,9 @@ const RG = (function() {
         SILENCE_TIMEOUT: 2000,       // ms of silence before stopping reaction
         HEALTH_CHECK_INTERVAL: 5000, // ms between stream health checks
         ZERO_FRAME_THRESHOLD: 300,   // consecutive zero-data frames before considering dead
-        RESTART_COOLDOWN: 10000      // ms between restart attempts
+        RESTART_COOLDOWN: 3000,      // ms between restart attempts (base)
+        RESTART_MAX_RETRIES: 5,      // max consecutive restart attempts before backing off
+        RESTART_BACKOFF_MAX: 60000   // max backoff delay (1 minute)
     };
     
     // Status messages for audio modes - tiered by intensity
@@ -962,60 +964,26 @@ const RG = (function() {
         if (audioListening) return true;
         if (isRestartingAudio) return false;
         
-        let usingMicFallback = false;
-        
         try {
-            // Try desktop/system audio capture first
-            let captureSuccess = false;
+            // Capture system audio via getDisplayMedia with OS-level loopback.
+            // The main process intercepts this via setDisplayMediaRequestHandler,
+            // automatically selecting the primary screen and enabling loopback audio
+            // (WASAPI on Windows, ScreenCaptureKit on macOS 13+, PulseAudio/PipeWire on Linux).
+            // Never falls back to microphone.
+            audioStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,   // Required by spec; discarded immediately
+                audio: true    // System audio via loopback
+            });
             
-            if (window.electronAPI && window.electronAPI.getDesktopSources) {
-                try {
-                    const sources = await window.electronAPI.getDesktopSources();
-                    if (sources && sources.length > 0) {
-                        // Use the first screen source (captures all system audio)
-                        const screenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
-                        
-                        // Request system audio via desktop capturer
-                        audioStream = await navigator.mediaDevices.getUserMedia({
-                            audio: {
-                                mandatory: {
-                                    chromeMediaSource: 'desktop',
-                                    chromeMediaSourceId: screenSource.id
-                                }
-                            },
-                            video: {
-                                mandatory: {
-                                    chromeMediaSource: 'desktop',
-                                    chromeMediaSourceId: screenSource.id,
-                                    maxWidth: 1,
-                                    maxHeight: 1,
-                                    maxFrameRate: 1
-                                }
-                            }
-                        });
-                        
-                        // We only need audio, stop the video track
-                        audioStream.getVideoTracks().forEach(track => track.stop());
-                        captureSuccess = true;
-                        console.log('System audio capture started');
-                    }
-                } catch (desktopErr) {
-                    console.warn('Desktop audio capture failed (HDR/GPU issue?), falling back to microphone:', desktopErr.message);
-                }
-            }
+            // Discard video track immediately - we only need audio
+            audioStream.getVideoTracks().forEach(track => track.stop());
             
-            // Fallback to microphone if desktop capture failed
-            if (!captureSuccess) {
-                console.log('Falling back to microphone audio capture');
-                usingMicFallback = true;
-                audioStream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false
-                    }
-                });
+            const audioTracks = audioStream.getAudioTracks();
+            if (audioTracks.length === 0) {
+                console.error('System audio capture returned no audio tracks. On macOS, ensure Screen Recording permission is granted in System Settings > Privacy & Security. On Linux, ensure PulseAudio/PipeWire is running.');
+                return false;
             }
+            console.log('System audio capture started');
             
             // Monitor audio tracks for unexpected endings
             audioStream.getAudioTracks().forEach(track => {
@@ -1055,7 +1023,7 @@ const RG = (function() {
             
             audioListening = true;
             consecutiveZeroFrames = 0;
-            console.log('Audio listening started, mode:', usingMicFallback ? 'microphone' : 'system audio');
+            console.log('Audio listening started, mode: system audio');
             
             // Start health check interval
             startAudioHealthCheck();
@@ -1063,16 +1031,21 @@ const RG = (function() {
             analyzeAudio();
             
             const st = getAudioStatus();
-            statusEl.textContent = usingMicFallback ? 'MIC LISTEN' : pick(st.silent);
+            statusEl.textContent = pick(st.silent);
             
             return true;
         } catch (err) {
-            console.error('Audio capture failed:', err);
+            console.error('System audio capture failed:', err.message,
+                '- On macOS, grant Screen Recording permission in System Settings > Privacy & Security.',
+                'On Linux, ensure PulseAudio/PipeWire is running.',
+                'On Windows, check audio output device is active.');
             return false;
         }
     }
     
     let lastRestartAttempt = 0;
+    let restartRetryCount = 0;
+    let restartRetryTimeout = null;
     
     function scheduleAudioRestart() {
         if (isRestartingAudio) return;
@@ -1080,16 +1053,29 @@ const RG = (function() {
         const now = Date.now();
         const timeSinceLastRestart = now - lastRestartAttempt;
         
-        // Respect restart cooldown
-        if (timeSinceLastRestart < AUDIO_CONFIG.RESTART_COOLDOWN) {
-            console.log('Restart cooldown active, waiting...');
+        // Calculate backoff delay based on retry count
+        const backoffDelay = Math.min(
+            AUDIO_CONFIG.RESTART_COOLDOWN * Math.pow(2, restartRetryCount),
+            AUDIO_CONFIG.RESTART_BACKOFF_MAX
+        );
+        
+        // Respect cooldown with exponential backoff
+        if (timeSinceLastRestart < backoffDelay) {
+            console.log('Restart cooldown active, waiting... (retry', restartRetryCount, ', backoff', backoffDelay, 'ms)');
+            // Schedule a retry when cooldown expires if not already scheduled
+            if (!restartRetryTimeout) {
+                restartRetryTimeout = setTimeout(() => {
+                    restartRetryTimeout = null;
+                    scheduleAudioRestart();
+                }, backoffDelay - timeSinceLastRestart + 100);
+            }
             return;
         }
         
         isRestartingAudio = true;
         lastRestartAttempt = now;
         
-        console.log('Scheduling audio restart...');
+        console.log('Scheduling audio restart... (attempt', restartRetryCount + 1, ')');
         
         // Clean up and restart
         stopAudioListeningInternal();
@@ -1099,8 +1085,22 @@ const RG = (function() {
             startAudioListening().then(success => {
                 if (success) {
                     console.log('Audio successfully restarted');
+                    restartRetryCount = 0; // Reset retry count on success
                 } else {
-                    console.warn('Audio restart failed, will retry...');
+                    restartRetryCount++;
+                    console.warn('Audio restart failed (attempt', restartRetryCount, '), scheduling retry with backoff...');
+                    // Schedule another retry with backoff
+                    if (restartRetryCount <= AUDIO_CONFIG.RESTART_MAX_RETRIES) {
+                        scheduleAudioRestart();
+                    } else {
+                        console.error('Audio restart max retries exceeded, will try again in', AUDIO_CONFIG.RESTART_BACKOFF_MAX / 1000, 'seconds');
+                        // Schedule a long-delay retry to eventually recover
+                        restartRetryTimeout = setTimeout(() => {
+                            restartRetryTimeout = null;
+                            restartRetryCount = 0; // Reset for fresh attempts
+                            scheduleAudioRestart();
+                        }, AUDIO_CONFIG.RESTART_BACKOFF_MAX);
+                    }
                 }
             });
         }, 1000);
@@ -1185,6 +1185,12 @@ const RG = (function() {
     function stopAudioListening() {
         stopAudioHealthCheck();
         stopAudioListeningInternal();
+        // Reset retry state when manually stopped
+        restartRetryCount = 0;
+        if (restartRetryTimeout) {
+            clearTimeout(restartRetryTimeout);
+            restartRetryTimeout = null;
+        }
     }
     
     function analyzeAudio() {
@@ -1297,7 +1303,7 @@ const RG = (function() {
     // Pause audio reaction briefly when app plays its own sounds
     let audioReactionPaused = false;
     let audioReactionPauseTimeout = null;
-    const AUDIO_SELF_SOUND_PAUSE = 2500; // Ignore audio for 2.5 seconds after app plays sound (accounts for mic latency)
+    const AUDIO_SELF_SOUND_PAUSE = 2500; // Ignore audio for 2.5 seconds after app plays sound
     
     // Helper to pause audio reaction
     function pauseAudioReaction(soundName) {

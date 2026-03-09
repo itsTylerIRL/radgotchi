@@ -2768,6 +2768,20 @@
             }, 250);
         });
         
+        // Right-click anywhere to close
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (typeof SoundSystem !== 'undefined') SoundSystem.play('chatClose');
+            // Clean up any streaming listeners
+            if (window.electronAPI.removeChatStreamListeners) {
+                window.electronAPI.removeChatStreamListeners();
+            }
+            // Delay close to let sound finish playing
+            setTimeout(() => {
+                window.electronAPI.closeChat();
+            }, 250);
+        });
+        
         // Settings button
         const settingsBtn = document.getElementById('settings-btn');
         settingsBtn.addEventListener('click', () => {

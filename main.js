@@ -377,11 +377,45 @@ function getWindowState(windowName, defaults) {
     
     if (!isVisible) return defaults;
     
-    return {
+    return ensureBoundsOnDisplay({
         x: saved.x,
         y: saved.y,
         width: saved.width || defaults.width,
         height: saved.height || defaults.height
+    });
+}
+
+// Clamp a bounds rect so its center is solidly within a real display.
+// Prevents macOS from resolving coordinates to a stale/non-existent display
+// index, which causes a native NSRangeException crash.
+function ensureBoundsOnDisplay(bounds) {
+    const displays = screen.getAllDisplays();
+    if (displays.length === 0) return bounds;
+
+    const centerX = bounds.x + (bounds.width || 0) / 2;
+    const centerY = bounds.y + (bounds.height || 0) / 2;
+
+    // Find the display whose bounds contain the center point
+    let target = displays.find(d => {
+        const db = d.bounds;
+        return centerX >= db.x && centerX < db.x + db.width &&
+               centerY >= db.y && centerY < db.y + db.height;
+    });
+
+    // If no display contains the center, use the nearest display
+    if (!target) {
+        target = screen.getDisplayNearestPoint({ x: centerX, y: centerY });
+    }
+
+    const db = target.bounds;
+    const w = bounds.width || 0;
+    const h = bounds.height || 0;
+
+    return {
+        x: Math.max(db.x, Math.min(bounds.x, db.x + db.width - w)),
+        y: Math.max(db.y, Math.min(bounds.y, db.y + db.height - h)),
+        width: bounds.width,
+        height: bounds.height
     };
 }
 
@@ -1167,15 +1201,26 @@ function getWorkArea() {
     return currentDisplay.workArea;
 }
 
-// Helper: safely set window position, validating values to prevent crashes
+// Helper: safely set window position, validating values to prevent crashes.
+// Clamps coordinates onto a real display to avoid the macOS NSRangeException
+// that occurs when AppKit resolves a position to a non-existent screen index.
+// Allows overflow for pet to reach screen edges.
 function safeSetPosition(x, y) {
-    if (!mainWindow) return false;
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
     const roundX = Math.round(x);
     const roundY = Math.round(y);
     if (!Number.isFinite(roundX) || !Number.isFinite(roundY)) return false;
-    if (!Number.isInteger(roundX) || !Number.isInteger(roundY)) return false;
+
+    // Get window size for overflow calculation
+    const [winWidth, winHeight] = mainWindow.getSize();
+    
+    // Use movement bounds which allow overflow for reaching edges
+    const b = getMovementBounds(winWidth, winHeight);
+    const clampedX = Math.max(b.minX, Math.min(roundX, b.maxX));
+    const clampedY = Math.max(b.minY, Math.min(roundY, b.maxY));
+
     try {
-        mainWindow.setPosition(roundX, roundY);
+        mainWindow.setPosition(clampedX, clampedY);
         return true;
     } catch (e) {
         console.error('Failed to set position:', e);
@@ -2029,6 +2074,7 @@ function createChatWindow() {
     }
     
     chatBounds = getWindowState('chatWindow', defaultChatBounds);
+    chatBounds = ensureBoundsOnDisplay(chatBounds);
 
     chatWindow = new BrowserWindow({
         width: chatBounds.width,
@@ -2624,13 +2670,14 @@ function showChatSettingsDialog() {
 
     // Get saved state or use defaults
     const primaryDisplay = screen.getPrimaryDisplay();
+    const pb = primaryDisplay.bounds;
     const defaultBounds = {
         width: 500,
         height: 520,
-        x: Math.floor((primaryDisplay.bounds.width - 500) / 2),
-        y: Math.floor((primaryDisplay.bounds.height - 520) / 2)
+        x: pb.x + Math.floor((pb.width - 500) / 2),
+        y: pb.y + Math.floor((pb.height - 520) / 2)
     };
-    const settingsBounds = getWindowState('settingsWindow', defaultBounds);
+    const settingsBounds = ensureBoundsOnDisplay(getWindowState('settingsWindow', defaultBounds));
 
     settingsWindow = new BrowserWindow({
         width: settingsBounds.width,
@@ -3500,10 +3547,25 @@ function initializeApp() {
 }
 
 app.whenReady().then(() => {
+    // Set up display media request handler for cross-platform system audio capture.
+    // Uses OS-level loopback: WASAPI on Windows, ScreenCaptureKit on macOS 13+,
+    // PulseAudio/PipeWire on Linux.  Automatically selects the primary screen
+    // without showing the native picker dialog.
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+        desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+            if (sources.length > 0) {
+                callback({ video: sources[0], audio: 'loopback' });
+            } else {
+                callback({});
+            }
+        }).catch(() => {
+            callback({});
+        });
+    });
+
     // Grant permissions for audio reactive mode (system audio capture)
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-        // Allow media permissions for desktop audio capture
-        if (permission === 'media') {
+        if (permission === 'media' || permission === 'display-capture') {
             callback(true);
         } else {
             callback(false);
@@ -3512,12 +3574,29 @@ app.whenReady().then(() => {
     
     // Also handle permission check requests
     session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
-        if (permission === 'media') {
-            return true; // Allow media access for system audio
+        if (permission === 'media' || permission === 'display-capture') {
+            return true;
         }
         return false;
     });
     
+    // When a display is removed (external monitor disconnected), stop any
+    // active movement mode and reposition the main window to the primary
+    // display.  This prevents stale coordinates from reaching macOS and
+    // triggering a native NSRangeException crash.
+    screen.on('display-removed', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            stopMovement();
+            const primary = screen.getPrimaryDisplay();
+            const wb = primary.bounds;
+            const wa = primary.workAreaSize;
+            const [ww, wh] = mainWindow.getSize();
+            const nx = Math.max(wb.x, wb.x + wa.width - ww - 180);
+            const ny = Math.max(wb.y, wb.y + wa.height - wh - 200);
+            try { mainWindow.setPosition(nx, ny); } catch (_) {}
+        }
+    });
+
     if (process.platform === 'linux') {
         // Linux needs a short delay for transparent visuals
         setTimeout(initializeApp, 100);
