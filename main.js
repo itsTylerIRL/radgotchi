@@ -346,7 +346,7 @@ function saveWindowStates() {
     }
 }
 
-function saveWindowState(windowName, win) {
+function saveWindowState(windowName, win, extraState = {}) {
     if (!win || win.isDestroyed()) return;
     
     const bounds = win.getBounds();
@@ -355,8 +355,22 @@ function saveWindowState(windowName, win) {
         y: bounds.y,
         width: bounds.width,
         height: bounds.height,
-        savedAt: Date.now()
+        savedAt: Date.now(),
+        ...extraState
     };
+    // Preserve existing extra state (like zoom) if not overwriting
+    const existing = windowStates[windowName] || {};
+    if (existing.zoom && !extraState.zoom) {
+        windowStates[windowName].zoom = existing.zoom;
+    }
+    saveWindowStates();
+}
+
+function updateWindowStateProperty(windowName, property, value) {
+    if (!windowStates[windowName]) {
+        windowStates[windowName] = {};
+    }
+    windowStates[windowName][property] = value;
     saveWindowStates();
 }
 
@@ -2105,7 +2119,7 @@ function createChatWindow() {
 
     // Send config status once loaded
     chatWindow.webContents.on('did-finish-load', () => {
-        // Reset zoom to 100% each time
+        // Reset webContents zoom factor to 1 - actual zoom is handled via body.style.zoom in chat.html
         chatWindow.webContents.setZoomFactor(1);
         
         // Get current color and expression-only state from main window
@@ -2125,7 +2139,8 @@ function createChatWindow() {
                         expressionOnly: state.expressionOnly,
                         xp: getXpStatus(),
                         spriteState: currentSpriteState,
-                        operatorPfp: llmConfig.operatorPfp || null
+                        operatorPfp: llmConfig.operatorPfp || null,
+                        zoom: windowStates['chatWindow']?.zoom || 100
                     });
                 }
             })
@@ -2139,7 +2154,8 @@ function createChatWindow() {
                         expressionOnly: false,
                         xp: getXpStatus(),
                         spriteState: currentSpriteState,
-                        operatorPfp: llmConfig.operatorPfp || null
+                        operatorPfp: llmConfig.operatorPfp || null,
+                        zoom: windowStates['chatWindow']?.zoom || 100
                     });
                 }
             });
@@ -2394,6 +2410,11 @@ ipcMain.on('chat-set-vibe', (event, enabled) => {
     if (mainWindow && mainWindow.webContents) {
         mainWindow.webContents.send('set-audio-listening', enabled);
     }
+});
+
+// IPC: Chat panel saves zoom level
+ipcMain.on('chat-set-zoom', (event, zoom) => {
+    updateWindowStateProperty('chatWindow', 'zoom', zoom);
 });
 
 // === System Event Monitoring ===

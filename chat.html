@@ -3185,6 +3185,12 @@
             if (data.xp) {
                 updateXpDisplay(data.xp, false);
             }
+            
+            // Apply saved zoom level
+            if (data.zoom && data.zoom !== 100) {
+                // Use applyZoomSilent to avoid sound on initial load
+                applyZoomSilent(data.zoom);
+            }
         });
         
         // Listen for PFP updates from settings (operator only)
@@ -3916,13 +3922,20 @@
         const MAX_ZOOM = 150;
         const ZOOM_STEP = 10;
         
+        // Apply zoom without sound (for initial load)
+        function applyZoomSilent(newZoom) {
+            currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+            zoomLevelEl.textContent = currentZoom + '%';
+            document.body.style.zoom = currentZoom / 100;
+        }
+        
         function updateZoom(newZoom) {
             currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
             zoomLevelEl.textContent = currentZoom + '%';
             document.body.style.zoom = currentZoom / 100;
-            // Also adjust webFrame if available (Electron)
+            // Save zoom level to persist between sessions
             if (window.electronAPI && typeof window.electronAPI.setZoom === 'function') {
-                window.electronAPI.setZoom(currentZoom / 100);
+                window.electronAPI.setZoom(currentZoom);
             }
             // Play sound
             if (typeof SoundSystem !== 'undefined') SoundSystem.play('selectChange');
