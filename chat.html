@@ -109,7 +109,7 @@
             flex-shrink: 0;
             justify-content: space-between;
             align-items: center;
-            padding: 6px 12px;
+            padding: 8px;
             background: linear-gradient(180deg, #0f120f 0%, #080a08 100%);
             border-bottom: 1px solid var(--term-green);
             -webkit-app-region: drag;
@@ -120,6 +120,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-shrink: 0;
         }
         
         .classification {
@@ -128,7 +129,7 @@
             letter-spacing: 2px;
             color: var(--term-red);
             background: rgba(255, 51, 68, 0.15);
-            padding: 2px 6px;
+            padding: 4px;
             border: 1px solid var(--term-red);
         }
         
@@ -144,13 +145,18 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            flex-shrink: 0;
         }
         
         .header-center {
             display: flex;
             align-items: center;
-            gap: 6px;
-            -webkit-app-region: no-drag;
+            justify-content: center;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            margin: 0 12px;
+            /* Allow dragging - equalizer has pointer-events: none */
         }
         
         .header-btn {
@@ -250,34 +256,6 @@
             box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
         }
         
-        /* Clear chat button */
-        .clear-btn {
-            -webkit-app-region: no-drag;
-            background: transparent;
-            border: 1px solid var(--term-dim);
-            color: var(--term-dim);
-            font-size: 9px;
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-        }
-        
-        .clear-btn::before {
-            content: '⎚';
-            font-size: 10px;
-        }
-        
-        .clear-btn:hover {
-            border-color: var(--term-amber);
-            color: var(--term-amber);
-            box-shadow: 0 0 8px rgba(255, 170, 0, 0.5);
-        }
-        
         /* Volume control popup */
         .volume-btn {
             -webkit-app-region: no-drag;
@@ -347,6 +325,50 @@
             border-color: var(--term-green);
             color: var(--term-green);
             box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        }
+        
+        /* Audio Equalizer Visualizer */
+        .equalizer {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 2px;
+            height: 16px;
+            width: 100%;
+            min-width: 0;
+            padding: 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        
+        .equalizer.active {
+            opacity: 1;
+        }
+        
+        /* Listening state - wave animation traveling left to right */
+        .equalizer.listening {
+            opacity: 0.6;
+        }
+        
+        .equalizer.listening .eq-bar {
+            animation: eq-wave 2s ease-in-out infinite;
+            /* animation-delay set dynamically via JS */
+        }
+        
+        @keyframes eq-wave {
+            0%, 100% { height: 2px; opacity: 0.3; }
+            50% { height: 10px; opacity: 1; }
+        }
+        
+        .eq-bar {
+            width: 3px;
+            height: 2px;
+            background: var(--term-green);
+            border-radius: 1px;
+            box-shadow: 0 0 4px var(--term-green);
+            transform-origin: bottom;
         }
         
         /* Boot animation overlay */
@@ -1319,6 +1341,38 @@
             box-shadow: 0 0 12px var(--term-amber);
         }
         
+        /* Sleep button variant (purple/blue) */
+        .input-btn.sleep-btn {
+            color: #9966ff;
+            background: rgba(153, 102, 255, 0.1);
+            border-color: #9966ff;
+        }
+        
+        .input-btn.sleep-btn:hover {
+            background: #9966ff;
+            color: #000;
+            box-shadow: 0 0 12px #9966ff;
+        }
+        
+        .input-btn.sleep-btn.active {
+            background: #9966ff;
+            color: #000;
+            box-shadow: 0 0 12px #9966ff;
+        }
+        
+        /* Clear button variant (red) */
+        .input-btn.clear-btn {
+            color: #ff4444;
+            background: rgba(255, 68, 68, 0.1);
+            border-color: #ff4444;
+        }
+        
+        .input-btn.clear-btn:hover {
+            background: #ff4444;
+            color: #000;
+            box-shadow: 0 0 12px #ff4444;
+        }
+        
         /* Language toggle button (fixed width) */
         .lang-toggle-btn {
             font-family: var(--font-mono);
@@ -1762,16 +1816,22 @@
             transform: scale(1.3);
         }
         
-        /* Level badge - power surge effect */
+        /* Level badge - clickable for stats toggle */
         .level-badge {
             transition: all 0.3s ease;
-            cursor: default;
+            cursor: pointer;
+            -webkit-app-region: no-drag;
         }
         
         .level-badge:hover {
             animation: power-surge 0.4s ease;
             transform: scale(1.1);
             box-shadow: 0 0 15px var(--term-amber), inset 0 0 10px rgba(255, 170, 0, 0.2);
+        }
+        
+        .level-badge.active {
+            background: rgba(255, 170, 0, 0.3);
+            box-shadow: 0 0 12px var(--term-amber), inset 0 0 8px rgba(255, 170, 0, 0.3);
         }
         
         /* XP progress bar - glow on hover */
@@ -2288,6 +2348,9 @@
                 <span class="terminal-title">RAD TERMINAL</span>
             </div>
             <div class="header-center">
+                <div class="equalizer" id="equalizer">
+                    <!-- Bars created dynamically by JS -->
+                </div>
             </div>
             <div class="header-right">
                 <div class="status-indicator">
@@ -2296,7 +2359,6 @@
                 </div>
                 <button class="vibe-btn" id="vibe-btn" title="Toggle audio reactive mode"></button>
                 <button class="volume-btn" id="volume-btn" title="Toggle mute"></button>
-                <button class="clear-btn" id="clear-btn" title="Clear chat"></button>
                 <button class="settings-btn" id="settings-btn" title="LLM Settings"></button>
                 <button class="close-btn" id="close-btn">×</button>
             </div>
@@ -2403,7 +2465,11 @@
             <button class="header-btn input-btn" id="toggle-pomo" title="Start Work">
                 <span id="label-pomo">WORK</span>
             </button>
+            <button class="header-btn input-btn sleep-btn" id="toggle-sleep" title="Sleep mode (ZZZ)">
+                <span id="label-sleep">ZZZ</span>
+            </button>
             <button class="lang-toggle-btn" id="toggle-lang">中文</button>
+            <button class="header-btn input-btn clear-btn" id="clear-btn" title="Clear chat">CLR</button>
         </div>
         <div class="controls-bar">
             <div class="control-group zoom-controls">
@@ -2443,16 +2509,6 @@
                     <option value="wander">WANDER</option>
                 </select>
             </div>
-            <span class="control-divider"></span>
-            <button class="control-toggle" id="toggle-sleep" title="Sleep mode (ZZZ)">
-                <span class="toggle-indicator"></span>
-                <span class="toggle-label" id="label-sleep">ZZZ</span>
-            </button>
-            <span class="control-divider"></span>
-            <button class="control-toggle" id="toggle-stats" title="Show stats">
-                <span class="toggle-indicator"></span>
-                <span class="toggle-label" id="label-stats">STAT</span>
-            </button>
         </div>
     </div>
     
@@ -2834,7 +2890,48 @@
         
         // Vibe/Audio reactive toggle button
         const vibeBtn = document.getElementById('vibe-btn');
+        const equalizer = document.getElementById('equalizer');
+        let eqBars = []; // Dynamic array of bar elements
         let isVibeDisabled = false;
+        let audioActiveTimeout = null;
+        
+        // Equalizer bar configuration
+        const EQ_BAR_WIDTH = 3; // px
+        const EQ_BAR_GAP = 2;   // px
+        const EQ_WAVE_DURATION = 2; // seconds for full wave cycle
+        
+        // Create equalizer bars based on container width
+        function createEqBars() {
+            const containerWidth = equalizer.clientWidth;
+            if (containerWidth === 0) return;
+            
+            // Calculate how many bars fit
+            const barSpace = EQ_BAR_WIDTH + EQ_BAR_GAP;
+            const numBars = Math.floor((containerWidth + EQ_BAR_GAP) / barSpace);
+            
+            // Skip if same count
+            if (numBars === eqBars.length) return;
+            
+            // Clear existing
+            equalizer.innerHTML = '';
+            eqBars = [];
+            
+            // Create new bars with staggered animation delays
+            for (let i = 0; i < numBars; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'eq-bar';
+                // Stagger delay so wave travels left-to-right over duration
+                const delay = (i / numBars) * EQ_WAVE_DURATION;
+                bar.style.animationDelay = delay.toFixed(2) + 's';
+                equalizer.appendChild(bar);
+                eqBars.push(bar);
+            }
+        }
+        
+        // Create bars on load and resize
+        createEqBars();
+        const eqResizeObserver = new ResizeObserver(() => createEqBars());
+        eqResizeObserver.observe(equalizer);
         
         // Load saved vibe state (enabled by default)
         try {
@@ -2842,12 +2939,27 @@
             if (savedVibeDisabled === 'true') {
                 isVibeDisabled = true;
                 vibeBtn.classList.add('disabled');
+            } else {
+                // Show listening state when vibe mode enabled but waiting for audio
+                equalizer.classList.add('listening');
             }
-        } catch(e) {}
+        } catch(e) {
+            // Default to enabled - show listening state
+            equalizer.classList.add('listening');
+        }
         
         vibeBtn.addEventListener('click', () => {
             isVibeDisabled = !isVibeDisabled;
             vibeBtn.classList.toggle('disabled', isVibeDisabled);
+            if (isVibeDisabled) {
+                equalizer.classList.remove('active');
+                equalizer.classList.remove('listening');
+                // Clear inline heights
+                eqBars.forEach(bar => bar.style.height = '');
+            } else {
+                // Show listening state when enabled
+                equalizer.classList.add('listening');
+            }
             if (typeof SoundSystem !== 'undefined' && !isMuted) SoundSystem.play('click');
             localStorage.setItem('radgotchi-vibe-disabled', isVibeDisabled);
             // Notify main window to toggle audio listening
@@ -2855,6 +2967,56 @@
                 window.electronAPI.setVibeMode(!isVibeDisabled);
             }
         });
+        
+        // Listen for audio levels from main window for equalizer
+        if (window.electronAPI && window.electronAPI.onAudioLevels) {
+            window.electronAPI.onAudioLevels((data) => {
+                // Only update if vibe mode is enabled
+                if (isVibeDisabled) return;
+                
+                const { levels, isActive } = data;
+                const numBars = eqBars.length;
+                if (numBars === 0) return;
+                
+                // Interpolate 32 frequency bands to however many bars we have
+                const maxHeight = 16;
+                const minHeight = 2;
+                const range = maxHeight - minHeight;
+                const srcLen = levels.length;
+                
+                for (let i = 0; i < numBars; i++) {
+                    // Map bar index to source frequency band (linear interpolation)
+                    const srcPos = (i / numBars) * srcLen;
+                    const srcIdx = Math.floor(srcPos);
+                    const frac = srcPos - srcIdx;
+                    const level1 = levels[srcIdx] || 0;
+                    const level2 = levels[Math.min(srcIdx + 1, srcLen - 1)] || 0;
+                    const level = level1 + (level2 - level1) * frac;
+                    
+                    const height = minHeight + (level / 255) * range;
+                    eqBars[i].style.height = height + 'px';
+                }
+                
+                // Show/hide equalizer based on actual audio detection
+                if (isActive) {
+                    equalizer.classList.remove('listening');
+                    equalizer.classList.add('active');
+                    // Reset timeout when we get active audio
+                    if (audioActiveTimeout) {
+                        clearTimeout(audioActiveTimeout);
+                    }
+                    // Return to listening state after 2 seconds of silence
+                    audioActiveTimeout = setTimeout(() => {
+                        equalizer.classList.remove('active');
+                        equalizer.classList.add('listening');
+                        // Clear inline heights so CSS animation can take over
+                        for (let i = 0; i < eqBars.length; i++) {
+                            eqBars[i].style.height = '';
+                        }
+                    }, 2000);
+                }
+            });
+        }
         
         // Get current time string
         function getTimeStr() {
@@ -3290,9 +3452,7 @@
         const labelMov = document.getElementById('label-mov');
         const labelCol = document.getElementById('label-col');
         const labelSleep = document.getElementById('label-sleep');
-        const toggleStats = document.getElementById('toggle-stats');
         const togglePomo = document.getElementById('toggle-pomo');
-        const labelStats = document.getElementById('label-stats');
         const labelPomo = document.getElementById('label-pomo');
         
         // XP elements
@@ -3643,9 +3803,9 @@
             });
         }
         
-        // Stats toggle
-        toggleStats.addEventListener('click', () => {
-            toggleStats.classList.toggle('active');
+        // Stats toggle - click level badge to open
+        levelBadge.addEventListener('click', () => {
+            levelBadge.classList.toggle('active');
             statsPanel.classList.toggle('visible');
             // Play open/close sound
             if (typeof SoundSystem !== 'undefined') {
@@ -3800,7 +3960,6 @@
             labelMov.textContent = t.mov;
             labelCol.textContent = t.col;
             labelSleep.textContent = t.sleep;
-            labelStats.textContent = t.stats;
             labelPomo.textContent = t.pomo;
             toggleLang.textContent = t.langToggle;
             

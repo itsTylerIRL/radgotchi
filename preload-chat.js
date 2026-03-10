@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onSetSleep: (callback) => ipcRenderer.on('set-sleep', (_event, sleeping) => callback(sleeping)),
     // Audio reactive (vibe) mode
     setVibeMode: (enabled) => ipcRenderer.send('chat-set-vibe', enabled),
+    onAudioLevels: (callback) => ipcRenderer.on('audio-levels', (_event, data) => callback(data)),
     // Zoom persistence
     setZoom: (zoom) => ipcRenderer.send('chat-set-zoom', zoom),
     // XP System

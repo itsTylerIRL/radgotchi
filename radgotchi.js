@@ -159,6 +159,16 @@ const RG = (function() {
     let sleepZTimer = null;
     let isSleeping = false;
     let isWorking = false;
+    let currentLevel = 1;  // Track XP level for level-gated expressions
+    
+    // === Level Thresholds for Expression Unlocks ===
+    const LEVEL_UNLOCKS = {
+        SMART_REACTIONS: 5,      // Level 5+: Smart/analytical expressions
+        DEBUG_MODE: 10,          // Level 10+: Debug/deep analysis expressions
+        INTENSE_REACTIONS: 15,   // Level 15+: Intense/focused expressions  
+        ELITE_STATUS: 20,        // Level 20+: Elite status messages
+        LEGENDARY: 25            // Level 25+: Legendary expressions
+    };
 
     // === Idle Routines ===
     const idleRoutines = [
@@ -221,6 +231,42 @@ const RG = (function() {
             steps: ['smart', 'lonely', 'sad', 'smart', 'bored', 'cool'],
             stepTime: 2200,
             anim: ['rg-nod', '', '', 'rg-nod', '', 'rg-float']
+        },
+        // Level-gated routines (unlocked at higher levels)
+        {
+            name: 'analyst',
+            minLevel: 5,
+            steps: ['smart', 'debug', 'smart', 'intense', 'smart', 'cool'],
+            stepTime: 1800,
+            anim: ['rg-nod', 'rg-pulse', 'rg-nod', 'rg-shake', 'rg-nod', 'rg-float']
+        },
+        {
+            name: 'deepdive',
+            minLevel: 10,
+            steps: ['debug', 'debug', 'intense', 'debug', 'smart', 'excited'],
+            stepTime: 2000,
+            anim: ['rg-nod', 'rg-pulse', 'rg-shake', 'rg-nod', 'rg-pulse', 'rg-spin']
+        },
+        {
+            name: 'tactical',
+            minLevel: 15,
+            steps: ['intense', 'look_l', 'intense', 'look_r', 'motivated', 'cool'],
+            stepTime: 1400,
+            anim: ['rg-pulse', 'rg-peek-l', 'rg-shake', 'rg-peek-r', 'rg-bounce', 'rg-float']
+        },
+        {
+            name: 'elite_ops',
+            minLevel: 20,
+            steps: ['cool', 'intense', 'debug', 'motivated', 'cool', 'smart', 'cool'],
+            stepTime: 1600,
+            anim: ['rg-float', 'rg-shake', 'rg-pulse', 'rg-bounce', 'rg-float', 'rg-nod', 'rg-spin']
+        },
+        {
+            name: 'legendary',
+            minLevel: 25,
+            steps: ['cool', 'debug', 'intense', 'smart', 'motivated', 'cool', 'excited'],
+            stepTime: 1500,
+            anim: ['rg-spin', 'rg-pulse', 'rg-shake', 'rg-nod', 'rg-bounce', 'rg-float', 'rg-spin']
         }
     ];
 
@@ -263,6 +309,18 @@ const RG = (function() {
         clearAnimations();
         void faceEl.offsetWidth; // Force reflow
         faceEl.classList.add(anim);
+    }
+
+    // === Sprite Sync Helper ===
+    // Sets face and notifies chat window for avatar sync
+    function setFace(faceName) {
+        if (!faces[faceName]) return;
+        faceEl.src = faces[faceName];
+        // Notify chat window of sprite change for bro avatar sync
+        if (window.electronAPI && window.electronAPI.updateSprite) {
+            const spriteName = faces[faceName].split('/').pop();
+            window.electronAPI.updateSprite(spriteName);
+        }
     }
 
     // === Sleep Z Particles ===
@@ -325,15 +383,14 @@ const RG = (function() {
 
         // Update sprite (flip direction is on wrapper, not affected by img src change)
         // Don't change face/status if sleeping or in work mode (pomodoro)
-        if (isSleeping || isWorking) return;
+        // But still sync sprite to chat for those modes
+        if (isSleeping || isWorking) {
+            // Still sync the current face to chat even if we don't change it here
+            return;
+        }
         
         if (faces[mood]) {
-            faceEl.src = faces[mood];
-            // Notify chat window of sprite change for bro avatar
-            if (window.electronAPI && window.electronAPI.updateSprite) {
-                const spriteName = faces[mood].split('/').pop();
-                window.electronAPI.updateSprite(spriteName);
-            }
+            setFace(mood);
         }
 
         // Update status text
@@ -593,22 +650,37 @@ const RG = (function() {
     function startIdleRoutine() {
         if (locked || currentRoutine) return;
 
-        // Pick routine based on health/time
-        let pool = [...idleRoutines];
+        // Pick routine based on health/time/level
+        // Filter routines by level requirement
+        let pool = idleRoutines.filter(r => !r.minLevel || currentLevel >= r.minLevel);
         const hour = new Date().getHours();
         const isNight = hour >= 23 || hour < 6;
 
         if (systemHealth === 'crit') {
-            pool = pool.filter(r => ['restless', 'existential', 'hack'].includes(r.name));
+            pool = pool.filter(r => ['restless', 'existential', 'hack', 'deepdive'].includes(r.name));
         } else if (systemHealth === 'warn') {
             // Weight hack more
-            pool.push(idleRoutines.find(r => r.name === 'hack'));
+            const hackRoutine = pool.find(r => r.name === 'hack');
+            if (hackRoutine) pool.push(hackRoutine);
         }
 
         if (isNight) {
             // Weight nap_prep more
-            pool.push(idleRoutines.find(r => r.name === 'nap_prep'));
-            pool.push(idleRoutines.find(r => r.name === 'nap_prep'));
+            const napRoutine = pool.find(r => r.name === 'nap_prep');
+            if (napRoutine) {
+                pool.push(napRoutine);
+                pool.push(napRoutine);
+            }
+        }
+        
+        // Weight level-exclusive routines higher for high-level players
+        if (currentLevel >= LEVEL_UNLOCKS.LEGENDARY) {
+            const legendaryRoutine = pool.find(r => r.name === 'legendary');
+            if (legendaryRoutine) pool.push(legendaryRoutine);
+        }
+        if (currentLevel >= LEVEL_UNLOCKS.ELITE_STATUS) {
+            const eliteRoutine = pool.find(r => r.name === 'elite_ops');
+            if (eliteRoutine) pool.push(eliteRoutine);
         }
 
         pool = pool.filter(Boolean);
@@ -772,6 +844,85 @@ const RG = (function() {
 
         const reaction = pick(currentLang === 'zh' ? reactionsZH : reactionsEN);
         setMood(reaction.m, { duration: 2000, anim: reaction.a, status: reaction.s });
+        
+        // Level-gated bonus reactions (chance to show level-exclusive expression)
+        if (currentLevel >= LEVEL_UNLOCKS.LEGENDARY && Math.random() < 0.15) {
+            // Legendary tier: rare intense + debug combo
+            setTimeout(() => {
+                const legendaryEN = [
+                    { m: 'intense', a: 'rg-pulse', s: 'APEX OPERATOR' },
+                    { m: 'debug', a: 'rg-float', s: 'OMNISCIENT' },
+                    { m: 'smart', a: 'rg-spin', s: 'TRANSCENDENT' },
+                    { m: 'cool', a: 'rg-pulse', s: 'LEGENDARY STATUS' }
+                ];
+                const legendaryZH = [
+                    { m: 'intense', a: 'rg-pulse', s: '顶级特工' },
+                    { m: 'debug', a: 'rg-float', s: '全知全能' },
+                    { m: 'smart', a: 'rg-spin', s: '超越极限' },
+                    { m: 'cool', a: 'rg-pulse', s: '传奇状态' }
+                ];
+                const r = pick(currentLang === 'zh' ? legendaryZH : legendaryEN);
+                setMood(r.m, { duration: 2500, anim: r.a, status: r.s, priority: true });
+            }, 300);
+        } else if (currentLevel >= LEVEL_UNLOCKS.ELITE_STATUS && Math.random() < 0.18) {
+            // Elite tier: confident elite reactions
+            setTimeout(() => {
+                const eliteEN = [
+                    { m: 'cool', a: 'rg-float', s: 'ELITE OPS' },
+                    { m: 'motivated', a: 'rg-pulse', s: 'VETERAN STATUS' },
+                    { m: 'smart', a: 'rg-nod', s: 'SENIOR ANALYST' }
+                ];
+                const eliteZH = [
+                    { m: 'cool', a: 'rg-float', s: '精英行动' },
+                    { m: 'motivated', a: 'rg-pulse', s: '老兵状态' },
+                    { m: 'smart', a: 'rg-nod', s: '资深分析师' }
+                ];
+                const r = pick(currentLang === 'zh' ? eliteZH : eliteEN);
+                setMood(r.m, { duration: 2000, anim: r.a, status: r.s });
+            }, 300);
+        } else if (currentLevel >= LEVEL_UNLOCKS.INTENSE_REACTIONS && Math.random() < 0.2) {
+            // Intense tier: focused intensity
+            setTimeout(() => {
+                const intenseEN = [
+                    { m: 'intense', a: 'rg-pulse', s: 'LOCKED IN' },
+                    { m: 'motivated', a: 'rg-bounce', s: 'HARDENED' }
+                ];
+                const intenseZH = [
+                    { m: 'intense', a: 'rg-pulse', s: '全神贯注' },
+                    { m: 'motivated', a: 'rg-bounce', s: '久经沙场' }
+                ];
+                const r = pick(currentLang === 'zh' ? intenseZH : intenseEN);
+                setMood(r.m, { duration: 2000, anim: r.a, status: r.s });
+            }, 300);
+        } else if (currentLevel >= LEVEL_UNLOCKS.DEBUG_MODE && Math.random() < 0.22) {
+            // Debug tier: analytical depth
+            setTimeout(() => {
+                const debugEN = [
+                    { m: 'debug', a: 'rg-nod', s: 'DEEP ANALYSIS' },
+                    { m: 'smart', a: 'rg-float', s: 'PATTERN RECOGNIZED' }
+                ];
+                const debugZH = [
+                    { m: 'debug', a: 'rg-nod', s: '深度分析' },
+                    { m: 'smart', a: 'rg-float', s: '模式识别' }
+                ];
+                const r = pick(currentLang === 'zh' ? debugZH : debugEN);
+                setMood(r.m, { duration: 2000, anim: r.a, status: r.s });
+            }, 300);
+        } else if (currentLevel >= LEVEL_UNLOCKS.SMART_REACTIONS && Math.random() < 0.25) {
+            // Smart tier: analytical expressions
+            setTimeout(() => {
+                const smartEN = [
+                    { m: 'smart', a: 'rg-nod', s: 'CALCULATING' },
+                    { m: 'smart', a: 'rg-pulse', s: 'DATA INSIGHT' }
+                ];
+                const smartZH = [
+                    { m: 'smart', a: 'rg-nod', s: '计算中' },
+                    { m: 'smart', a: 'rg-pulse', s: '数据洞察' }
+                ];
+                const r = pick(currentLang === 'zh' ? smartZH : smartEN);
+                setMood(r.m, { duration: 1800, anim: r.a, status: r.s });
+            }, 300);
+        }
 
         // Milestone reactions
         if (petCount === 10) {
@@ -818,7 +969,7 @@ const RG = (function() {
             // Play sleep sound
             if (typeof SoundSystem !== 'undefined') SoundSystem.play('sleepStart');
             // Enter sleep mode - show sleep animation
-            faceEl.src = faces['sleep'];
+            setFace('sleep');
             const st = getStatusText();
             statusEl.textContent = pick(st.sleep);
             container.classList.add('sleeping');
@@ -827,7 +978,7 @@ const RG = (function() {
             if (typeof SoundSystem !== 'undefined') SoundSystem.play('sleepEnd');
             // Wake up - return to normal
             container.classList.remove('sleeping');
-            faceEl.src = faces['awake'];
+            setFace('awake');
             const st = getStatusText();
             statusEl.textContent = pick(st.awake);
         }
@@ -836,7 +987,7 @@ const RG = (function() {
     function setSleepAnimation(animation) {
         if (!isSleeping) return;
         if (faces[animation]) {
-            faceEl.src = faces[animation];
+            setFace(animation);
         }
         const st = getStatusText();
         statusEl.textContent = pick(st[animation] || st.sleep);
@@ -853,13 +1004,13 @@ const RG = (function() {
             }
             // Enter work mode - show first work animation
             container.classList.add('working');
-            faceEl.src = faces['smart'];
+            setFace('smart');
             const st = getStatusText();
             statusEl.textContent = pick(st.smart);
         } else {
             // Exit work mode - return to normal
             container.classList.remove('working');
-            faceEl.src = faces['happy'];  // Happy after completing work
+            setFace('happy');  // Happy after completing work
             const st = getStatusText();
             statusEl.textContent = pick(st.happy);
         }
@@ -868,7 +1019,7 @@ const RG = (function() {
     function setWorkAnimation(animation) {
         if (!isWorking) return;
         if (faces[animation]) {
-            faceEl.src = faces[animation];
+            setFace(animation);
         }
         const st = getStatusText();
         statusEl.textContent = pick(st[animation] || st.smart);
@@ -890,11 +1041,13 @@ const RG = (function() {
     let audioHealthCheckInterval = null;
     let consecutiveZeroFrames = 0;
     let isRestartingAudio = false;
+    let lastMeaningfulAudioTime = 0;  // Track when we last saw real audio data
+    let audioDebugCounter = 0;  // For periodic logging
     
     // Audio detection thresholds
     const AUDIO_CONFIG = {
-        VOLUME_THRESHOLD: 2,         // Min volume to react (0-255 scale)
-        BASS_THRESHOLD: 1,          // Min bass energy to trigger vibe mode
+        VOLUME_THRESHOLD: 1,         // Min volume to react (0-255 scale) - very sensitive
+        BASS_THRESHOLD: 1,           // Min bass energy to trigger vibe mode
         MUSIC_BEAT_THRESHOLD: 0.4,   // Beat detection sensitivity
         VOICE_FREQUENCY_MIN: 85,     // Human voice ~85-255 Hz
         VOICE_FREQUENCY_MAX: 255,
@@ -902,8 +1055,8 @@ const RG = (function() {
         REACTION_COOLDOWN: 200,      // ms between animation updates
         MODE_SWITCH_DELAY: 500,      // ms before switching music/voice mode
         SILENCE_TIMEOUT: 2000,       // ms of silence before stopping reaction
-        HEALTH_CHECK_INTERVAL: 5000, // ms between stream health checks
-        ZERO_FRAME_THRESHOLD: 300,   // consecutive zero-data frames before considering dead
+        HEALTH_CHECK_INTERVAL: 2000, // ms between stream health checks (faster)
+        ZERO_FRAME_THRESHOLD: 120,   // consecutive zero-data frames before considering dead (~2 sec)
         RESTART_COOLDOWN: 3000,      // ms between restart attempts (base)
         RESTART_MAX_RETRIES: 5,      // max consecutive restart attempts before backing off
         RESTART_BACKOFF_MAX: 60000   // max backoff delay (1 minute)
@@ -1015,14 +1168,18 @@ const RG = (function() {
             };
             
             audioAnalyser = audioContext.createAnalyser();
-            audioAnalyser.fftSize = 256;
-            audioAnalyser.smoothingTimeConstant = 0.8;
+            audioAnalyser.fftSize = 512;  // More frequency resolution
+            audioAnalyser.smoothingTimeConstant = 0.5;  // Faster response to audio changes
+            audioAnalyser.minDecibels = -90;  // More sensitive to quiet audio
+            audioAnalyser.maxDecibels = -10;
             
             audioSource = audioContext.createMediaStreamSource(audioStream);
             audioSource.connect(audioAnalyser);
             
             audioListening = true;
             consecutiveZeroFrames = 0;
+            audioDebugCounter = 0;
+            lastMeaningfulAudioTime = Date.now();  // Assume fresh start
             console.log('Audio listening started, mode: system audio');
             
             // Start health check interval
@@ -1120,6 +1277,13 @@ const RG = (function() {
                 audioContext.resume().catch(() => {});
             }
             
+            // Check if AudioContext is in a bad state
+            if (audioContext && audioContext.state !== 'running') {
+                console.warn('Health check: AudioContext not running (state:', audioContext.state, '), restarting...');
+                scheduleAudioRestart();
+                return;
+            }
+            
             // Check if audio tracks are still active
             if (audioStream) {
                 const audioTracks = audioStream.getAudioTracks();
@@ -1128,7 +1292,22 @@ const RG = (function() {
                 if (!hasLiveTracks && audioTracks.length > 0) {
                     console.warn('Health check: No live audio tracks, restarting...');
                     scheduleAudioRestart();
+                    return;
                 }
+                
+                // Check for enabled tracks
+                const hasEnabledTracks = audioTracks.some(track => track.enabled);
+                if (!hasEnabledTracks && audioTracks.length > 0) {
+                    console.warn('Health check: No enabled audio tracks, restarting...');
+                    scheduleAudioRestart();
+                    return;
+                }
+            }
+            
+            // Check if source is still connected
+            if (!audioSource || !audioAnalyser) {
+                console.warn('Health check: Audio source or analyser missing, restarting...');
+                scheduleAudioRestart();
             }
         }, AUDIO_CONFIG.HEALTH_CHECK_INTERVAL);
     }
@@ -1224,18 +1403,28 @@ const RG = (function() {
         }
         const avgVolume = sum / bufferLength;
         
-        // Debug logging every 60 frames (~1 second)
-        if (Math.random() < 0.017) {
-            console.log('Audio levels - avgVolume:', avgVolume.toFixed(1), 'hasData:', hasAnyData, 'consecutiveZero:', consecutiveZeroFrames);
+        // Debug logging every ~2 seconds
+        audioDebugCounter++;
+        if (audioDebugCounter >= 120) {
+            audioDebugCounter = 0;
+            const secsSinceMeaningful = lastMeaningfulAudioTime ? ((Date.now() - lastMeaningfulAudioTime) / 1000).toFixed(1) : 'never';
+            console.log('Audio levels - avgVolume:', avgVolume.toFixed(1), 'hasData:', hasAnyData, 'consecutiveZero:', consecutiveZeroFrames, 'lastMeaningful:', secsSinceMeaningful + 's ago');
+        }
+        
+        // Track when we last saw meaningful (above threshold) audio
+        if (avgVolume > AUDIO_CONFIG.VOLUME_THRESHOLD) {
+            lastMeaningfulAudioTime = Date.now();
         }
         
         // Track consecutive frames with absolutely zero data (indicates dead stream)
-        // Note: this is different from silence - silence has some noise floor
+        // Only consider it "dead" if we had audio recently - otherwise it's just silent
+        // This prevents constant restarts when user isn't playing audio
         if (!hasAnyData && sum === 0) {
             consecutiveZeroFrames++;
-            // Too many consecutive zero frames indicates stream is dead
-            if (consecutiveZeroFrames > AUDIO_CONFIG.ZERO_FRAME_THRESHOLD) {
-                console.warn('Detected dead audio stream (sustained zero data), restarting...');
+            // Only restart if we had meaningful audio in the last 30 seconds AND now it's dead
+            const hadRecentAudio = lastMeaningfulAudioTime && (Date.now() - lastMeaningfulAudioTime < 30000);
+            if (consecutiveZeroFrames > AUDIO_CONFIG.ZERO_FRAME_THRESHOLD && hadRecentAudio) {
+                console.warn('Detected dead audio stream (was playing, now zero data), restarting...');
                 consecutiveZeroFrames = 0;
                 scheduleAudioRestart();
                 return;
@@ -1287,11 +1476,29 @@ const RG = (function() {
                 
                 // Return to neutral
                 if (!locked && !isSleeping && !isWorking) {
-                    faceEl.src = faces['awake'];
+                    setFace('awake');
                     const st = getAudioStatus();
                     statusEl.textContent = pick(st.silent);
                 }
             }
+        }
+        
+        // Broadcast audio levels to chat window for equalizer visualization
+        // Sample 32 frequency bands for the equalizer bars
+        if (window.electronAPI && window.electronAPI.sendAudioLevels) {
+            const bands = 32;
+            const bandSize = Math.floor(bufferLength / bands);
+            const levels = [];
+            for (let i = 0; i < bands; i++) {
+                let sum = 0;
+                for (let j = 0; j < bandSize; j++) {
+                    sum += dataArray[i * bandSize + j];
+                }
+                levels.push(sum / bandSize);
+            }
+            // Send levels and whether audio is actively detected
+            const isActive = avgVolume > AUDIO_CONFIG.VOLUME_THRESHOLD;
+            window.electronAPI.sendAudioLevels({ levels, isActive, avgVolume });
         }
         
         audioAnimationFrame = requestAnimationFrame(analyzeAudio);
@@ -1449,7 +1656,7 @@ const RG = (function() {
             if (shouldChangeFace) {
                 lastVibeFaceIndex = (lastVibeFaceIndex + 1) % vibeFaces.length;
                 const newFace = vibeFaces[lastVibeFaceIndex];
-                faceEl.src = faces[newFace];
+                setFace(newFace);
                 setVibeFace(newFace);
                 lastVibeFaceChange = now;
             }
@@ -1466,7 +1673,7 @@ const RG = (function() {
             if (shouldChangeFace) {
                 lastVibeFaceIndex = (lastVibeFaceIndex + 1) % vibeFaces.length;
                 const newFace = vibeFaces[lastVibeFaceIndex];
-                faceEl.src = faces[newFace];
+                setFace(newFace);
                 setVibeFace(newFace);
                 lastVibeFaceChange = now;
             }
@@ -1480,7 +1687,7 @@ const RG = (function() {
             // Low energy - head bob
             faceEl.classList.remove('rg-dance', 'rg-vibe');
             faceEl.classList.add('rg-headbob');
-            faceEl.src = faces['happy'];
+            setFace('happy');
             if (shouldUpdateStatus) {
                 statusEl.textContent = 'CHILLIN';
                 lastAudioStatusUpdate = now;
@@ -1499,17 +1706,17 @@ const RG = (function() {
             // High energy - full dance
             faceEl.classList.remove('rg-vibe', 'rg-headbob');
             faceEl.classList.add('rg-dance');
-            faceEl.src = faces['excited'];
+            setFace('excited');
         } else if (bassEnergy > 50) {
             // Medium energy - vibe
             faceEl.classList.remove('rg-dance', 'rg-headbob');
             faceEl.classList.add('rg-vibe');
-            faceEl.src = faces['cool'];
+            setFace('cool');
         } else {
             // Low energy - head bob
             faceEl.classList.remove('rg-dance', 'rg-vibe');
             faceEl.classList.add('rg-headbob');
-            faceEl.src = faces['happy'];
+            setFace('happy');
         }
         
         const st = getAudioStatus();
@@ -1524,9 +1731,9 @@ const RG = (function() {
         
         // Alternate between listening expressions
         if (voiceEnergy > 50) {
-            faceEl.src = faces['smart'];
+            setFace('smart');
         } else {
-            faceEl.src = faces['debug'];
+            setFace('debug');
         }
         
         const st = getAudioStatus();
@@ -1557,6 +1764,8 @@ const RG = (function() {
         setWork: setWork,
         setWorkAnimation: setWorkAnimation,
         setAudioListening: setAudioListening,
+        setLevel: (lvl) => { currentLevel = lvl; },
+        get level() { return currentLevel; },
         get mood() { return mood; },
         get petCount() { return petCount; },
         get language() { return currentLang; },
@@ -1569,3 +1778,12 @@ const RG = (function() {
 
 // Expose globally for system integration
 window.RG = RG;
+
+// Listen for XP updates to track level for level-gated expressions
+if (window.electronAPI && window.electronAPI.onXpUpdate) {
+    window.electronAPI.onXpUpdate((data) => {
+        if (data && typeof data.level === 'number' && RG.setLevel) {
+            RG.setLevel(data.level);
+        }
+    });
+}

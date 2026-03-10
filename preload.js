@@ -82,5 +82,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Audio reactive mode (dance to music, notes for voice)
     onSetAudioListening: (callback) => safeOn('set-audio-listening', (_event, enabled) => callback(enabled)),
     setAudioListening: (enabled) => ipcRenderer.send('set-audio-listening', enabled),
-    getAudioListening: () => ipcRenderer.invoke('get-audio-listening')
+    getAudioListening: () => ipcRenderer.invoke('get-audio-listening'),
+    // Send audio level data to chat window for equalizer
+    sendAudioLevels: (levels) => ipcRenderer.send('audio-levels', levels)
 });

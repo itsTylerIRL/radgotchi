@@ -225,6 +225,9 @@ let sleepAnimationInterval = null;
 let sleepStartTime = 0;
 let modeBeforeSleep = 'none';
 
+// Vibe mode state (audio reactive)
+let isVibing = false;
+
 // Intervals
 let passiveXpInterval = null;
 let idleDecayInterval = null;
@@ -1716,12 +1719,24 @@ function createWindow() {
                 `${m.role === 'user' ? 'Bro' : 'You'}: ${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}`
             ).join('\n');
             
+            // Determine current state
+            const currentState = isSleeping ? 'SLEEP' :
+                                 pomodoroState.active && pomodoroState.mode === 'work' ? 'WORK' :
+                                 pomodoroState.active && pomodoroState.mode === 'break' ? 'BREAK' :
+                                 isVibing ? 'VIBE' :
+                                 isUserIdle ? 'IDLE' : 'NORMAL';
+            const movementLabel = movementMode === 'none' ? 'stationary' : movementMode;
+            const now = new Date();
+            const dateTimeStr = now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            
             const contextPrompt = `${llmConfig.systemPrompt}
 
 OPERATOR INFO:
 - Callsign: ${llmConfig.operatorName || 'OPERATOR'}
 
 CURRENT STATUS:
+- Date/Time: ${dateTimeStr}
+- State: ${currentState} | Movement: ${movementLabel}
 - Level: ${status.level} | XP: ${status.totalXp} (${Math.round(status.progress * 100)}% to next level)
 - Rank: ${currentRank.name}${nextRank ? ` | Next rank: ${nextRank.name} at Level ${nextRank.minLevel}` : ' (MAX RANK)'}
 - Hunger: ${Math.round(status.hunger)}% | Energy: ${Math.round(status.energy)}%
@@ -1816,12 +1831,24 @@ ${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
                 `${m.role === 'user' ? 'Bro' : 'You'}: ${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}`
             ).join('\n');
             
+            // Determine current state
+            const currentState = isSleeping ? 'SLEEP' :
+                                 pomodoroState.active && pomodoroState.mode === 'work' ? 'WORK' :
+                                 pomodoroState.active && pomodoroState.mode === 'break' ? 'BREAK' :
+                                 isVibing ? 'VIBE' :
+                                 isUserIdle ? 'IDLE' : 'NORMAL';
+            const movementLabel = movementMode === 'none' ? 'stationary' : movementMode;
+            const now = new Date();
+            const dateTimeStr = now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            
             const contextPrompt = `${llmConfig.systemPrompt}
 
 OPERATOR INFO:
 - Callsign: ${llmConfig.operatorName || 'OPERATOR'}
 
 CURRENT STATUS:
+- Date/Time: ${dateTimeStr}
+- State: ${currentState} | Movement: ${movementLabel}
 - Level: ${status.level} | XP: ${status.totalXp} (${Math.round(status.progress * 100)}% to next level)
 - Rank: ${currentRank.name}${nextRank ? ` | Next rank: ${nextRank.name} at Level ${nextRank.minLevel}` : ' (MAX RANK)'}
 - Hunger: ${Math.round(status.hunger)}% | Energy: ${Math.round(status.energy)}%
@@ -2217,6 +2244,13 @@ ipcMain.on('sprite-update', (event, sprite) => {
     }
 });
 
+// IPC: Forward audio levels from main window to chat window (for equalizer)
+ipcMain.on('audio-levels', (event, levels) => {
+    if (chatWindow && chatWindow.webContents) {
+        chatWindow.webContents.send('audio-levels', levels);
+    }
+});
+
 // IPC: Chat panel controls movement mode
 ipcMain.on('chat-set-movement', (event, mode) => {
     if (['none', 'bounce', 'follow', 'wander'].includes(mode)) {
@@ -2407,6 +2441,7 @@ ipcMain.on('chat-set-sleep', (event, sleeping) => {
 
 // IPC: Chat panel controls audio reactive (vibe) mode
 ipcMain.on('chat-set-vibe', (event, enabled) => {
+    isVibing = enabled;
     if (mainWindow && mainWindow.webContents) {
         mainWindow.webContents.send('set-audio-listening', enabled);
     }
@@ -3145,6 +3180,85 @@ function showChatSettingsDialog() {
             border-color: var(--term-red);
             color: var(--term-red);
         }
+        
+        /* Section headers */
+        .section-header {
+            font-size: 9px;
+            color: var(--term-cyan);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin: 16px 0 10px 0;
+            padding-bottom: 4px;
+            border-bottom: 1px dashed var(--term-border);
+        }
+        
+        .section-header:first-of-type {
+            margin-top: 8px;
+        }
+        
+        .section-header::before {
+            content: '◆ ';
+        }
+        
+        /* Identity section - callsign + PFP side by side */
+        .identity-row {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        
+        .identity-left {
+            flex: 1;
+        }
+        
+        .identity-right {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .pfp-preview-large {
+            width: 64px;
+            height: 64px;
+            border: 2px solid var(--term-cyan);
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border-radius: 4px;
+            box-shadow: 0 0 12px color-mix(in srgb, var(--term-cyan) 30%, transparent);
+        }
+        
+        .pfp-preview-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .pfp-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .pfp-controls select, .pfp-controls input {
+            padding: 4px 6px;
+            font-size: 8px;
+            background: var(--term-bg);
+            border: 1px solid var(--term-border);
+            color: var(--term-green);
+        }
+        
+        .pfp-controls input {
+            width: 50px;
+        }
+        
+        .pfp-controls select:focus, .pfp-controls input:focus {
+            border-color: var(--term-green);
+            outline: none;
+        }
     </style>
 </head>
 <body>
@@ -3166,6 +3280,33 @@ function showChatSettingsDialog() {
                 <label for="enabled">ENABLE COMMS LINK (REQUIRES LOCAL LLM)</label>
             </div>
             
+            <div class="section-header">OPERATOR IDENTITY</div>
+            
+            <div class="identity-row">
+                <div class="identity-left">
+                    <div class="field">
+                        <label>CALLSIGN</label>
+                        <input type="text" id="operatorName" placeholder="OPERATOR">
+                    </div>
+                    <div class="pfp-controls" style="margin-top: 8px;">
+                        <select id="operatorCollection">
+                            <option value="radbro">RADBRO</option>
+                            <option value="schizo">SCHIZO</option>
+                        </select>
+                        <input type="text" id="operatorTokenId" placeholder="#">
+                        <button type="button" class="pfp-fetch-btn" onclick="fetchPfp()">FETCH</button>
+                        <span class="pfp-status-inline" id="operatorStatus"></span>
+                    </div>
+                </div>
+                <div class="identity-right">
+                    <div class="pfp-preview-large" id="operatorPfpPreview">
+                        <span class="pfp-preview-placeholder">?</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section-header">CONNECTION</div>
+            
             <div class="field">
                 <label>ENDPOINT URL</label>
                 <input type="text" id="apiUrl" placeholder="http://localhost:11434/v1/chat/completions">
@@ -3182,30 +3323,11 @@ function showChatSettingsDialog() {
                 <input type="text" id="model" placeholder="llama2">
             </div>
             
+            <div class="section-header">PERSONALITY</div>
+            
             <div class="field">
                 <label>SYSTEM DIRECTIVE</label>
                 <textarea id="systemPrompt" rows="3"></textarea>
-            </div>
-            
-            <div class="field">
-                <label>OPERATOR CALLSIGN</label>
-                <input type="text" id="operatorName" placeholder="OPERATOR">
-            </div>
-            
-            <div class="pfp-section">
-                <div class="pfp-row-inline">
-                    <label class="pfp-label">OPERATOR PFP</label>
-                    <select id="operatorCollection">
-                        <option value="radbro">RADBRO</option>
-                        <option value="schizo">SCHIZO</option>
-                    </select>
-                    <input type="text" id="operatorTokenId" placeholder="Token #" style="width: 70px;">
-                    <button type="button" class="pfp-fetch-btn" onclick="fetchPfp('operator')">FETCH</button>
-                    <div class="pfp-preview-small" id="operatorPfpPreview">
-                        <span class="pfp-preview-placeholder">?</span>
-                    </div>
-                    <span class="pfp-status-inline" id="operatorStatus"></span>
-                </div>
             </div>
         </div>
         
@@ -3216,6 +3338,12 @@ function showChatSettingsDialog() {
     </div>
     
     <script>
+        // Right-click to close
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            window.close();
+        });
+        
         // PFP state (operator only - bro uses pet sprite)
         let operatorPfpData = { collection: 'radbro', tokenId: '', imageUrl: '' };
         
@@ -3246,19 +3374,19 @@ function showChatSettingsDialog() {
         }
         
         // Fetch PFP from API (operator only)
-        async function fetchPfp(role) {
+        async function fetchPfp() {
             const collection = document.getElementById('operatorCollection').value;
             const tokenId = document.getElementById('operatorTokenId').value.trim();
             const statusEl = document.getElementById('operatorStatus');
             const previewEl = document.getElementById('operatorPfpPreview');
             
             if (!tokenId) {
-                statusEl.textContent = 'Enter a token ID';
+                statusEl.textContent = 'Enter ID';
                 statusEl.className = 'pfp-status-inline error';
                 return;
             }
             
-            statusEl.textContent = 'Fetching metadata...';
+            statusEl.textContent = 'Fetching...';
             statusEl.className = 'pfp-status-inline loading';
             
             try {
