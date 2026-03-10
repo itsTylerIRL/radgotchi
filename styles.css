@@ -35,6 +35,7 @@ body {
     position: relative;
     width: 160px;
     padding: 12px;
+    padding-top: 24px; /* Extra space for glow at top */
     background: transparent;
     border: none;
     cursor: grab;

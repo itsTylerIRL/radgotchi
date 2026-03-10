@@ -57,4 +57,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onPfpUpdate: (callback) => ipcRenderer.on('pfp-update', (_event, data) => callback(data)),
     // Sprite state updates (for bro avatar)
     onSpriteUpdate: (callback) => ipcRenderer.on('sprite-update', (_event, data) => callback(data)),
+    // Network Discovery (SIGINT Protocol)
+    networkDiscoveryToggle: (enabled) => ipcRenderer.invoke('network-discovery-toggle', enabled),
+    getNetworkStatus: () => ipcRenderer.invoke('get-network-status'),
+    getDiscoveredNodes: () => ipcRenderer.invoke('get-discovered-nodes'),
+    onNetworkUpdate: (callback) => ipcRenderer.on('network-update', (_event, data) => callback(data)),
 });
