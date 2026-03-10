@@ -27,7 +27,7 @@ html, body {
 body {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     font-family: var(--rg-font);
 }
 

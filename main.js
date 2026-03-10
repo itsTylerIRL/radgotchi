@@ -1254,15 +1254,19 @@ function getMovementBounds(winWidth, winHeight) {
     const currentDisplay = screen.getDisplayNearestPoint({ x: wx, y: wy });
     const bounds = currentDisplay.bounds;
     // Visible pet content is roughly 2/3 of window width (container 160 / window 240)
-    // and ~60% of window height (face + status + padding centered in window).
     // Overflow = transparent padding on each side so the pet itself can reach edges.
     const overflowX = Math.round((winWidth - winWidth * 0.55) / 2);
-    const overflowY = Math.round((winHeight - winHeight * 0.45) / 2);
+    // Pet is rendered at top of window (body align-items: flex-start) so the
+    // top has minimal transparent padding while the bottom has the rest.
+    // This lets the pet reach the top of the screen on macOS without fighting
+    // the menu-bar boundary.
+    const overflowTop = Math.round(winHeight * 0.05);
+    const overflowBottom = Math.round(winHeight - winHeight * 0.45) - overflowTop;
     return {
         minX: bounds.x - overflowX,
-        minY: bounds.y - overflowY,
+        minY: bounds.y - overflowTop,
         maxX: bounds.x + bounds.width - winWidth + overflowX,
-        maxY: bounds.y + bounds.height - winHeight + overflowY,
+        maxY: bounds.y + bounds.height - winHeight + overflowBottom,
     };
 }
 
