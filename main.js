@@ -15,6 +15,7 @@ const systemMonitor = require('./src/main/system-monitor');
 const movement      = require('./src/main/movement');
 const sleepWork     = require('./src/main/sleep-work');
 const selfUpdate    = require('./src/main/self-update');
+const petMemory     = require('./src/main/pet-memory');
 const llm           = require('./src/main/llm');
 const windows       = require('./src/main/windows');
 
@@ -163,6 +164,7 @@ function initModules() {
         xpSystem,
         getSleepWork: () => sleepWork,
         getMovement: () => movement,
+        petMemory,
     });
 
     networkDiscovery.init({
@@ -172,6 +174,8 @@ function initModules() {
         getChatWindow: windows.getChatWindow,
     });
 
+    petMemory.init({ persistence, llm });
+
     windows.init({
         persistence,
         xpSystem,
@@ -180,6 +184,7 @@ function initModules() {
         movement,
         sleepWork,
         llm,
+        petMemory,
         systemMonitor,
         networkDiscovery,
         chatHistory: () => chatHistory,
@@ -198,6 +203,7 @@ function initializeApp() {
     // Load persisted data
     llm.loadLlmConfig();
     xpSystem.loadXpData();
+    petMemory.loadMemory();
     loadChatData();
     persistence.loadWindowStates();
 
@@ -281,5 +287,6 @@ app.on('will-quit', () => {
     pomodoro.stopPomodoro();
     networkDiscovery.stopNetworkDiscovery();
     xpSystem.saveXpData();
+    petMemory.saveMemory();
     saveChatData();
 });

@@ -20,6 +20,7 @@ let _pomodoro = null;
 let _movement = null;
 let _sleepWork = null;
 let _llm = null;
+let _petMemory = null;
 let _systemMonitor = null;
 let _networkDiscovery = null;
 let _chatHistory = null;
@@ -35,6 +36,7 @@ function init(deps) {
     _movement = deps.movement;
     _sleepWork = deps.sleepWork;
     _llm = deps.llm;
+    _petMemory = deps.petMemory;
     _systemMonitor = deps.systemMonitor;
     _networkDiscovery = deps.networkDiscovery;
     _chatHistory = deps.chatHistory;
@@ -134,14 +136,27 @@ function createWindow() {
         };
     });
 
-    ipcMain.handle('get-llm-config', async () => _llm.getLlmConfig());
+    ipcMain.handle('get-llm-config', async () => {
+        const config = _llm.getLlmConfig();
+        config.memoryEnabled = _petMemory.isEnabled();
+        config.memoryCount = _petMemory.getFacts().length;
+        return config;
+    });
 
     ipcMain.handle('save-llm-config', async (event, config) => {
+        if (config.memoryEnabled !== undefined) {
+            _petMemory.setEnabled(config.memoryEnabled);
+        }
         const result = _llm.saveLlmConfig(config);
         if (chatWindow && chatWindow.webContents) {
             chatWindow.webContents.send('pfp-update', { operatorPfp: _llm.getLlmConfig().operatorPfp || null });
         }
         return result;
+    });
+
+    ipcMain.handle('clear-pet-memory', async () => {
+        _petMemory.clearMemory();
+        return { success: true };
     });
 
     // Chat with LLM (non-streaming)

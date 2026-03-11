@@ -33,8 +33,9 @@ let _screen = null;
 let _xpSystem = null;
 let _getSleepWork = null;
 let _getMovement = null;
+let _petMemory = null;
 
-function init({ persistence, getMainWindow, getChatWindow, screen, xpSystem, getSleepWork, getMovement }) {
+function init({ persistence, getMainWindow, getChatWindow, screen, xpSystem, getSleepWork, getMovement, petMemory }) {
     _persistence = persistence;
     _getMainWindow = getMainWindow;
     _getChatWindow = getChatWindow;
@@ -42,6 +43,7 @@ function init({ persistence, getMainWindow, getChatWindow, screen, xpSystem, get
     _xpSystem = xpSystem;
     _getSleepWork = getSleepWork;
     _getMovement = getMovement;
+    _petMemory = petMemory;
 }
 
 function getLlmConfig() {
@@ -98,7 +100,7 @@ CURRENT STATUS:
 - Hunger: ${Math.round(status.hunger)}% | Energy: ${Math.round(status.energy)}%
 - Sessions together: ${status.totalSessions} | Current streak: ${status.currentStreak} days
 
-${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
+${_petMemory && _petMemory.buildMemoryBlock() ? _petMemory.buildMemoryBlock() + '\n\n' : ''}${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
 }
 
 // Non-streaming chat handler
@@ -153,7 +155,12 @@ async function sendChatMessage(messages) {
         if (response.error) {
             return { error: response.error.message || 'API error' };
         }
-        return { content: response.choices?.[0]?.message?.content || 'No response' };
+        const content = response.choices?.[0]?.message?.content || 'No response';
+        if (_petMemory && content !== 'No response') {
+            const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+            if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, content);
+        }
+        return { content };
     } catch (e) {
         return { error: e.message || 'Failed to connect to LLM' };
     }
@@ -211,6 +218,10 @@ function sendChatMessageStream(event, messages) {
                         } else {
                             const content = json.choices?.[0]?.message?.content || 'No response';
                             event.reply('chat-stream-chunk', { content, done: true });
+                            if (_petMemory && content !== 'No response') {
+                                const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+                                if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, content);
+                            }
                         }
                     } catch (e) {
                         event.reply('chat-stream-error', { error: 'Invalid response from API' });
@@ -254,6 +265,10 @@ function sendChatMessageStream(event, messages) {
                     }
                 }
                 event.reply('chat-stream-chunk', { content: '', done: true, fullContent });
+                if (_petMemory && fullContent) {
+                    const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+                    if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, fullContent);
+                }
             });
 
             res.on('error', (e) => {
@@ -422,7 +437,7 @@ function buildSettingsHtml() {
         .content-area { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px; }
         .field { margin-bottom: 12px; }
         label { display: block; margin-bottom: 4px; color: var(--term-dim); font-size: 9px; text-transform: uppercase; letter-spacing: 2px; }
-        label::before { content: '\\u2588 '; color: var(--term-green); }
+        label::before { content: '█ '; color: var(--term-green); }
         input[type="text"], input[type="password"], textarea { width: 100%; padding: 8px 10px; background: var(--term-panel); border: 1px solid var(--term-border); color: var(--term-green); font-family: inherit; font-size: 11px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
         input:focus, textarea:focus { border-color: var(--term-green); box-shadow: 0 0 10px rgba(0,255,136,0.2); }
         input::placeholder, textarea::placeholder { color: #335544; }
@@ -441,7 +456,7 @@ function buildSettingsHtml() {
         .btn-cancel:hover { border-color: var(--term-red); color: var(--term-red); }
         .section-header { font-size: 9px; color: var(--term-cyan); letter-spacing: 2px; text-transform: uppercase; margin: 16px 0 10px 0; padding-bottom: 4px; border-bottom: 1px dashed var(--term-border); }
         .section-header:first-of-type { margin-top: 8px; }
-        .section-header::before { content: '\\u25C6 '; }
+        .section-header::before { content: '◆ '; }
         .identity-row { display: flex; gap: 16px; align-items: flex-start; }
         .identity-left { flex: 1; }
         .identity-right { display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -468,8 +483,8 @@ function buildSettingsHtml() {
                 <span class="terminal-title">COMMS CONFIG</span>
             </div>
             <div class="header-right">
-                <span class="status-indicator">\\u2588 ENCRYPTED</span>
-                <button class="close-btn" onclick="window.close()">\\u00D7</button>
+                <span class="status-indicator">█ ENCRYPTED</span>
+                <button class="close-btn" onclick="window.close()">×</button>
             </div>
         </div>
         <div class="content-area">
@@ -519,6 +534,13 @@ function buildSettingsHtml() {
                 <label>SYSTEM DIRECTIVE</label>
                 <textarea id="systemPrompt" rows="3"></textarea>
             </div>
+            <div class="section-header">MEMORY</div>
+            <div class="field checkbox-field">
+                <input type="checkbox" id="memoryEnabled">
+                <label for="memoryEnabled">ENABLE LONG-TERM MEMORY</label>
+            </div>
+            <div class="hint" style="margin-bottom:8px;">Remembers facts about you across sessions (<span id="memoryCount">0</span> stored)</div>
+            <button type="button" class="btn-clear-memory" onclick="clearMemory()" style="flex:none;width:auto;padding:6px 14px;font-size:9px;border-color:var(--term-red);color:var(--term-red);">WIPE MEMORY</button>
         </div>
         <div class="button-row">
             <button class="btn-cancel" onclick="window.close()">ABORT</button>
@@ -568,6 +590,8 @@ function buildSettingsHtml() {
             document.getElementById('model').value = config.model || '';
             document.getElementById('systemPrompt').value = config.systemPrompt || '';
             document.getElementById('operatorName').value = config.operatorName || 'OPERATOR';
+            document.getElementById('memoryEnabled').checked = config.memoryEnabled !== false;
+            document.getElementById('memoryCount').textContent = config.memoryCount || 0;
             if (config.operatorPfp && config.operatorPfp.tokenId) {
                 operatorPfpData = { ...operatorPfpData, ...config.operatorPfp };
                 document.getElementById('operatorCollection').value = operatorPfpData.collection || 'radbro';
@@ -587,10 +611,17 @@ function buildSettingsHtml() {
                 model: document.getElementById('model').value.trim(),
                 systemPrompt: document.getElementById('systemPrompt').value,
                 operatorName: document.getElementById('operatorName').value.trim() || 'OPERATOR',
+                memoryEnabled: document.getElementById('memoryEnabled').checked,
                 operatorPfp: { collection: document.getElementById('operatorCollection').value, tokenId: document.getElementById('operatorTokenId').value.trim(), imageUrl: operatorPfpData.imageUrl || '' }
             };
             await window.electronAPI.saveLlmConfig(config);
             window.close();
+        }
+        async function clearMemory() {
+            if (confirm('Wipe all stored memories? This cannot be undone.')) {
+                await window.electronAPI.clearPetMemory();
+                document.getElementById('memoryCount').textContent = '0';
+            }
         }
         loadSettings();
     </script>

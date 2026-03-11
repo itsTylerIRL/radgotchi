@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // LLM Chat functionality
     getLlmConfig: () => ipcRenderer.invoke('get-llm-config'),
     saveLlmConfig: (config) => ipcRenderer.invoke('save-llm-config', config),
+    clearPetMemory: () => ipcRenderer.invoke('clear-pet-memory'),
     sendChatMessage: (messages) => ipcRenderer.invoke('send-chat-message', { messages }),
     
     // Chat window control

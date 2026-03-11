@@ -223,6 +223,35 @@ function saveLlmConfigToDisk(config) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Pet Memory Persistence
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getPetMemoryPath() {
+    return path.join(_app.getPath('userData'), 'pet-memory.json');
+}
+
+function loadPetMemoryFromDisk() {
+    try {
+        const dataPath = getPetMemoryPath();
+        if (fs.existsSync(dataPath)) {
+            const data = fs.readFileSync(dataPath, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (e) {
+        console.error('Failed to load pet memory:', e);
+    }
+    return null;
+}
+
+function savePetMemoryToDisk(dataToSave) {
+    try {
+        fs.writeFileSync(getPetMemoryPath(), JSON.stringify(dataToSave, null, 2));
+    } catch (e) {
+        console.error('Failed to save pet memory:', e);
+    }
+}
+
 module.exports = {
     init,
     getAssetPath,
@@ -241,4 +270,7 @@ module.exports = {
     // LLM config
     loadLlmConfigFromDisk,
     saveLlmConfigToDisk,
+    // Pet memory
+    loadPetMemoryFromDisk,
+    savePetMemoryToDisk,
 };
