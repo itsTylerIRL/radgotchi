@@ -407,15 +407,8 @@ async function startAudioListening() {
         console.warn('Monitor device capture failed:', err.message);
     }
 
-    // Strategy 3: Microphone fallback — ambient audio detection (any platform)
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log('Audio capture: using microphone fallback');
-        return connectAudioStream(stream);
-    } catch (err) {
-        console.error('All audio capture methods failed:', err.message);
-        return false;
-    }
+    console.error('All system audio capture methods failed');
+    return false;
 }
 
 function stopAudioListening() {

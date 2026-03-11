@@ -238,9 +238,13 @@ app.whenReady().then(() => {
         if (process.platform === 'win32') {
             // Windows: WASAPI loopback via request.frame (avoids DXGI 10-bit HDR issue)
             callback({ video: request.frame, audio: 'loopback' });
+        } else if (process.platform === 'darwin') {
+            // macOS: ScreenCaptureKit captures system audio via loopback (macOS 13+)
+            desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+                callback(sources.length > 0 ? { video: sources[0], audio: 'loopback' } : { video: request.frame, audio: 'loopback' });
+            }).catch(() => callback({ video: request.frame, audio: 'loopback' }));
         } else {
-            // macOS: ScreenCaptureKit captures system audio when a screen source is provided (macOS 13+)
-            // Linux: provide screen source; renderer will fall back to mic/monitor if no audio tracks
+            // Linux: provide screen source; renderer will fall back to monitor device if no audio tracks
             desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
                 callback(sources.length > 0 ? { video: sources[0] } : { video: request.frame });
             }).catch(() => callback({ video: request.frame }));

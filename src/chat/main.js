@@ -92,6 +92,7 @@ api.onChatReady(async (data) => {
         applyColor(data.color);
     }
     if (data.xp) updateXpDisplay(data.xp, false);
+    if (data.needs) updateNeedsDisplay(data.needs);
     if (data.zoom && data.zoom !== 100) applyZoomSilent(data.zoom);
     if (data.isSleeping) { toggleSleep.classList.add('active'); terminalContainer.classList.add('sleeping'); startSleepTimer(); }
     if (data.language && data.language === 'zh') { toggleLang.classList.add('active'); toggleLang.textContent = 'EN'; updateLanguage('zh'); }
