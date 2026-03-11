@@ -48,6 +48,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Language change from tray menu (en / zh)
     onSetLanguage: (callback) => safeOn('set-language', (_event, lang) => callback(lang)),
 
+    // Mute state change from chat panel
+    onSetMute: (callback) => safeOn('set-mute', (_event, muted) => callback(muted)),
+
     // Mouse position for eye tracking
     getMousePosition: () => ipcRenderer.invoke('get-mouse-position'),
 

@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Sleep mode (pauses XP and shows sleep animation)
     setSleep: (sleeping) => ipcRenderer.send('chat-set-sleep', sleeping),
     onSetSleep: (callback) => ipcRenderer.on('set-sleep', (_event, sleeping) => callback(sleeping)),
+    // Mute state sync (forward to main window)
+    setMute: (muted) => ipcRenderer.send('chat-set-mute', muted),
     // Audio reactive (vibe) mode
     setVibeMode: (enabled) => ipcRenderer.send('chat-set-vibe', enabled),
     onAudioLevels: (callback) => ipcRenderer.on('audio-levels', (_event, data) => callback(data)),

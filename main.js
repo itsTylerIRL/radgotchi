@@ -690,7 +690,14 @@ function loadXpData() {
                 totalStasis: saved.totalStasis || 0,
                 // Work session stats
                 workStarted: saved.workStarted || 0,
+                workCompleted: saved.workCompleted || 0,
+                // Persisted mode states
+                savedSleeping: saved.isSleeping || false,
+                savedLang: saved.language || 'en',
             };
+            
+            // Restore lifetime pomodoro count
+            pomodoroState.pomosCompleted = saved.workCompleted || 0;
             
             // Update streak
             const today = new Date().toDateString();
@@ -761,6 +768,10 @@ function saveXpData() {
             totalStasis: xpData.totalStasis,
             // Work session stats
             workStarted: xpData.workStarted || 0,
+            workCompleted: pomodoroState.pomosCompleted || 0,
+            // Persisted mode states
+            isSleeping: isSleeping,
+            language: xpData.savedLang || 'en',
             petNeeds: {
                 hunger: petNeeds.hunger,
                 energy: petNeeds.energy,
@@ -1442,6 +1453,10 @@ function stopMovement() {
 
 // Helper: get work area for current window position
 function getWorkArea() {
+    if (isLinux) {
+        // On Wayland, getPosition() is unreliable; use primary display
+        return screen.getPrimaryDisplay().workArea;
+    }
     const [x, y] = mainWindow.getPosition();
     const currentDisplay = screen.getDisplayNearestPoint({ x, y });
     return currentDisplay.workArea;
@@ -1474,14 +1489,25 @@ function safeSetPosition(x, y) {
     }
 }
 
-// Helper: get movement bounds using full display bounds with overflow.
+// Helper: get movement bounds using display bounds with overflow.
 // The visible pet is centered in a larger transparent window, so we allow
 // the window to extend off-screen so the pet can reach the screen edges.
 // Overflow is computed from the transparent padding around the visible content.
+// On Linux/Wayland, getPosition() can return stale values, so we fall back
+// to the primary display and use workArea (compositor-enforced boundaries).
 function getMovementBounds(winWidth, winHeight) {
-    const [wx, wy] = mainWindow.getPosition();
-    const currentDisplay = screen.getDisplayNearestPoint({ x: wx, y: wy });
-    const bounds = currentDisplay.bounds;
+    let currentDisplay;
+    if (isLinux) {
+        // On Wayland, getPosition() is unreliable; use primary display
+        // and workArea to respect compositor panel boundaries.
+        currentDisplay = screen.getPrimaryDisplay();
+    } else {
+        const [wx, wy] = mainWindow.getPosition();
+        currentDisplay = screen.getDisplayNearestPoint({ x: wx, y: wy });
+    }
+    // On Linux/Wayland use workArea (respects panels/taskbars);
+    // on other platforms use full bounds for maximum movement range.
+    const bounds = isLinux ? currentDisplay.workArea : currentDisplay.bounds;
     // Visible pet content is roughly 2/3 of window width (container 160 / window 240)
     // Overflow = transparent padding on each side so the pet itself can reach edges.
     const overflowX = Math.round((winWidth - winWidth * 0.55) / 2);
@@ -2421,7 +2447,10 @@ function createChatWindow() {
                         xp: getXpStatus(),
                         spriteState: currentSpriteState,
                         operatorPfp: llmConfig.operatorPfp || null,
-                        zoom: windowStates['chatWindow']?.zoom || 100
+                        zoom: windowStates['chatWindow']?.zoom || 100,
+                        isSleeping: isSleeping,
+                        language: xpData.savedLang || 'en',
+                        pomodoroActive: pomodoroState.active,
                     });
                 }
             })
@@ -2436,7 +2465,10 @@ function createChatWindow() {
                         xp: getXpStatus(),
                         spriteState: currentSpriteState,
                         operatorPfp: llmConfig.operatorPfp || null,
-                        zoom: windowStates['chatWindow']?.zoom || 100
+                        zoom: windowStates['chatWindow']?.zoom || 100,
+                        isSleeping: isSleeping,
+                        language: xpData.savedLang || 'en',
+                        pomodoroActive: pomodoroState.active,
                     });
                 }
             });
@@ -2527,11 +2559,20 @@ ipcMain.on('chat-set-color', (event, color) => {
 
 // IPC: Chat panel controls language
 ipcMain.on('chat-set-language', (event, lang) => {
+    xpData.savedLang = lang;
+    saveXpData();
     if (mainWindow && mainWindow.webContents) {
         mainWindow.webContents.send('set-language', lang);
     }
     if (chatWindow && chatWindow.webContents) {
         chatWindow.webContents.send('set-language', lang);
+    }
+});
+
+// IPC: Chat panel controls mute — forward to main window so all sounds are muted
+ipcMain.on('chat-set-mute', (event, muted) => {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('set-mute', muted);
     }
 });
 
@@ -2617,6 +2658,7 @@ function startSleepMode() {
     
     // Increment sleep count
     xpData.stasisCycles++;
+    saveXpData();
     
     // Clear any active attention event
     if (attentionEvent.active) {
@@ -3936,6 +3978,11 @@ function initializeApp() {
     createTray();
     startPassiveXpGain();
     startNeedsDecay();
+
+    // Restore sleep mode if it was active last session
+    if (xpData.savedSleeping) {
+        startSleepMode();
+    }
     
     // Log session start
     addActivityLogEntry('session-start', 

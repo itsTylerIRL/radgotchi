@@ -3130,6 +3130,10 @@
                 if (typeof SoundSystem !== 'undefined') {
                     SoundSystem.setEnabled(false);
                 }
+                // Sync to main window on init
+                if (window.electronAPI && window.electronAPI.setMute) {
+                    window.electronAPI.setMute(true);
+                }
             }
         } catch(e) {}
         
@@ -3141,6 +3145,10 @@
                 if (!isMuted) SoundSystem.play('click');
             }
             localStorage.setItem('radgotchi-muted', isMuted);
+            // Sync mute state to main window so all sounds are affected
+            if (window.electronAPI && window.electronAPI.setMute) {
+                window.electronAPI.setMute(isMuted);
+            }
         });
         
         // Vibe/Audio reactive toggle button
@@ -3607,6 +3615,25 @@
             if (data.zoom && data.zoom !== 100) {
                 // Use applyZoomSilent to avoid sound on initial load
                 applyZoomSilent(data.zoom);
+            }
+
+            // Restore sleep button state
+            if (data.isSleeping) {
+                toggleSleep.classList.add('active');
+                terminalContainer.classList.add('sleeping');
+                startSleepTimer();
+            }
+
+            // Restore language button state
+            if (data.language && data.language === 'zh') {
+                toggleLang.classList.add('active');
+                toggleLang.textContent = 'EN';
+                updateLanguage('zh');
+            }
+
+            // Restore pomodoro button state
+            if (data.pomodoroActive) {
+                togglePomo.classList.add('active');
             }
         });
         
@@ -4381,6 +4408,14 @@
         };
         
         let currentLang = 'en';
+        
+        // Restore saved language from localStorage on init
+        try {
+            const savedLang = localStorage.getItem('radgotchi-lang');
+            if (savedLang === 'zh') {
+                currentLang = 'zh';
+            }
+        } catch(e) {}
         
         function updateLanguage(lang) {
             currentLang = lang;

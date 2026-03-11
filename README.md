@@ -30,6 +30,7 @@
   <a href="#deployment">Deployment</a> •
   <a href="#operational-parameters">Operations</a> •
   <a href="#sigint-terminal">SIGINT Terminal</a> •
+  <a href="#rad-mesh">RAD MESH</a> •
   <a href="#clearance-progression">Clearance</a> •
   <a href="#configuration">Configuration</a> •
   <a href="#distribution">Distribution</a>
@@ -104,7 +105,7 @@ The integrated communication interface provides direct access to local language 
 
 ### Audio Subsystem
 
-All sound effects are generated procedurally via the Web Audio API—no external audio files required. Toggle mute from the command center or terminal interface.
+The audio engine provides a full suite of operational tones and real-time audio visualization. All sounds are procedurally generated via the Web Audio API—no external audio files required.
 
 <p align="center">
   <img src="assets/demo/audio-subsystem.png" alt="Audio Subsystem" width="400">
@@ -113,8 +114,22 @@ All sound effects are generated procedurally via the Web Audio API—no external
 | Component | Specification |
 |-----------|---------------|
 | **Engine** | Web Audio API synthesis |
-| **Sound Library** | 14 unique operational tones |
-| **Controls** | MUTE toggle, volume adjustment via API |
+| **Sound Library** | 18+ unique operational tones |
+| **Vibe Mode** | Audio-reactive visualization |
+| **Equalizer** | Real-time frequency display |
+| **Controls** | MUTE toggle, volume adjustment |
+
+### Audio Reactive Mode
+
+Enable **Vibe Mode** (🎵) to activate system audio monitoring. Your asset responds to audio levels with real-time animations and glow effects.
+
+| Feature | Description |
+|---------|-------------|
+| **Desktop Audio Capture** | System-level loopback (WASAPI/ScreenCaptureKit/PipeWire) |
+| **Visual Response** | Dance animations, color pulsing |
+| **Equalizer Display** | Frequency bars in terminal header |
+| **Listening Indicator** | Wave animation when awaiting audio |
+| **Toggle** | 🎵 button in terminal header |
 
 ### Clearance System
 
@@ -159,6 +174,31 @@ Integrated Pomodoro timer for sustained operational focus. Complete work cycles 
 | **Break Cycle** | 5 minutes |
 | **Audio Alerts** | Session start/complete |
 | **XP Reward** | +25 on completion |
+
+### RAD MESH
+
+Network-aware peer discovery detects other Radgotchi instances running on your local network. Monitor fellow operators in real-time through the terminal interface.
+
+<p align="center">
+  <img src="assets/demo/rad-mesh.png" alt="RAD MESH" width="400">
+</p>
+
+| Feature | Specification |
+|---------|---------------|
+| **Protocol** | UDP broadcast (port 47823) |
+| **Discovery** | Automatic LAN detection |
+| **Data Shared** | Node ID, operator name, rank, level |
+| **Signal Strength** | Subnet proximity indicator |
+| **Updates** | Real-time online/offline events |
+| **Toggle** | ⚡ button in network panel |
+
+When enabled, RAD MESH broadcasts presence every 5 seconds and listens for other assets. Discovered nodes appear in the collapsible network panel with:
+
+- **Node ID** — Unique asset identifier (e.g., `RG-A3F2K9`)
+- **Operator** — Configured operator name
+- **Rank** — Current clearance designation
+- **Level** — Progression level
+- **Signal** — Connection quality (STRONG/MODERATE/WEAK)
 
 ### Progression Engine
 
@@ -327,7 +367,10 @@ The SIGINT Terminal provides a full-featured chat interface with retro CRT aesth
 | **Markdown** | Full rendering with code block copy |
 | **Controls** | Movement, theme, language, sleep, stats, focus |
 | **Status Bar** | Level, rank, progress visualization |
-| **Audio** | MUTE toggle for silent operation |
+| **Audio** | MUTE toggle, volume control |
+| **Vibe Mode** | Audio-reactive equalizer visualization |
+| **RAD MESH** | Peer discovery network panel |
+| **Zoom** | Interface scaling (+/-) |
 
 ---
 
@@ -571,9 +614,13 @@ SoundSystem.play('levelUp');
 SoundSystem.play('click');
 SoundSystem.play('messageReceive');
 
-// Available: chatOpen, chatClose, messageSend, messageReceive,
-// click, sleepStart, sleepEnd, attentionStart, attentionEnd,
-// levelUp, milestone, pomodoroStart, pomodoroComplete, xpGain, xpLoss
+// Available sounds:
+// UI: boot, click, hover, chatOpen, chatClose
+// Comms: messageSend, messageReceive, streamStart, streamEnd
+// State: sleepStart, sleepEnd, attentionStart, attentionEnd
+// Progress: levelUp, levelDown, milestone, xpGain, xpLoss
+// Focus: pomodoroStart, pomodoroComplete
+// Controls: selectChange, statsOpen, statsClose
 
 // Enable/disable
 SoundSystem.setEnabled(false);
@@ -603,6 +650,8 @@ These events facilitate communication between the main process and renderer wind
 | `pomodoro-complete` | `{mode}` | Session complete |
 | `activity-log-update` | `{type, message, ts}` | Activity event |
 | `attention-event` | `{type, message}` | Alert triggered |
+| `audio-levels` | `{levels: number[], peak}` | Audio reactive data |
+| `network-update` | `{type, node, totalNodes}` | RAD MESH peer event |
 
 ---
 

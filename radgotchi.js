@@ -1271,44 +1271,36 @@ const RG = (function() {
         audioHealthCheckInterval = setInterval(() => {
             if (!audioListening) return;
             
-            // Check if AudioContext is suspended
+            // Check if AudioContext is suspended - just resume, don't restart
             if (audioContext && audioContext.state === 'suspended') {
                 console.log('Health check: AudioContext suspended, resuming...');
                 audioContext.resume().catch(() => {});
+                return; // Give it time to resume before next check
             }
             
-            // Check if AudioContext is in a bad state
-            if (audioContext && audioContext.state !== 'running') {
-                console.warn('Health check: AudioContext not running (state:', audioContext.state, '), restarting...');
+            // Only restart if AudioContext is fully closed (not suspended/interrupted)
+            // This is a terminal state that requires a restart
+            if (audioContext && audioContext.state === 'closed') {
+                console.warn('Health check: AudioContext closed, restarting...');
                 scheduleAudioRestart();
                 return;
             }
             
-            // Check if audio tracks are still active
+            // Check if ALL audio tracks have ended (not just one, not just paused)
+            // We only restart if every track is genuinely ended
             if (audioStream) {
                 const audioTracks = audioStream.getAudioTracks();
-                const hasLiveTracks = audioTracks.some(track => track.readyState === 'live');
+                const allTracksEnded = audioTracks.length > 0 && audioTracks.every(track => track.readyState === 'ended');
                 
-                if (!hasLiveTracks && audioTracks.length > 0) {
-                    console.warn('Health check: No live audio tracks, restarting...');
-                    scheduleAudioRestart();
-                    return;
-                }
-                
-                // Check for enabled tracks
-                const hasEnabledTracks = audioTracks.some(track => track.enabled);
-                if (!hasEnabledTracks && audioTracks.length > 0) {
-                    console.warn('Health check: No enabled audio tracks, restarting...');
+                if (allTracksEnded) {
+                    console.warn('Health check: All audio tracks ended, restarting...');
                     scheduleAudioRestart();
                     return;
                 }
             }
             
-            // Check if source is still connected
-            if (!audioSource || !audioAnalyser) {
-                console.warn('Health check: Audio source or analyser missing, restarting...');
-                scheduleAudioRestart();
-            }
+            // Note: We don't restart just because audioSource/audioAnalyser are missing
+            // or because tracks are disabled - these can be transient states
         }, AUDIO_CONFIG.HEALTH_CHECK_INTERVAL);
     }
     
@@ -1416,21 +1408,12 @@ const RG = (function() {
             lastMeaningfulAudioTime = Date.now();
         }
         
-        // Track consecutive frames with absolutely zero data (indicates dead stream)
-        // Only consider it "dead" if we had audio recently - otherwise it's just silent
-        // This prevents constant restarts when user isn't playing audio
+        // Track consecutive frames with zero data (for debug logging only)
+        // We no longer restart on silence - silence is not a failure
+        // The stream will be restarted only if the MediaStream tracks actually end
         if (!hasAnyData && sum === 0) {
             consecutiveZeroFrames++;
-            // Only restart if we had meaningful audio in the last 30 seconds AND now it's dead
-            const hadRecentAudio = lastMeaningfulAudioTime && (Date.now() - lastMeaningfulAudioTime < 30000);
-            if (consecutiveZeroFrames > AUDIO_CONFIG.ZERO_FRAME_THRESHOLD && hadRecentAudio) {
-                console.warn('Detected dead audio stream (was playing, now zero data), restarting...');
-                consecutiveZeroFrames = 0;
-                scheduleAudioRestart();
-                return;
-            }
         } else {
-            // Reset counter when we get any data
             consecutiveZeroFrames = 0;
         }
         
@@ -1784,6 +1767,15 @@ if (window.electronAPI && window.electronAPI.onXpUpdate) {
     window.electronAPI.onXpUpdate((data) => {
         if (data && typeof data.level === 'number' && RG.setLevel) {
             RG.setLevel(data.level);
+        }
+    });
+}
+
+// Listen for mute state changes from chat panel (so main window sounds are also muted)
+if (window.electronAPI && window.electronAPI.onSetMute) {
+    window.electronAPI.onSetMute((muted) => {
+        if (typeof SoundSystem !== 'undefined') {
+            SoundSystem.setEnabled(!muted);
         }
     });
 }
