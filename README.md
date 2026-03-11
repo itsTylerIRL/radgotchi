@@ -481,7 +481,7 @@ Enable low-power display mode via terminal toggle. Reduces visual activity and p
 
 ### Style Variables
 
-For advanced theming, modify `styles.css`:
+For advanced theming, modify `src/styles/styles.css`:
 
 ```css
 :root {
@@ -540,16 +540,17 @@ Radgotchi follows standard Electron architecture with clear separation between m
 
 ```
 radgotchi/
-├── main.js           # Main process, state management, IPC
+├── main.js           # Main process entry point
 ├── preload.js        # Secure bridge (main window)
 ├── preload-chat.js   # Secure bridge (terminal window)
-├── renderer.js       # UI controller
-├── radgotchi.js      # Asset behavior engine
-├── sounds.js         # Audio synthesis module
 ├── index.html        # Primary interface
 ├── chat.html         # SIGINT Terminal
-├── styles.css        # Visual styling
 ├── package.json      # Project manifest
+├── src/
+│   ├── main/         # Main process modules
+│   ├── renderer/     # Renderer ES modules
+│   ├── chat/         # Chat window ES modules
+│   └── styles/       # All CSS (styles.css, chat-window.css)
 └── assets/           # Sprite library (25+)
 ```
 

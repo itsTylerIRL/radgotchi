@@ -21,28 +21,31 @@ npm run start:safe
 
 ## Project Structure
 
-| File | Purpose |
-|------|---------|
-| `main.js` | Electron main process (window, tray, system monitoring) |
-| `preload.js` | Secure IPC bridge between main and renderer |
-| `renderer.js` | UI interactions, color themes, mouse tracking |
-| `radgotchi.js` | Pet behavior logic (moods, animations, reactions) |
-| `styles.css` | All CSS including animations |
+| Directory/File | Purpose |
+|------|--------|
+| `main.js` | Electron main process entry point |
+| `preload.js` | Secure IPC bridge (main window) |
+| `preload-chat.js` | Secure IPC bridge (chat window) |
+| `src/main/` | Main process modules (persistence, networking, XP, etc.) |
+| `src/renderer/` | Renderer ES modules (sprites, mood, audio, interaction, etc.) |
+| `src/chat/` | Chat window ES modules (messages, controls, equalizer, etc.) |
+| `src/styles/` | All CSS (styles.css, chat-window.css) |
 | `index.html` | App shell |
+| `chat.html` | RAD Terminal window |
 
 ## Adding Features
 
 ### New Mood
 
-1. Add sprite image to `assets/` (e.g., `NEWMOOD.png`)
-2. Register in `radgotchi.js`:
+1. Add sprite image to `assets/gotchi/` (e.g., `NEWMOOD.png`)
+2. Register in `src/renderer/pet-sprites.js`:
    ```javascript
    const faces = {
        // ... existing moods
-       newmood: getAsset('NEWMOOD.png'),
+       newmood: 'assets/gotchi/NEWMOOD.png',
    };
    ```
-3. Add status messages:
+3. Add status messages in `src/renderer/status-text.js`:
    ```javascript
    const statusText = {
        // ... existing
@@ -52,7 +55,7 @@ npm run start:safe
 
 ### New Animation
 
-1. Add keyframes to `styles.css`:
+1. Add keyframes to `src/styles/styles.css`:
    ```css
    @keyframes rg-neweffect {
        0% { transform: ...; }
@@ -70,9 +73,9 @@ npm run start:safe
 
 ### New System Event
 
-1. Add detection in `main.js` inside `startSystemEventMonitoring()`
+1. Add detection in `src/main/system-monitor.js`
 2. Send event: `mainWindow.webContents.send('system-event', { type: 'new-event', value: ... })`
-3. Handle in `radgotchi.js` inside `handleSystemEvent()`
+3. Handle in `src/renderer/health-monitor.js` inside `handleSystemEvent()`
 
 ## Code Style
 

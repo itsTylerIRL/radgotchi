@@ -26,3 +26,6 @@ npm-debug.log*
 
 # Generated files
 *.tsbuildinfo
+
+.bak
+*-ytp*

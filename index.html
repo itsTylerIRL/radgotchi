@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:;">
     <title>Radgotchi</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="src/styles/styles.css">
 </head>
 <body>
     <div id="radgotchi-container">
@@ -21,8 +21,6 @@
         <span class="radgotchi-status" id="radgotchi-status">SIGINT NOMINAL</span>
     </div>
     
-    <script src="sounds.js"></script>
-    <script src="radgotchi.js"></script>
-    <script src="renderer.js"></script>
+    <script type="module" src="src/renderer/main.js"></script>
 </body>
 </html>
