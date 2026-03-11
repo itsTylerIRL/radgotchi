@@ -338,42 +338,84 @@ function scheduleAudioRestart() {
     }, 1000);
 }
 
+// Try to find a PulseAudio/PipeWire monitor device (Linux system audio capture)
+async function findMonitorDevice() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const monitor = devices.find(d => d.kind === 'audioinput' &&
+            (d.label.toLowerCase().includes('monitor') || d.label.toLowerCase().includes('loopback')));
+        return monitor ? monitor.deviceId : null;
+    } catch (e) { return null; }
+}
+
+// Connect an audio stream to the analyser and start the visualization loop
+function connectAudioStream(stream) {
+    audioStream = stream;
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) return false;
+    audioTracks.forEach(t => { t.onended = () => scheduleAudioRestart(); });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+    audioContext.onstatechange = () => {
+        if (audioContext.state === 'suspended' && audioListening) audioContext.resume().catch(() => {});
+        else if (audioContext.state === 'closed' && audioListening) scheduleAudioRestart();
+    };
+    audioAnalyser = audioContext.createAnalyser();
+    audioAnalyser.fftSize = 512;
+    audioAnalyser.smoothingTimeConstant = 0.5;
+    audioAnalyser.minDecibels = -90;
+    audioAnalyser.maxDecibels = -10;
+    audioSource = audioContext.createMediaStreamSource(stream);
+    audioSource.connect(audioAnalyser);
+    audioListening = true;
+    consecutiveZeroFrames = 0;
+    audioDebugCounter = 0;
+    lastMeaningfulAudioTime = Date.now();
+    startAudioHealthCheck();
+    analyzeAudio();
+    const st = getAudioStatus();
+    statusEl.textContent = pick(st.silent);
+    return true;
+}
+
 async function startAudioListening() {
     if (audioListening) return true;
     if (isRestartingAudio) return false;
+
+    // Strategy 1: getDisplayMedia — system audio via WASAPI (Win) or ScreenCaptureKit (macOS)
     try {
-        audioStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        audioStream.getVideoTracks().forEach(t => t.stop());
-        const audioTracks = audioStream.getAudioTracks();
-        if (audioTracks.length === 0) {
-            console.error('System audio capture returned no audio tracks.');
-            return false;
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        stream.getVideoTracks().forEach(t => t.stop());
+        if (stream.getAudioTracks().length > 0) {
+            console.log('Audio capture: using system audio (getDisplayMedia)');
+            return connectAudioStream(stream);
         }
-        audioTracks.forEach(t => { t.onended = () => scheduleAudioRestart(); });
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') await audioContext.resume();
-        audioContext.onstatechange = () => {
-            if (audioContext.state === 'suspended' && audioListening) audioContext.resume().catch(() => {});
-            else if (audioContext.state === 'closed' && audioListening) scheduleAudioRestart();
-        };
-        audioAnalyser = audioContext.createAnalyser();
-        audioAnalyser.fftSize = 512;
-        audioAnalyser.smoothingTimeConstant = 0.5;
-        audioAnalyser.minDecibels = -90;
-        audioAnalyser.maxDecibels = -10;
-        audioSource = audioContext.createMediaStreamSource(audioStream);
-        audioSource.connect(audioAnalyser);
-        audioListening = true;
-        consecutiveZeroFrames = 0;
-        audioDebugCounter = 0;
-        lastMeaningfulAudioTime = Date.now();
-        startAudioHealthCheck();
-        analyzeAudio();
-        const st = getAudioStatus();
-        statusEl.textContent = pick(st.silent);
-        return true;
+        stream.getTracks().forEach(t => t.stop());
     } catch (err) {
-        console.error('System audio capture failed:', err.message);
+        console.warn('getDisplayMedia failed:', err.message);
+    }
+
+    // Strategy 2: PulseAudio/PipeWire monitor device (Linux system audio)
+    try {
+        const monitorId = await findMonitorDevice();
+        if (monitorId) {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: { deviceId: { exact: monitorId } }
+            });
+            console.log('Audio capture: using PulseAudio/PipeWire monitor device');
+            return connectAudioStream(stream);
+        }
+    } catch (err) {
+        console.warn('Monitor device capture failed:', err.message);
+    }
+
+    // Strategy 3: Microphone fallback — ambient audio detection (any platform)
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('Audio capture: using microphone fallback');
+        return connectAudioStream(stream);
+    } catch (err) {
+        console.error('All audio capture methods failed:', err.message);
         return false;
     }
 }

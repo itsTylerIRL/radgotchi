@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, screen, session } = require('electron');
+const { app, BrowserWindow, screen, session, desktopCapturer } = require('electron');
 const path = require('path');
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -227,11 +227,18 @@ function initializeApp() {
 }
 
 app.whenReady().then(() => {
-    // Display media request handler for system audio capture
-    // Use request.frame as video source to avoid DXGI 10-bit HDR incompatibility
-    // (IDXGIDuplicateOutput fails on 10-bit displays); audio loopback is WASAPI-based
+    // Display media request handler — platform-specific system audio capture
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-        callback({ video: request.frame, audio: 'loopback' });
+        if (process.platform === 'win32') {
+            // Windows: WASAPI loopback via request.frame (avoids DXGI 10-bit HDR issue)
+            callback({ video: request.frame, audio: 'loopback' });
+        } else {
+            // macOS: ScreenCaptureKit captures system audio when a screen source is provided (macOS 13+)
+            // Linux: provide screen source; renderer will fall back to mic/monitor if no audio tracks
+            desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+                callback(sources.length > 0 ? { video: sources[0] } : { video: request.frame });
+            }).catch(() => callback({ video: request.frame }));
+        }
     });
 
     // Grant audio/display-capture permissions
