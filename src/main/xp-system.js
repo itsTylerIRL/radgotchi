@@ -390,8 +390,6 @@ function getXpStatus() {
         stasisCycles: xpData.stasisCycles,
         deepestStasis: xpData.deepestStasis,
         totalStasis: xpData.totalStasis,
-        hunger: 0, // filled by caller
-        energy: 0,
         pomodoro: { active: false, mode: 'work', remaining: 0, pomosCompleted: 0 },
         workStarted: xpData.workStarted || 0,
         workCompleted: _getPomosCompleted ? _getPomosCompleted() : 0,

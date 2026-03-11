@@ -8,6 +8,8 @@ const vibeBtn = document.getElementById('vibe-btn');
 let eqBars = [];
 let isVibeDisabled = false;
 let audioActiveTimeout = null;
+let activeFrameCount = 0;
+const SUSTAIN_THRESHOLD = 5; // ~80ms at 60fps — filters out brief UI sound blips
 
 const EQ_BAR_WIDTH = 3;
 const EQ_BAR_GAP = 2;
@@ -32,7 +34,11 @@ function createEqBars() {
 }
 
 createEqBars();
-new ResizeObserver(() => createEqBars()).observe(equalizer);
+let resizeDebounce = null;
+new ResizeObserver(() => {
+    if (resizeDebounce) clearTimeout(resizeDebounce);
+    resizeDebounce = setTimeout(() => createEqBars(), 200);
+}).observe(equalizer);
 
 // Load saved vibe state
 try {
@@ -43,6 +49,20 @@ try {
         equalizer.classList.add('listening');
     }
 } catch(e) { equalizer.classList.add('listening'); }
+
+// When this window plays a UI sound, bridge the main-window audio reaction pause
+// so the equalizer doesn't fall back to 'listening' while music is still playing
+SoundSystem.onSoundPlay(() => {
+    if (audioActiveTimeout && equalizer.classList.contains('active')) {
+        clearTimeout(audioActiveTimeout);
+        audioActiveTimeout = setTimeout(() => {
+            equalizer.classList.remove('active');
+            equalizer.classList.add('listening');
+            eqBars.forEach(bar => bar.style.height = '');
+            activeFrameCount = 0;
+        }, 3000);
+    }
+});
 
 vibeBtn.addEventListener('click', () => {
     isVibeDisabled = !isVibeDisabled;
@@ -64,24 +84,34 @@ export function handleAudioLevels(data) {
     const numBars = eqBars.length;
     if (numBars === 0) return;
 
-    const maxHeight = 16, minHeight = 2, range = maxHeight - minHeight;
-    const srcLen = levels.length;
-    for (let i = 0; i < numBars; i++) {
-        const srcPos = (i / numBars) * srcLen;
-        const srcIdx = Math.floor(srcPos);
-        const frac = srcPos - srcIdx;
-        const level = (levels[srcIdx] || 0) + ((levels[Math.min(srcIdx + 1, srcLen - 1)] || 0) - (levels[srcIdx] || 0)) * frac;
-        eqBars[i].style.height = (minHeight + (level / 255) * range) + 'px';
+    if (isActive || equalizer.classList.contains('active')) {
+        const maxHeight = 16, minHeight = 2, range = maxHeight - minHeight;
+        const srcLen = levels.length;
+        for (let i = 0; i < numBars; i++) {
+            const srcPos = (i / numBars) * srcLen;
+            const srcIdx = Math.floor(srcPos);
+            const frac = srcPos - srcIdx;
+            const level = (levels[srcIdx] || 0) + ((levels[Math.min(srcIdx + 1, srcLen - 1)] || 0) - (levels[srcIdx] || 0)) * frac;
+            eqBars[i].style.height = (minHeight + (level / 255) * range) + 'px';
+        }
     }
 
     if (isActive) {
-        equalizer.classList.remove('listening');
-        equalizer.classList.add('active');
-        if (audioActiveTimeout) clearTimeout(audioActiveTimeout);
-        audioActiveTimeout = setTimeout(() => {
-            equalizer.classList.remove('active');
-            equalizer.classList.add('listening');
-            eqBars.forEach(bar => bar.style.height = '');
-        }, 2000);
+        activeFrameCount++;
+        if (activeFrameCount >= SUSTAIN_THRESHOLD && !equalizer.classList.contains('active')) {
+            equalizer.classList.remove('listening');
+            equalizer.classList.add('active');
+        }
+        if (equalizer.classList.contains('active')) {
+            if (audioActiveTimeout) clearTimeout(audioActiveTimeout);
+            audioActiveTimeout = setTimeout(() => {
+                equalizer.classList.remove('active');
+                equalizer.classList.add('listening');
+                eqBars.forEach(bar => bar.style.height = '');
+                activeFrameCount = 0;
+            }, 2000);
+        }
+    } else {
+        activeFrameCount = 0;
     }
 }

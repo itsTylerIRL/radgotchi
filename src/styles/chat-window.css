@@ -1975,7 +1975,6 @@ body::after {
 
 .terminal-title:hover {
     text-shadow: 0 0 10px var(--term-green), 0 0 20px var(--term-green), 0 0 30px var(--term-green);
-    letter-spacing: 2px;
 }
 
 /* Header buttons - enhanced hover with scan effect */

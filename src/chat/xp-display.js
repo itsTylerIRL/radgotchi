@@ -70,7 +70,7 @@ export function updateXpDisplay(xpData, animate = false) {
     if (!xpData) return;
     const { level, totalXp, xpIntoLevel, xpNeeded, progress, leveledUp, leveledDown, xpLost, source,
             rank, rankZh, totalClicks, totalMessages, totalSessions, totalUptimeMs, currentStreak, longestStreak,
-            totalStasis, deepestStasis, workStarted, workCompleted, hunger, energy } = xpData;
+            totalStasis, deepestStasis, workStarted, workCompleted } = xpData;
     const lang = getCurrentLang();
 
     levelBadge.textContent = 'LV ' + level;
@@ -89,7 +89,7 @@ export function updateXpDisplay(xpData, animate = false) {
     if (totalStasis !== undefined) document.getElementById('stat-stasis').textContent = formatUptime(totalStasis);
     if (deepestStasis !== undefined) document.getElementById('stat-deepest').textContent = formatUptime(deepestStasis);
     if (workCompleted !== undefined && workStarted !== undefined) document.getElementById('stat-work').textContent = workCompleted + ' (' + workStarted + ')';
-    if (hunger !== undefined) updateNeedsDisplay({ hunger, energy });
+
 
     if (leveledUp && animate) {
         SoundSystem.play('levelUp');

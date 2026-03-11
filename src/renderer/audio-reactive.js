@@ -200,11 +200,6 @@ function analyzeAudio() {
     if (audioContext && audioContext.state === 'suspended') {
         audioContext.resume().catch(() => {});
     }
-    if (audioReactionPaused) {
-        audioAnimationFrame = requestAnimationFrame(analyzeAudio);
-        return;
-    }
-
     const bufferLength = audioAnalyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
     audioAnalyser.getByteFrequencyData(dataArray);
@@ -227,26 +222,29 @@ function analyzeAudio() {
     if (!hasAnyData && sum === 0) consecutiveZeroFrames++;
     else consecutiveZeroFrames = 0;
 
-    const bassEnd = Math.floor(AUDIO_CONFIG.MUSIC_BASS_MAX / (audioContext.sampleRate / audioAnalyser.fftSize));
-    let bassSum = 0;
-    for (let i = 0; i < Math.min(bassEnd, bufferLength); i++) bassSum += dataArray[i];
-    const bassEnergy = bassSum / Math.min(bassEnd, bufferLength);
+    // Pet reactions are paused during self-sounds, but equalizer broadcast continues
+    if (!audioReactionPaused) {
+        const bassEnd = Math.floor(AUDIO_CONFIG.MUSIC_BASS_MAX / (audioContext.sampleRate / audioAnalyser.fftSize));
+        let bassSum = 0;
+        for (let i = 0; i < Math.min(bassEnd, bufferLength); i++) bassSum += dataArray[i];
+        const bassEnergy = bassSum / Math.min(bassEnd, bufferLength);
 
-    const now = Date.now();
+        const now = Date.now();
 
-    if (avgVolume > AUDIO_CONFIG.VOLUME_THRESHOLD) {
-        lastAudioReaction = now;
-        reactToAudio(avgVolume, bassEnergy);
-    } else {
-        if (now - lastAudioReaction > AUDIO_CONFIG.SILENCE_TIMEOUT && currentAudioMode) {
-            currentAudioMode = null;
-            faceEl.classList.remove('rg-dance', 'rg-vibe', 'rg-headbob', 'rg-notes', 'rg-audio-music', 'rg-audio-voice');
-            faceFlipWrapper.classList.add('rg-breathing');
-            desiredLookDir = 'right'; currentVibeFace = 'cool'; lastDirectionChange = 0;
-            if (!getIsLocked() && !getIsSleeping() && !getIsWorking()) {
-                setFace('awake');
-                const st = getAudioStatus();
-                statusEl.textContent = pick(st.silent);
+        if (avgVolume > AUDIO_CONFIG.VOLUME_THRESHOLD) {
+            lastAudioReaction = now;
+            reactToAudio(avgVolume, bassEnergy);
+        } else {
+            if (now - lastAudioReaction > AUDIO_CONFIG.SILENCE_TIMEOUT && currentAudioMode) {
+                currentAudioMode = null;
+                faceEl.classList.remove('rg-dance', 'rg-vibe', 'rg-headbob', 'rg-notes', 'rg-audio-music', 'rg-audio-voice');
+                faceFlipWrapper.classList.add('rg-breathing');
+                desiredLookDir = 'right'; currentVibeFace = 'cool'; lastDirectionChange = 0;
+                if (!getIsLocked() && !getIsSleeping() && !getIsWorking()) {
+                    setFace('awake');
+                    const st = getAudioStatus();
+                    statusEl.textContent = pick(st.silent);
+                }
             }
         }
     }

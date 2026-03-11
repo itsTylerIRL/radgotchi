@@ -10,6 +10,7 @@ let tray = null;
 let isAlwaysOnTop = true;
 let isDragging = false;
 let audioListeningEnabled = true;
+let trayMenuOpen = false;
 
 // Dependencies set during init
 let _persistence = null;
@@ -82,15 +83,15 @@ function createWindow() {
     }
 
     setInterval(() => {
-        if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop) {
+        if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop && !trayMenuOpen) {
             mainWindow.setAlwaysOnTop(true, 'screen-saver');
         }
     }, 5000);
 
     mainWindow.on('blur', () => {
-        if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop) {
+        if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop && !trayMenuOpen) {
             setTimeout(() => {
-                if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop) {
+                if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop && !trayMenuOpen) {
                     mainWindow.setAlwaysOnTop(true, 'screen-saver');
                 }
             }, 100);
@@ -162,10 +163,7 @@ function createWindow() {
     // XP System IPC
     ipcMain.handle('get-xp-status', async () => {
         const status = _xpSystem.getXpStatus();
-        const needs = _petNeeds.getNeeds();
         const pState = _pomodoro.getState();
-        status.hunger = needs.hunger;
-        status.energy = needs.energy;
         status.pomodoro = {
             active: pState.active,
             mode: pState.mode,
@@ -317,9 +315,6 @@ function createChatWindow() {
                 spriteState.color = state.color;
                 if (chatWindow) {
                     const xpStatus = _xpSystem.getXpStatus();
-                    const needs = _petNeeds.getNeeds();
-                    xpStatus.hunger = needs.hunger;
-                    xpStatus.energy = needs.energy;
                     const pState = _pomodoro.getState();
                     xpStatus.pomodoro = {
                         active: pState.active,
@@ -513,6 +508,11 @@ function createTray() {
 
     tray.setToolTip('Radgotchi');
     tray.setContextMenu(contextMenu);
+    tray.on('right-click', () => {
+        trayMenuOpen = true;
+        tray.popUpContextMenu(contextMenu);
+        trayMenuOpen = false;
+    });
     tray.on('click', () => { if (mainWindow.isVisible()) mainWindow.hide(); else mainWindow.show(); });
 }
 

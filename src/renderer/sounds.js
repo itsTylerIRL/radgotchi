@@ -335,6 +335,7 @@ const SoundSystem = (function() {
             try {
                 if (sounds[soundName]) {
                     sounds[soundName]();
+                    if (!enabled) return;
                     if (onSoundPlayCallback) onSoundPlayCallback(soundName);
                     if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.notifySoundPlayed) {
                         window.electronAPI.notifySoundPlayed(soundName);
