@@ -5,7 +5,7 @@ import { getCurrentLang, setCurrentLang, updateLanguage } from './translations.j
 import { addMessage, chatHistory, runBootAnimation, setSpriteState, setOperatorPfp,
          updateBroAvatars, startSleepTimer, stopSleepTimer, attentionMsgEl, setAttentionMsgEl } from './messages.js';
 import { updateXpDisplay, updateNeedsDisplay, updatePomodoroDisplay } from './xp-display.js';
-import { addNetworkNode, updateNetworkNode, removeNetworkNode, updateNetworkTranslations, handleMeshMessage } from './network-panel.js';
+import { addNetworkNode, updateNetworkNode, removeNetworkNode, updateNetworkTranslations, handleMeshMessage, loadMeshHistory } from './network-panel.js';
 import { handleAudioLevels } from './equalizer.js';
 import { applyColor, applyZoomSilent } from './controls.js';
 
@@ -97,6 +97,7 @@ api.onChatReady(async (data) => {
     if (data.isSleeping) { toggleSleep.classList.add('active'); terminalContainer.classList.add('sleeping'); startSleepTimer(); }
     if (data.language && data.language === 'zh') { toggleLang.classList.add('active'); toggleLang.textContent = 'EN'; updateLanguage('zh'); }
     if (data.pomodoroActive) togglePomo.classList.add('active');
+    loadMeshHistory();
 });
 
 // PFP updates
@@ -162,10 +163,10 @@ if (api.onPomodoroUpdate) api.onPomodoroUpdate(updatePomodoroDisplay);
 if (api.onPomodoroComplete) {
     api.onPomodoroComplete((data) => {
         SoundSystem.play('pomodoroComplete');
-        const { mode, pomosCompleted } = data;
+        const { mode, pomosCompleted, autoStarting } = data;
         const lang = getCurrentLang();
         let msg;
-        if (mode === 'work') msg = lang === 'zh' ? '🍅 专注完成！已完成 ' + pomosCompleted + ' 个番茄钟。休息一下？' : '🍅 FOCUS SESSION COMPLETE! ' + pomosCompleted + ' grinds. Time for a break?';
+        if (mode === 'work') msg = lang === 'zh' ? '🍅 专注完成！已完成 ' + pomosCompleted + ' 个番茄钟。自动开始休息...' : '🍅 FOCUS SESSION COMPLETE! ' + pomosCompleted + ' grinds. Auto-starting break...';
         else msg = lang === 'zh' ? '☕ 休息结束！准备好继续了吗？' : '☕ BREAK OVER! Ready to focus?';
         addMessage('system', msg, false, null, true);
     });

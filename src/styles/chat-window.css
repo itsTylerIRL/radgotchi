@@ -721,6 +721,17 @@ body::after {
     animation: need-low-pulse 1s ease-in-out infinite;
 }
 
+.need-fill.critical {
+    background: linear-gradient(90deg, #ff0022, #ff3344) !important;
+    animation: need-critical-pulse 0.5s ease-in-out infinite;
+    box-shadow: 0 0 6px rgba(255, 0, 34, 0.6);
+}
+
+@keyframes need-critical-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
 @keyframes need-low-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }

@@ -140,11 +140,13 @@ function completePomodoro() {
             `番茄钟完成！总计：${pomodoroState.pomosCompleted}`);
     }
 
+    const nextMode = completedMode === 'work' ? 'break' : 'work';
     const notification = {
         completed: true,
         mode: completedMode,
         pomosCompleted: pomodoroState.pomosCompleted,
-        nextMode: completedMode === 'work' ? 'break' : 'work',
+        nextMode: nextMode,
+        autoStarting: completedMode === 'work',
     };
 
     const mainWindow = _getMainWindow();
@@ -157,6 +159,11 @@ function completePomodoro() {
     }
 
     broadcastPomodoro();
+
+    // Auto-start break after work session
+    if (completedMode === 'work') {
+        setTimeout(() => startPomodoro('break'), 2000);
+    }
 }
 
 function broadcastPomodoro() {

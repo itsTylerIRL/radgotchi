@@ -12,6 +12,7 @@ const NEEDS_CONFIG = {
     CRITICAL_THRESHOLD: 10,
     XP_PENALTY_THRESHOLD: 20,
     XP_PENALTY_MULTIPLIER: 0.5,
+    SLEEP_ENERGY_REGEN: 0.4,
 };
 
 let petNeeds = {
@@ -24,10 +25,12 @@ let needsDecayInterval = null;
 
 let _getMainWindow = null;
 let _getChatWindow = null;
+let _getIsSleeping = null;
 
-function init({ getMainWindow, getChatWindow }) {
+function init({ getMainWindow, getChatWindow, getIsSleeping }) {
     _getMainWindow = getMainWindow;
     _getChatWindow = getChatWindow;
+    _getIsSleeping = getIsSleeping || (() => false);
 }
 
 function getNeeds() {
@@ -41,8 +44,13 @@ function startNeedsDecay() {
         const oldHunger = petNeeds.hunger;
         const oldEnergy = petNeeds.energy;
 
-        petNeeds.hunger = Math.max(0, petNeeds.hunger - NEEDS_CONFIG.HUNGER_DECAY);
-        petNeeds.energy = Math.max(0, petNeeds.energy - NEEDS_CONFIG.ENERGY_DECAY);
+        if (_getIsSleeping && _getIsSleeping()) {
+            // Sleeping: no hunger decay, energy regenerates slowly
+            petNeeds.energy = Math.min(NEEDS_CONFIG.MAX_VALUE, petNeeds.energy + NEEDS_CONFIG.SLEEP_ENERGY_REGEN);
+        } else {
+            petNeeds.hunger = Math.max(0, petNeeds.hunger - NEEDS_CONFIG.HUNGER_DECAY);
+            petNeeds.energy = Math.max(0, petNeeds.energy - NEEDS_CONFIG.ENERGY_DECAY);
+        }
 
         if (Math.floor(oldHunger) !== Math.floor(petNeeds.hunger) ||
             Math.floor(oldEnergy) !== Math.floor(petNeeds.energy)) {

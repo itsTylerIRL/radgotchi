@@ -64,5 +64,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getNetworkStatus: () => ipcRenderer.invoke('get-network-status'),
     getDiscoveredNodes: () => ipcRenderer.invoke('get-discovered-nodes'),
     sendMeshMessage: (text) => ipcRenderer.invoke('send-mesh-message', text),
+    getMeshMessages: () => ipcRenderer.invoke('get-mesh-messages'),
+    saveMeshMessages: (messages) => ipcRenderer.invoke('save-mesh-messages', messages),
     onNetworkUpdate: (callback) => ipcRenderer.on('network-update', (_event, data) => callback(data)),
 });

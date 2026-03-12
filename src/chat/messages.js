@@ -222,6 +222,7 @@ export async function sendMessage() {
         inputEl.focus();
     };
 
+    window.electronAPI.removeChatStreamListeners();
     window.electronAPI.onChatStreamChunk(handleChunk);
     window.electronAPI.onChatStreamError(handleError);
     window.electronAPI.sendChatMessageStream(chatHistory);

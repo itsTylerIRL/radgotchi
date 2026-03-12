@@ -19,6 +19,7 @@ const meshSendBtn = document.getElementById('mesh-send-btn');
 let networkEnabled = false;
 const discoveredNodesMap = new Map();
 const MESH_MSG_MAX = 50;
+let meshMessageHistory = [];
 
 const ACTIVITY_ICONS = {
     idle: '💤',
@@ -70,12 +71,13 @@ function renderNetworkNodes() {
             const actIcon = ACTIVITY_ICONS[node.activity] || '';
             const hunger = typeof node.hunger === 'number' ? Math.round(node.hunger) : 100;
             const energy = typeof node.energy === 'number' ? Math.round(node.energy) : 100;
+            const nodeColor = node.color || 'var(--term-green)';
 
             nodeEl.innerHTML = `
                 <div class="node-signal ${signalClass}" title="Signal: ${node.signalStrength || 'UNKNOWN'}"></div>
                 <div class="node-info">
                     <div class="node-top-row">
-                        <span class="node-id">${node.nodeId}</span>
+                        <span class="node-id" style="color: ${nodeColor}">${node.nodeId}</span>
                         <span class="node-operator">${node.operatorName || 'UNKNOWN'}</span>
                         <span class="node-rank">${node.rank || 'TRAINEE'}</span>
                         <span class="node-level">LV${node.level || 1}</span>
@@ -87,6 +89,9 @@ function renderNetworkNodes() {
                     </div>
                 </div>
             `;
+            if (nodeColor && nodeColor !== 'var(--term-green)') {
+                nodeEl.style.borderColor = nodeColor + '33';
+            }
             if (actClass) nodeEl.classList.add(actClass);
             networkNodes.appendChild(nodeEl);
         });
@@ -121,10 +126,11 @@ export function removeNetworkNode(node) {
 
 // === Mesh Chat ===
 
-function addMeshMessage(nodeId, operatorName, text) {
+function addMeshMessage(nodeId, operatorName, text, timestamp = null) {
     const msgEl = document.createElement('div');
     msgEl.className = 'mesh-msg';
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const ts = timestamp ? new Date(timestamp) : new Date();
+    const time = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const safeOp = (operatorName || 'UNKNOWN').replace(/</g, '&lt;');
     const safeText = (text || '').replace(/</g, '&lt;');
     msgEl.innerHTML = `<span class="mesh-msg-time">${time}</span><span class="mesh-msg-sender">${safeOp}</span><span class="mesh-msg-text">${safeText}</span>`;
@@ -139,9 +145,18 @@ function addMeshMessage(nodeId, operatorName, text) {
     setTimeout(() => networkBar.classList.remove('mesh-pulse'), 600);
 }
 
+function persistMeshMessage(nodeId, operatorName, text) {
+    meshMessageHistory.push({ nodeId, operatorName, text, timestamp: Date.now() });
+    if (meshMessageHistory.length > MESH_MSG_MAX) meshMessageHistory = meshMessageHistory.slice(-MESH_MSG_MAX);
+    if (window.electronAPI && window.electronAPI.saveMeshMessages) {
+        window.electronAPI.saveMeshMessages(meshMessageHistory);
+    }
+}
+
 export function handleMeshMessage(data) {
     if (!data || !data.text) return;
     addMeshMessage(data.nodeId, data.operatorName, data.text);
+    persistMeshMessage(data.nodeId, data.operatorName, data.text);
     SoundSystem.play('hover');
 }
 
@@ -151,6 +166,7 @@ function sendMeshMsg() {
     if (window.electronAPI && window.electronAPI.sendMeshMessage) {
         window.electronAPI.sendMeshMessage(text);
         addMeshMessage('local', 'YOU', text);
+        persistMeshMessage('local', 'YOU', text);
         meshInput.value = '';
         SoundSystem.play('click');
     }
@@ -177,6 +193,7 @@ networkToggleBtn.addEventListener('click', async (e) => {
             discoveredNodesMap.clear();
             renderNetworkNodes();
             meshMessages.innerHTML = '';
+            meshMessageHistory = [];
         }
     }
 });
@@ -188,3 +205,16 @@ networkExpandBtn.addEventListener('click', (e) => { e.stopPropagation(); network
 // Default: visible but collapsed
 networkBar.classList.add('visible');
 networkBar.classList.add('collapsed');
+
+// Load persisted mesh messages
+export async function loadMeshHistory() {
+    if (window.electronAPI && window.electronAPI.getMeshMessages) {
+        try {
+            const saved = await window.electronAPI.getMeshMessages();
+            if (Array.isArray(saved) && saved.length > 0) {
+                meshMessageHistory = saved;
+                saved.forEach(msg => addMeshMessage(msg.nodeId, msg.operatorName, msg.text, msg.timestamp));
+            }
+        } catch (e) { console.error('Failed to load mesh history:', e); }
+    }
+}

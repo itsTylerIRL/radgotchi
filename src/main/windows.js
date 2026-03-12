@@ -263,6 +263,8 @@ function createWindow() {
     ipcMain.handle('get-network-status', async () => _networkDiscovery.getNetworkStatus());
     ipcMain.handle('get-discovered-nodes', async () => _networkDiscovery.getDiscoveredNodes());
     ipcMain.handle('send-mesh-message', async (event, text) => _networkDiscovery.sendMeshMessage(text));
+    ipcMain.handle('get-mesh-messages', async () => _persistence.loadMeshMessagesFromDisk());
+    ipcMain.handle('save-mesh-messages', async (event, messages) => { _persistence.saveMeshMessagesToDisk(messages); return true; });
 
     mainWindow.on('closed', () => { mainWindow = null; });
 

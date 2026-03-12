@@ -179,19 +179,16 @@ function startIdleRoutine() {
     let pool = idleRoutines.filter(r => !r.minLevel || currentLevel >= r.minLevel);
     const hour = new Date().getHours();
     const isNight = hour >= 23 || hour < 6;
-    let systemHealth = 'good'; // Will be updated via setSystemHealth
 
     if (isNight) {
         const nap = pool.find(r => r.name === 'nap_prep');
         if (nap) { pool.push(nap); pool.push(nap); }
     }
-    if (currentLevel >= LEVEL_UNLOCKS.LEGENDARY) {
-        const lr = pool.find(r => r.name === 'legendary');
-        if (lr) pool.push(lr);
-    }
-    if (currentLevel >= LEVEL_UNLOCKS.ELITE_STATUS) {
-        const er = pool.find(r => r.name === 'elite_ops');
-        if (er) pool.push(er);
+
+    // Boost level-gated routines so higher-level pets show off more
+    const gated = pool.filter(r => r.minLevel && currentLevel >= r.minLevel);
+    for (const r of gated) {
+        pool.push(r); // double weight for unlocked advanced routines
     }
     pool = pool.filter(Boolean);
     currentRoutine = pick(pool);

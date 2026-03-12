@@ -252,6 +252,39 @@ function savePetMemoryToDisk(dataToSave) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Mesh Message Persistence
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MESH_MSG_PERSIST_MAX = 50;
+
+function getMeshMessagesPath() {
+    return path.join(_app.getPath('userData'), 'mesh-messages.json');
+}
+
+function loadMeshMessagesFromDisk() {
+    try {
+        const dataPath = getMeshMessagesPath();
+        if (fs.existsSync(dataPath)) {
+            const data = fs.readFileSync(dataPath, 'utf8');
+            const parsed = JSON.parse(data);
+            return Array.isArray(parsed) ? parsed.slice(-MESH_MSG_PERSIST_MAX) : [];
+        }
+    } catch (e) {
+        console.error('Failed to load mesh messages:', e);
+    }
+    return [];
+}
+
+function saveMeshMessagesToDisk(messages) {
+    try {
+        const trimmed = Array.isArray(messages) ? messages.slice(-MESH_MSG_PERSIST_MAX) : [];
+        fs.writeFileSync(getMeshMessagesPath(), JSON.stringify(trimmed));
+    } catch (e) {
+        console.error('Failed to save mesh messages:', e);
+    }
+}
+
 module.exports = {
     init,
     getAssetPath,
@@ -273,4 +306,7 @@ module.exports = {
     // Pet memory
     loadPetMemoryFromDisk,
     savePetMemoryToDisk,
+    // Mesh messages
+    loadMeshMessagesFromDisk,
+    saveMeshMessagesToDisk,
 };

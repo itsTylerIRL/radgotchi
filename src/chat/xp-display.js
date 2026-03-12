@@ -117,13 +117,15 @@ export function updateXpDisplay(xpData, animate = false) {
 
 export function updateNeedsDisplay(needs) {
     if (!needs) return;
-    const { hunger, energy, hungerLow, energyLow } = needs;
+    const { hunger, energy, hungerLow, energyLow, hungerCritical, energyCritical } = needs;
     hungerFill.style.width = hunger + '%';
     hungerValue.textContent = Math.round(hunger);
     energyFill.style.width = energy + '%';
     energyValue.textContent = Math.round(energy);
     hungerFill.classList.toggle('low', hunger < 30 || !!hungerLow);
     energyFill.classList.toggle('low', energy < 30 || !!energyLow);
+    hungerFill.classList.toggle('critical', hunger < 10 || !!hungerCritical);
+    energyFill.classList.toggle('critical', energy < 10 || !!energyCritical);
 }
 
 export function updatePomodoroDisplay(data) {

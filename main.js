@@ -109,6 +109,7 @@ function initModules() {
     petNeeds.init({
         getMainWindow: windows.getMainWindow,
         getChatWindow: windows.getChatWindow,
+        getIsSleeping: sleepWork.getIsSleeping,
     });
 
     xpSystem.init({
@@ -176,6 +177,7 @@ function initModules() {
         getIsVibing: sleepWork.getIsVibing,
         getPomodoroState: pomodoro.getState,
         getNeeds: petNeeds.getNeeds,
+        getColor: () => llm.getSpriteState().color || '#ff3344',
     });
 
     petMemory.init({ persistence, llm });

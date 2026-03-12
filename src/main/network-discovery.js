@@ -19,6 +19,10 @@ let cleanupInterval = null;
 let discoveredNodes = new Map();
 let localNodeId = null;
 
+// Mesh message dedup — track recently seen msgIds
+const recentMeshMsgIds = new Set();
+const MESH_DEDUP_MAX = 200;
+
 // Callbacks set during init
 let _getXpData = null;
 let _getLlmConfig = null;
@@ -28,8 +32,9 @@ let _getIsSleeping = null;
 let _getIsVibing = null;
 let _getPomodoroState = null;
 let _getNeeds = null;
+let _getColor = null;
 
-function init({ getXpData, getLlmConfig, getRank, getChatWindow, getIsSleeping, getIsVibing, getPomodoroState, getNeeds }) {
+function init({ getXpData, getLlmConfig, getRank, getChatWindow, getIsSleeping, getIsVibing, getPomodoroState, getNeeds, getColor }) {
     _getXpData = getXpData;
     _getLlmConfig = getLlmConfig;
     _getRank = getRank;
@@ -38,6 +43,7 @@ function init({ getXpData, getLlmConfig, getRank, getChatWindow, getIsSleeping, 
     _getIsVibing = getIsVibing;
     _getPomodoroState = getPomodoroState;
     _getNeeds = getNeeds;
+    _getColor = getColor || (() => '#ff3344');
 }
 
 function generateNodeId() {
@@ -91,6 +97,14 @@ function startNetworkDiscovery() {
                 if (data.type === 'message') {
                     const text = typeof data.text === 'string' ? data.text.slice(0, NETWORK_CONFIG.MESSAGE_MAX_LENGTH) : '';
                     if (!text) return;
+                    // Deduplicate: skip if we already processed this msgId
+                    const msgId = data.msgId;
+                    if (!msgId || recentMeshMsgIds.has(msgId)) return;
+                    recentMeshMsgIds.add(msgId);
+                    if (recentMeshMsgIds.size > MESH_DEDUP_MAX) {
+                        const first = recentMeshMsgIds.values().next().value;
+                        recentMeshMsgIds.delete(first);
+                    }
                     broadcastNetworkUpdate('mesh-message', {
                         nodeId: data.nodeId,
                         operatorName: data.operatorName || 'UNKNOWN',
@@ -112,6 +126,7 @@ function startNetworkDiscovery() {
                     activity: data.activity || 'idle',
                     hunger: typeof data.hunger === 'number' ? data.hunger : 100,
                     energy: typeof data.energy === 'number' ? data.energy : 100,
+                    color: typeof data.color === 'string' ? data.color : null,
                 };
 
                 const isNew = !discoveredNodes.has(data.nodeId);
@@ -186,6 +201,7 @@ function broadcastPresence() {
         activity: activity,
         hunger: typeof needs.hunger === 'number' ? Math.round(needs.hunger) : 100,
         energy: typeof needs.energy === 'number' ? Math.round(needs.energy) : 100,
+        color: _getColor(),
         timestamp: Date.now(),
     });
 
@@ -261,12 +277,14 @@ function sendMeshMessage(text) {
     if (!sanitized) return false;
 
     const llmConfig = _getLlmConfig();
+    const msgId = localNodeId + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     const message = JSON.stringify({
         protocol: NETWORK_CONFIG.PROTOCOL_VERSION,
         type: 'message',
         nodeId: localNodeId,
         operatorName: llmConfig?.operatorName || 'OPERATOR',
         text: sanitized,
+        msgId: msgId,
         timestamp: Date.now(),
     });
 
