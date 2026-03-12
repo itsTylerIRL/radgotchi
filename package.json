@@ -31,7 +31,10 @@
     "tamagotchi",
     "system-monitor"
   ],
-  "author": "Radgotchi Team",
+  "author": {
+    "name": "Tyler",
+    "email": "tyler@tylerirl.com"
+  },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/itsTylerIRL/radgotchi/issues"
