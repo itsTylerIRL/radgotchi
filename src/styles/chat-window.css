@@ -911,7 +911,7 @@ body::after {
     background: rgba(0, 255, 136, 0.02);
     border-bottom: 1px solid rgba(0, 255, 136, 0.15);
     font-size: 8px;
-    max-height: 120px;
+    max-height: 260px;
     overflow: hidden;
     transition: max-height 0.3s ease;
 }
@@ -1011,12 +1011,12 @@ body::after {
     flex: 1;
     overflow-y: auto;
     padding: 4px 8px;
-    max-height: 80px;
+    max-height: 110px;
 }
 
 .network-node {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     gap: 8px;
     padding: 4px 8px;
     margin-bottom: 3px;
@@ -1024,6 +1024,26 @@ body::after {
     border: 1px solid rgba(0, 255, 136, 0.15);
     border-radius: 2px;
     animation: node-appear 0.3s ease-out;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.network-node:hover {
+    border-color: rgba(0, 255, 136, 0.4);
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.1);
+}
+
+.node-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.node-top-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 @keyframes node-appear {
@@ -1045,6 +1065,7 @@ body::after {
     height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
+    align-self: center;
 }
 
 .node-signal.strong {
@@ -1136,6 +1157,219 @@ body::after {
 @keyframes scanning-wave {
     0%, 100% { transform: scale(0.8); opacity: 0.4; }
     50% { transform: scale(1.2); opacity: 1; }
+}
+
+/* Node mini health bars */
+.node-bars {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.node-bar-track {
+    flex: 1;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 1px;
+    overflow: hidden;
+}
+
+.node-bar-fill {
+    height: 100%;
+    border-radius: 1px;
+    transition: width 0.6s ease;
+}
+
+.node-bar-fill.hunger {
+    background: var(--term-green);
+    box-shadow: 0 0 4px rgba(0, 255, 136, 0.4);
+}
+
+.node-bar-fill.energy {
+    background: var(--term-cyan);
+    box-shadow: 0 0 4px rgba(0, 212, 255, 0.4);
+}
+
+/* Activity indicator */
+.node-activity {
+    font-size: 8px;
+    flex-shrink: 0;
+    transition: transform 0.3s;
+}
+
+.node-activity.activity-vibing {
+    animation: activity-bounce 0.6s ease-in-out infinite;
+}
+
+.node-activity.activity-sleeping {
+    animation: activity-float 2s ease-in-out infinite;
+    opacity: 0.6;
+}
+
+.node-activity.activity-grinding {
+    animation: activity-pulse 1s ease-in-out infinite;
+}
+
+.node-activity.activity-break {
+    animation: activity-sway 1.5s ease-in-out infinite;
+}
+
+@keyframes activity-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
+}
+
+@keyframes activity-float {
+    0%, 100% { transform: translateY(0) scale(1); opacity: 0.5; }
+    50% { transform: translateY(-1px) scale(1.1); opacity: 0.8; }
+}
+
+@keyframes activity-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+}
+
+@keyframes activity-sway {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(5deg); }
+    75% { transform: rotate(-5deg); }
+}
+
+/* Vibing node glow */
+.network-node.activity-vibing {
+    border-color: rgba(0, 255, 136, 0.35);
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.15);
+    animation: node-appear 0.3s ease-out, node-vibe-glow 2s ease-in-out infinite;
+}
+
+@keyframes node-vibe-glow {
+    0%, 100% { box-shadow: 0 0 6px rgba(0, 255, 136, 0.1); }
+    50% { box-shadow: 0 0 14px rgba(0, 255, 136, 0.3); }
+}
+
+/* Sleeping node dimming */
+.network-node.activity-sleeping {
+    opacity: 0.55;
+    border-color: rgba(0, 212, 255, 0.15);
+}
+
+/* Grinding node amber accent */
+.network-node.activity-grinding {
+    border-color: rgba(255, 170, 0, 0.3);
+    animation: node-appear 0.3s ease-out, node-grind-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes node-grind-glow {
+    0%, 100% { box-shadow: 0 0 4px rgba(255, 170, 0, 0.1); }
+    50% { box-shadow: 0 0 10px rgba(255, 170, 0, 0.25); }
+}
+
+/* Mesh chat header pulse on new message */
+.network-bar.mesh-pulse .network-header {
+    animation: mesh-header-pulse 0.6s ease-out;
+}
+
+@keyframes mesh-header-pulse {
+    0% { background: rgba(0, 255, 136, 0.2); }
+    100% { background: rgba(0, 255, 136, 0.05); }
+}
+
+/* Mesh Chat Area */
+.mesh-chat {
+    border-top: 1px solid rgba(0, 255, 136, 0.1);
+    display: flex;
+    flex-direction: column;
+    max-height: 100px;
+    overflow: hidden;
+}
+
+.mesh-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 8px;
+    max-height: 66px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 255, 136, 0.2) transparent;
+}
+
+.mesh-msg {
+    display: flex;
+    gap: 6px;
+    padding: 2px 0;
+    font-size: 7px;
+    line-height: 1.4;
+    animation: mesh-msg-in 0.25s ease-out;
+}
+
+@keyframes mesh-msg-in {
+    0% { opacity: 0; transform: translateY(4px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+.mesh-msg-time {
+    color: var(--term-dim);
+    flex-shrink: 0;
+    font-size: 6px;
+    opacity: 0.6;
+}
+
+.mesh-msg-sender {
+    color: var(--term-cyan);
+    font-weight: 700;
+    flex-shrink: 0;
+    font-size: 7px;
+}
+
+.mesh-msg-text {
+    color: var(--term-green);
+    word-break: break-word;
+}
+
+.mesh-input-row {
+    display: flex;
+    gap: 4px;
+    padding: 4px 8px;
+    border-top: 1px solid rgba(0, 255, 136, 0.08);
+}
+
+.mesh-input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    color: var(--term-green);
+    font-family: inherit;
+    font-size: 8px;
+    padding: 3px 6px;
+    outline: none;
+    border-radius: 1px;
+}
+
+.mesh-input:focus {
+    border-color: var(--term-green);
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.2);
+}
+
+.mesh-input::placeholder {
+    color: var(--term-dim);
+    font-size: 7px;
+}
+
+.mesh-send-btn {
+    background: rgba(0, 255, 136, 0.1);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    color: var(--term-green);
+    font-family: inherit;
+    font-size: 7px;
+    font-weight: 700;
+    padding: 2px 8px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+}
+
+.mesh-send-btn:hover {
+    background: rgba(0, 255, 136, 0.2);
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
 }
 
 /* Messages area */

@@ -172,6 +172,10 @@ function initModules() {
         getLlmConfig: llm.getLlmConfig,
         getRank: xpSystem.getRank,
         getChatWindow: windows.getChatWindow,
+        getIsSleeping: sleepWork.getIsSleeping,
+        getIsVibing: sleepWork.getIsVibing,
+        getPomodoroState: pomodoro.getState,
+        getNeeds: petNeeds.getNeeds,
     });
 
     petMemory.init({ persistence, llm });

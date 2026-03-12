@@ -262,6 +262,7 @@ function createWindow() {
     });
     ipcMain.handle('get-network-status', async () => _networkDiscovery.getNetworkStatus());
     ipcMain.handle('get-discovered-nodes', async () => _networkDiscovery.getDiscoveredNodes());
+    ipcMain.handle('send-mesh-message', async (event, text) => _networkDiscovery.sendMeshMessage(text));
 
     mainWindow.on('closed', () => { mainWindow = null; });
 

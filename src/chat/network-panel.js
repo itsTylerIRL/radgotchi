@@ -1,4 +1,4 @@
-// Network discovery panel (RAD MESH)
+// Network discovery panel (RAD MESH) — asset list, mesh chat, activity broadcasting
 
 import SoundSystem from '../renderer/sounds.js';
 import { networkTranslations, getCurrentLang } from './translations.js';
@@ -11,9 +11,30 @@ const networkExpandBtn = document.getElementById('network-expand-btn');
 const networkNodes = document.getElementById('network-nodes');
 const networkNodeCount = document.getElementById('network-node-count');
 const networkTitleText = document.getElementById('network-title-text');
+const meshChat = document.getElementById('mesh-chat');
+const meshMessages = document.getElementById('mesh-messages');
+const meshInput = document.getElementById('mesh-input');
+const meshSendBtn = document.getElementById('mesh-send-btn');
 
 let networkEnabled = false;
 const discoveredNodesMap = new Map();
+const MESH_MSG_MAX = 50;
+
+const ACTIVITY_ICONS = {
+    idle: '💤',
+    vibing: '🎵',
+    sleeping: '😴',
+    grinding: '🍅',
+    break: '☕',
+};
+
+const ACTIVITY_CLASSES = {
+    idle: '',
+    vibing: 'activity-vibing',
+    sleeping: 'activity-sleeping',
+    grinding: 'activity-grinding',
+    break: 'activity-break',
+};
 
 export function updateNetworkTranslations() {
     const t = networkTranslations[getCurrentLang()];
@@ -45,13 +66,28 @@ function renderNetworkNodes() {
             nodeEl.className = 'network-node';
             nodeEl.dataset.nodeId = node.nodeId;
             const signalClass = node.signalStrength ? node.signalStrength.toLowerCase() : 'weak';
+            const actClass = ACTIVITY_CLASSES[node.activity] || '';
+            const actIcon = ACTIVITY_ICONS[node.activity] || '';
+            const hunger = typeof node.hunger === 'number' ? Math.round(node.hunger) : 100;
+            const energy = typeof node.energy === 'number' ? Math.round(node.energy) : 100;
+
             nodeEl.innerHTML = `
                 <div class="node-signal ${signalClass}" title="Signal: ${node.signalStrength || 'UNKNOWN'}"></div>
-                <span class="node-id">${node.nodeId}</span>
-                <span class="node-operator">${node.operatorName || 'UNKNOWN'}</span>
-                <span class="node-rank">${node.rank || 'TRAINEE'}</span>
-                <span class="node-level">LV${node.level || 1}</span>
+                <div class="node-info">
+                    <div class="node-top-row">
+                        <span class="node-id">${node.nodeId}</span>
+                        <span class="node-operator">${node.operatorName || 'UNKNOWN'}</span>
+                        <span class="node-rank">${node.rank || 'TRAINEE'}</span>
+                        <span class="node-level">LV${node.level || 1}</span>
+                        <span class="node-activity ${actClass}" title="${node.activity || 'idle'}">${actIcon}</span>
+                    </div>
+                    <div class="node-bars">
+                        <div class="node-bar-track"><div class="node-bar-fill hunger" style="width:${hunger}%"></div></div>
+                        <div class="node-bar-track"><div class="node-bar-fill energy" style="width:${energy}%"></div></div>
+                    </div>
+                </div>
             `;
+            if (actClass) nodeEl.classList.add(actClass);
             networkNodes.appendChild(nodeEl);
         });
 }
@@ -83,6 +119,49 @@ export function removeNetworkNode(node) {
     addMessage('system', `📡 ${t.nodeOffline}: ${node.nodeId}`);
 }
 
+// === Mesh Chat ===
+
+function addMeshMessage(nodeId, operatorName, text) {
+    const msgEl = document.createElement('div');
+    msgEl.className = 'mesh-msg';
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const safeOp = (operatorName || 'UNKNOWN').replace(/</g, '&lt;');
+    const safeText = (text || '').replace(/</g, '&lt;');
+    msgEl.innerHTML = `<span class="mesh-msg-time">${time}</span><span class="mesh-msg-sender">${safeOp}</span><span class="mesh-msg-text">${safeText}</span>`;
+    meshMessages.appendChild(msgEl);
+
+    // Trim old messages
+    while (meshMessages.children.length > MESH_MSG_MAX) meshMessages.removeChild(meshMessages.firstChild);
+    meshMessages.scrollTop = meshMessages.scrollHeight;
+
+    // Pulse the header when a message arrives
+    networkBar.classList.add('mesh-pulse');
+    setTimeout(() => networkBar.classList.remove('mesh-pulse'), 600);
+}
+
+export function handleMeshMessage(data) {
+    if (!data || !data.text) return;
+    addMeshMessage(data.nodeId, data.operatorName, data.text);
+    SoundSystem.play('hover');
+}
+
+function sendMeshMsg() {
+    const text = meshInput.value.trim();
+    if (!text) return;
+    if (window.electronAPI && window.electronAPI.sendMeshMessage) {
+        window.electronAPI.sendMeshMessage(text);
+        addMeshMessage('local', 'YOU', text);
+        meshInput.value = '';
+        SoundSystem.play('click');
+    }
+}
+
+meshSendBtn.addEventListener('click', sendMeshMsg);
+meshInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); sendMeshMsg(); }
+    e.stopPropagation(); // prevent chat input from stealing keystrokes
+});
+
 // Toggle network discovery
 networkToggleBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
@@ -97,6 +176,7 @@ networkToggleBtn.addEventListener('click', async (e) => {
         } else {
             discoveredNodesMap.clear();
             renderNetworkNodes();
+            meshMessages.innerHTML = '';
         }
     }
 });

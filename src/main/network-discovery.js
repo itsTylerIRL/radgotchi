@@ -9,6 +9,7 @@ const NETWORK_CONFIG = {
     STALE_THRESHOLD_MS: 15000,
     CLEANUP_INTERVAL_MS: 10000,
     PROTOCOL_VERSION: 'SIGINT-1.0',
+    MESSAGE_MAX_LENGTH: 200,
 };
 
 let networkDiscoveryEnabled = false;
@@ -23,12 +24,20 @@ let _getXpData = null;
 let _getLlmConfig = null;
 let _getRank = null;
 let _getChatWindow = null;
+let _getIsSleeping = null;
+let _getIsVibing = null;
+let _getPomodoroState = null;
+let _getNeeds = null;
 
-function init({ getXpData, getLlmConfig, getRank, getChatWindow }) {
+function init({ getXpData, getLlmConfig, getRank, getChatWindow, getIsSleeping, getIsVibing, getPomodoroState, getNeeds }) {
     _getXpData = getXpData;
     _getLlmConfig = getLlmConfig;
     _getRank = getRank;
     _getChatWindow = getChatWindow;
+    _getIsSleeping = getIsSleeping;
+    _getIsVibing = getIsVibing;
+    _getPomodoroState = getPomodoroState;
+    _getNeeds = getNeeds;
 }
 
 function generateNodeId() {
@@ -78,6 +87,18 @@ function startNetworkDiscovery() {
                 if (data.protocol !== NETWORK_CONFIG.PROTOCOL_VERSION) return;
                 if (data.nodeId === localNodeId) return;
 
+                // Handle mesh messages
+                if (data.type === 'message') {
+                    const text = typeof data.text === 'string' ? data.text.slice(0, NETWORK_CONFIG.MESSAGE_MAX_LENGTH) : '';
+                    if (!text) return;
+                    broadcastNetworkUpdate('mesh-message', {
+                        nodeId: data.nodeId,
+                        operatorName: data.operatorName || 'UNKNOWN',
+                        text,
+                    });
+                    return;
+                }
+
                 const nodeData = {
                     nodeId: data.nodeId,
                     hostname: data.hostname,
@@ -88,6 +109,9 @@ function startNetworkDiscovery() {
                     operatorName: data.operatorName || 'UNKNOWN',
                     lastSeen: Date.now(),
                     signalStrength: calculateSignalStrength(rinfo.address),
+                    activity: data.activity || 'idle',
+                    hunger: typeof data.hunger === 'number' ? data.hunger : 100,
+                    energy: typeof data.energy === 'number' ? data.energy : 100,
                 };
 
                 const isNew = !discoveredNodes.has(data.nodeId);
@@ -143,6 +167,15 @@ function broadcastPresence() {
     const level = xpData?.level || 1;
     const rank = _getRank(level)?.name || 'TRAINEE';
 
+    // Determine current activity
+    let activity = 'idle';
+    if (_getIsSleeping && _getIsSleeping()) activity = 'sleeping';
+    else if (_getPomodoroState && _getPomodoroState().active) activity = _getPomodoroState().mode === 'work' ? 'grinding' : 'break';
+    else if (_getIsVibing && _getIsVibing()) activity = 'vibing';
+
+    // Get needs
+    const needs = _getNeeds ? _getNeeds() : {};
+
     const message = JSON.stringify({
         protocol: NETWORK_CONFIG.PROTOCOL_VERSION,
         nodeId: localNodeId,
@@ -150,6 +183,9 @@ function broadcastPresence() {
         level: level,
         rank: rank,
         operatorName: llmConfig?.operatorName || 'OPERATOR',
+        activity: activity,
+        hunger: typeof needs.hunger === 'number' ? Math.round(needs.hunger) : 100,
+        energy: typeof needs.energy === 'number' ? Math.round(needs.energy) : 100,
         timestamp: Date.now(),
     });
 
@@ -219,10 +255,38 @@ function getNetworkStatus() {
     };
 }
 
+function sendMeshMessage(text) {
+    if (!udpSocket || !networkDiscoveryEnabled || !localNodeId) return false;
+    const sanitized = typeof text === 'string' ? text.slice(0, NETWORK_CONFIG.MESSAGE_MAX_LENGTH) : '';
+    if (!sanitized) return false;
+
+    const llmConfig = _getLlmConfig();
+    const message = JSON.stringify({
+        protocol: NETWORK_CONFIG.PROTOCOL_VERSION,
+        type: 'message',
+        nodeId: localNodeId,
+        operatorName: llmConfig?.operatorName || 'OPERATOR',
+        text: sanitized,
+        timestamp: Date.now(),
+    });
+
+    const buffer = Buffer.from(message);
+    const addresses = getLocalIpAddresses();
+    addresses.forEach(addr => {
+        try { udpSocket.send(buffer, 0, buffer.length, NETWORK_CONFIG.PORT, addr.broadcast); }
+        catch (e) {}
+    });
+    return true;
+}
+
+function getLocalNodeId() { return localNodeId; }
+
 module.exports = {
     init,
     startNetworkDiscovery,
     stopNetworkDiscovery,
     getDiscoveredNodes,
     getNetworkStatus,
+    sendMeshMessage,
+    getLocalNodeId,
 };

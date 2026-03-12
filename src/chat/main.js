@@ -5,7 +5,7 @@ import { getCurrentLang, setCurrentLang, updateLanguage } from './translations.j
 import { addMessage, chatHistory, runBootAnimation, setSpriteState, setOperatorPfp,
          updateBroAvatars, startSleepTimer, stopSleepTimer, attentionMsgEl, setAttentionMsgEl } from './messages.js';
 import { updateXpDisplay, updateNeedsDisplay, updatePomodoroDisplay } from './xp-display.js';
-import { addNetworkNode, updateNetworkNode, removeNetworkNode, updateNetworkTranslations } from './network-panel.js';
+import { addNetworkNode, updateNetworkNode, removeNetworkNode, updateNetworkTranslations, handleMeshMessage } from './network-panel.js';
 import { handleAudioLevels } from './equalizer.js';
 import { applyColor, applyZoomSilent } from './controls.js';
 
@@ -187,6 +187,7 @@ if (api.onNetworkUpdate) {
         if (data.type === 'node-online') addNetworkNode(data.node);
         else if (data.type === 'node-update') updateNetworkNode(data.node);
         else if (data.type === 'node-offline') removeNetworkNode(data.node);
+        else if (data.type === 'mesh-message') handleMeshMessage(data.node);
     });
 }
 
