@@ -9,6 +9,12 @@ function safeOn(channel, handler) {
 
 // Expose protected methods for window dragging and system metrics
 contextBridge.exposeInMainWorld('electronAPI', {
+    // Click-through (pass clicks through transparent areas)
+    setIgnoreMouseEvents: (ignore, options) => ipcRenderer.send('set-ignore-mouse-events', ignore, options),
+
+    // Sprite position for in-container offset (based on window position on screen)
+    onSpritePosition: (callback) => safeOn('sprite-position', (_event, data) => callback(data)),
+
     // Window dragging
     startDrag: () => ipcRenderer.send('start-drag'),
     windowDrag: (delta) => ipcRenderer.send('window-drag', delta),

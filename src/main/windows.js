@@ -100,6 +100,13 @@ function createWindow() {
         }
     });
 
+    // Click-through: allow clicks to pass through transparent areas
+    ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.setIgnoreMouseEvents(ignore, options || {});
+        }
+    });
+
     // Drag IPC
     ipcMain.on('start-drag', () => { isDragging = true; });
     ipcMain.on('window-drag', (event, { deltaX, deltaY }) => {

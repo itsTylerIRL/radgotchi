@@ -11,14 +11,16 @@
     <div id="radgotchi-container">
         <button id="color-picker-btn" title="Change color"></button>
         <input type="color" id="color-picker-input" value="#ff3344">
-        <div id="face-flip-wrapper">
-            <img src="assets/gotchi/AWAKE.png" 
-                 alt="Radgotchi" 
-                 class="radgotchi-face" 
-                 id="radgotchi-face"
-                 draggable="false">
+        <div id="sprite-position-wrapper">
+            <div id="face-flip-wrapper">
+                <img src="assets/gotchi/AWAKE.png" 
+                     alt="Radgotchi" 
+                     class="radgotchi-face" 
+                     id="radgotchi-face"
+                     draggable="false">
+            </div>
+            <span class="radgotchi-status" id="radgotchi-status">SIGINT NOMINAL</span>
         </div>
-        <span class="radgotchi-status" id="radgotchi-status">SIGINT NOMINAL</span>
     </div>
     
     <script type="module" src="src/renderer/main.js"></script>

@@ -131,4 +131,129 @@ container.addEventListener('contextmenu', (e) => {
     if (window.electronAPI && window.electronAPI.openChat) window.electronAPI.openChat();
 });
 
+// === CLICK-THROUGH FOR TRANSPARENT AREAS ===
+// Allow clicks to pass through to windows behind when not over the pet
+const statusEl = document.getElementById('radgotchi-status');
+let isOverInteractive = false;
+
+function setClickThrough(ignore) {
+    if (window.electronAPI && window.electronAPI.setIgnoreMouseEvents) {
+        if (ignore) {
+            window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
+        } else {
+            window.electronAPI.setIgnoreMouseEvents(false);
+        }
+    }
+}
+
+// Detect when mouse enters/leaves interactive elements
+[faceImg, statusEl, colorBtn].forEach(el => {
+    if (!el) return;
+    el.addEventListener('mouseenter', () => {
+        isOverInteractive = true;
+        setClickThrough(false);
+    });
+    el.addEventListener('mouseleave', () => {
+        isOverInteractive = false;
+        setClickThrough(true);
+    });
+});
+
+// Also handle mouse leaving the window entirely
+document.addEventListener('mouseleave', () => {
+    setClickThrough(true);
+});
+
+// Start with click-through enabled (transparent areas pass clicks)
+setTimeout(() => setClickThrough(true), 500);
+
+// === SPRITE POSITION BASED ON WINDOW SCREEN POSITION ===
+// Sprite shifts inside container based on where window is on screen
+// When window is at left edge of screen → sprite at left edge of container
+// When window is at center of screen → sprite at center of container
+// This way sprite visually reaches edge right as window bounces
+const spritePositionWrapper = document.getElementById('sprite-position-wrapper');
+let spriteX = 0, spriteY = 0;           // Current position (pixels)
+let targetX = 0, targetY = 0;           // Target position (pixels)
+const SPRITE_LERP_SPEED = 0.15;         // Smooth easing factor
+
+let spriteAnimationRunning = false;
+
+// Calculate max offsets dynamically based on window/sprite dimensions
+// Returns asymmetric vertical limits since sprite can move more down than up
+function getMaxOffsets() {
+    // Window dimensions (base * scale)
+    const windowWidth = BASE_WIDTH * currentScale;
+    const windowHeight = BASE_HEIGHT * currentScale;
+    
+    // Sprite dimensions (approximate)
+    const spriteWidth = 120 * currentScale;
+    const spriteHeight = 140 * currentScale; // include status text
+    
+    // Container top padding where sprite starts
+    const containerPaddingTop = 24 * currentScale;
+    
+    // Max horizontal offset - symmetric left/right
+    const maxX = (windowWidth - spriteWidth) / 2;
+    
+    // Vertical offsets - asymmetric: less room to go up, more room to go down
+    // Up: sprite starts below padding, limit upward movement to not exit top
+    const maxUp = Math.min(20 * currentScale, containerPaddingTop);
+    // Down: sprite can move toward bottom of window
+    const maxDown = (windowHeight - spriteHeight - containerPaddingTop) / 2;
+    
+    return { 
+        maxX: Math.max(0, maxX), 
+        maxUp: Math.max(0, maxUp),
+        maxDown: Math.max(0, maxDown)
+    };
+}
+
+function updateSpritePosition() {
+    // Smooth interpolation toward target
+    spriteX += (targetX - spriteX) * SPRITE_LERP_SPEED;
+    spriteY += (targetY - spriteY) * SPRITE_LERP_SPEED;
+    
+    // Apply transform to position wrapper (includes sprite + status text)
+    if (spritePositionWrapper) {
+        spritePositionWrapper.style.transform = `translate(${spriteX.toFixed(1)}px, ${spriteY.toFixed(1)}px)`;
+    }
+    
+    // Continue animation if not at rest
+    const atRest = Math.abs(spriteX - targetX) < 0.3 && Math.abs(spriteY - targetY) < 0.3;
+    if (!atRest) {
+        requestAnimationFrame(updateSpritePosition);
+    } else {
+        spriteAnimationRunning = false;
+    }
+}
+
+function startSpriteAnimation() {
+    if (!spriteAnimationRunning) {
+        spriteAnimationRunning = true;
+        requestAnimationFrame(updateSpritePosition);
+    }
+}
+
+// Listen for sprite position from main process (based on window screen position)
+if (window.electronAPI && window.electronAPI.onSpritePosition) {
+    window.electronAPI.onSpritePosition(({ px, py }) => {
+        const { maxX, maxUp, maxDown } = getMaxOffsets();
+        // px/py are 0-1 ratios: 0 = left/top edge, 0.5 = center, 1 = right/bottom edge
+        // Map to pixel offset: -maxX to +maxX for horizontal
+        targetX = (px - 0.5) * 2 * maxX;
+        // Vertical is asymmetric: less upward range, more downward range
+        // py < 0.5 → moving up (negative offset, limited by maxUp)
+        // py > 0.5 → moving down (positive offset, limited by maxDown)
+        if (py < 0.5) {
+            // Map 0-0.5 to -maxUp to 0
+            targetY = (py - 0.5) * 2 * maxUp;
+        } else {
+            // Map 0.5-1 to 0 to maxDown
+            targetY = (py - 0.5) * 2 * maxDown;
+        }
+        startSpriteAnimation();
+    });
+}
+
 export { applyLookDirection, faceFlipWrapper };

@@ -94,6 +94,7 @@ function stopMovement() {
     followVelY = 0;
     wanderVelX = 0;
     wanderVelY = 0;
+    // Sprite position stays where it was - no reset needed
 }
 
 function getWorkArea() {
@@ -190,6 +191,9 @@ function startBounce() {
             if (!nearBoundsY && Math.abs(actualY - Math.round(newY)) > 1) { velocityY = -velocityY; bounced = true; }
         }
 
+        // Send movement direction to renderer for sprite offset
+        sendSpritePosition();
+
         if (bounced && now - lastBounceTime > 500 && mainWindow.webContents) {
             mainWindow.webContents.send('bounce-edge');
             lastBounceTime = now;
@@ -246,6 +250,9 @@ function startFollow() {
             followVelX = (followVelX / speed) * FOLLOW_MAX_SPEED;
             followVelY = (followVelY / speed) * FOLLOW_MAX_SPEED;
         }
+
+        // Send movement direction to renderer for sprite offset
+        sendSpritePosition();
 
         let newX = x + followVelX;
         let newY = y + followVelY;
@@ -328,11 +335,35 @@ function startWander() {
             wanderVelY = (wanderVelY / speed) * WANDER_MAX_SPEED;
         }
 
+        // Send movement direction to renderer for sprite offset
+        sendSpritePosition();
+
         let newX = x + wanderVelX;
         let newY = y + wanderVelY;
         [newX, newY] = clampToWorkArea(newX, newY, winWidth, winHeight);
         safeSetPosition(newX, newY);
     }, 16);
+}
+
+// ── Send Sprite Position to Renderer ──
+// Sends window position as a ratio (0-1) within movement bounds
+function sendSpritePosition() {
+    const mainWindow = _getMainWindow();
+    if (!mainWindow || !mainWindow.webContents) return;
+    
+    const [x, y] = mainWindow.getPosition();
+    const [winWidth, winHeight] = mainWindow.getSize();
+    const b = getMovementBounds(winWidth, winHeight);
+    
+    // Calculate position as ratio 0-1 within bounds
+    const rangeX = b.maxX - b.minX;
+    const rangeY = b.maxY - b.minY;
+    
+    // px/py: 0 = at minX/minY, 1 = at maxX/maxY
+    const px = rangeX > 0 ? (x - b.minX) / rangeX : 0.5;
+    const py = rangeY > 0 ? (y - b.minY) / rangeY : 0.5;
+    
+    mainWindow.webContents.send('sprite-position', { px, py });
 }
 
 // ── Idle Detection ──

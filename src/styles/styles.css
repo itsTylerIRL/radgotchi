@@ -43,6 +43,7 @@ body {
     flex-direction: column;
     align-items: center;
     transform-origin: center center;
+    overflow: visible; /* Don't clip sprite movement */
 }
 
 #radgotchi-container:active {
@@ -53,9 +54,21 @@ body {
     display: none;
 }
 
+/* Position wrapper for movement-based sprite offset */
+#sprite-position-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: visible;
+    will-change: transform;
+}
+
 #face-flip-wrapper {
     display: inline-block;
     transition: transform 0.1s ease-out;
+    /* Position is controlled by JS via translate */
+    will-change: transform;
 }
 
 /* Breathing animations on wrapper (doesn't interfere with img animations) */
@@ -444,7 +457,7 @@ body {
 /* Color picker button */
 #color-picker-btn {
     position: absolute;
-    top: -5px;
+    top: 8px;
     right: -5px;
     width: 16px;
     height: 16px;
