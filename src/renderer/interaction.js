@@ -133,10 +133,13 @@ container.addEventListener('contextmenu', (e) => {
 
 // === CLICK-THROUGH FOR TRANSPARENT AREAS ===
 // Allow clicks to pass through to windows behind when not over the pet
+// NOTE: This feature is disabled on Wayland where setIgnoreMouseEvents doesn't work properly
 const statusEl = document.getElementById('radgotchi-status');
 let isOverInteractive = false;
+let clickThroughEnabled = true; // Will be disabled on Wayland
 
 function setClickThrough(ignore) {
+    if (!clickThroughEnabled) return; // Skip on Wayland
     if (window.electronAPI && window.electronAPI.setIgnoreMouseEvents) {
         if (ignore) {
             window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
@@ -145,6 +148,25 @@ function setClickThrough(ignore) {
         }
     }
 }
+
+// Check platform and disable click-through on Wayland
+(async function checkPlatform() {
+    if (window.electronAPI && window.electronAPI.getPlatformInfo) {
+        try {
+            const info = await window.electronAPI.getPlatformInfo();
+            if (info.isWayland) {
+                clickThroughEnabled = false;
+                console.log('Wayland detected: click-through disabled for compatibility');
+                // Ensure mouse events are not ignored
+                if (window.electronAPI.setIgnoreMouseEvents) {
+                    window.electronAPI.setIgnoreMouseEvents(false);
+                }
+            }
+        } catch (e) {
+            console.warn('Could not get platform info:', e);
+        }
+    }
+})();
 
 // Detect when mouse enters/leaves interactive elements
 [faceImg, statusEl, colorBtn].forEach(el => {
@@ -165,6 +187,7 @@ document.addEventListener('mouseleave', () => {
 });
 
 // Start with click-through enabled (transparent areas pass clicks)
+// Delayed to allow platform check to complete first
 setTimeout(() => setClickThrough(true), 500);
 
 // === SPRITE POSITION BASED ON WINDOW SCREEN POSITION ===

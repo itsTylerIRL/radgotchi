@@ -131,6 +131,19 @@ function createWindow() {
         };
     });
 
+    // Platform info for renderer (used to detect Wayland and disable click-through)
+    ipcMain.handle('get-platform-info', async () => {
+        const isWayland = process.platform === 'linux' && (
+            process.env.XDG_SESSION_TYPE === 'wayland' ||
+            process.env.WAYLAND_DISPLAY !== undefined ||
+            process.argv.some(arg => arg.includes('ozone-platform=wayland'))
+        );
+        return {
+            platform: process.platform,
+            isWayland
+        };
+    });
+
     ipcMain.handle('get-system-metrics', async () => {
         const cpuUsage = _systemMonitor.getCpuUsage();
         const totalMem = os.totalmem();

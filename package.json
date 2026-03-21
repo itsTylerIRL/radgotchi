@@ -60,14 +60,14 @@
         "nsis",
         "portable"
       ],
-      "icon": "assets/radbro.png"
+      "icon": "assets/app icon.png"
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "icon": "assets/icon.icns",
+      "icon": "assets/app icon.png",
       "category": "public.app-category.entertainment"
     },
     "linux": {
@@ -75,7 +75,7 @@
         "AppImage",
         "deb"
       ],
-      "icon": "assets/radbro.png",
+      "icon": "assets/app icon.png",
       "category": "Utility"
     },
     "nsis": {

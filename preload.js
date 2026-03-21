@@ -60,6 +60,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Mouse position for eye tracking
     getMousePosition: () => ipcRenderer.invoke('get-mouse-position'),
 
+    // Platform info (used to detect Wayland and disable click-through)
+    getPlatformInfo: () => ipcRenderer.invoke('get-platform-info'),
+
     // LLM Chat functionality
     getLlmConfig: () => ipcRenderer.invoke('get-llm-config'),
     saveLlmConfig: (config) => ipcRenderer.invoke('save-llm-config', config),
