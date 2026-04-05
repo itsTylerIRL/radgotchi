@@ -54,14 +54,14 @@ function getSpriteState() {
     return currentSpriteState;
 }
 
-function loadLlmConfig() {
-    const saved = _persistence.loadLlmConfigFromDisk();
+async function loadLlmConfig() {
+    const saved = await _persistence.loadLlmConfigFromDisk();
     if (saved) {
         llmConfig = { ...llmConfig, ...saved };
     }
 }
 
-function saveLlmConfig(config) {
+async function saveLlmConfig(config) {
     llmConfig = { ...llmConfig, ...config };
     return _persistence.saveLlmConfigToDisk(llmConfig);
 }

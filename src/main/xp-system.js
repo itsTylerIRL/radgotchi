@@ -150,8 +150,8 @@ function getXpData() {
     return xpData;
 }
 
-function loadXpData(petNeedsRef) {
-    const saved = _persistence.loadXpDataFromDisk();
+async function loadXpData(petNeedsRef) {
+    const saved = await _persistence.loadXpDataFromDisk();
     if (!saved) return;
 
     xpData = {
@@ -212,9 +212,9 @@ function loadXpData(petNeedsRef) {
     return { pomosCompleted: saved.workCompleted || 0 };
 }
 
-function saveXpData(petNeedsRef) {
+function _buildSavePayload(petNeedsRef) {
     const currentSessionDuration = Date.now() - xpData.sessionStartTime;
-    const dataToSave = {
+    return {
         totalXp: xpData.totalXp,
         level: xpData.level,
         totalSessionTime: xpData.totalSessionTime + currentSessionDuration,
@@ -238,7 +238,14 @@ function saveXpData(petNeedsRef) {
         achievedMilestones: Array.from(achievedMilestones),
         lastSaved: Date.now()
     };
-    _persistence.saveXpDataToDisk(dataToSave);
+}
+
+function saveXpData(petNeedsRef) {
+    _persistence.saveXpDataToDisk(_buildSavePayload(petNeedsRef));
+}
+
+function saveXpDataSync(petNeedsRef) {
+    _persistence.saveXpDataToDiskSync(_buildSavePayload(petNeedsRef));
 }
 
 function calculateLevel(xp) {
@@ -549,6 +556,7 @@ module.exports = {
     getXpData,
     loadXpData,
     saveXpData,
+    saveXpDataSync,
     calculateLevel,
     addXp,
     removeXp,

@@ -66,9 +66,9 @@ const CHAT_HISTORY_CONFIG = { MAX_MESSAGES: 100, MAX_ACTIVITY_LOG: 50 };
 let chatHistory = [];
 let activityLog = [];
 
-function loadChatData() {
+async function loadChatData() {
     try {
-        const saved = persistence.loadChatDataFromDisk();
+        const saved = await persistence.loadChatDataFromDisk();
         if (saved) {
             chatHistory = (saved.chatHistory || []).slice(-CHAT_HISTORY_CONFIG.MAX_MESSAGES);
             activityLog = (saved.activityLog || []).slice(-CHAT_HISTORY_CONFIG.MAX_ACTIVITY_LOG);
@@ -83,6 +83,18 @@ function loadChatData() {
 function saveChatData() {
     try {
         persistence.saveChatDataToDisk({
+            chatHistory: chatHistory.slice(-CHAT_HISTORY_CONFIG.MAX_MESSAGES),
+            activityLog: activityLog.slice(-CHAT_HISTORY_CONFIG.MAX_ACTIVITY_LOG),
+            lastSaved: Date.now()
+        });
+    } catch (e) {
+        console.error('Failed to save chat data:', e);
+    }
+}
+
+function saveChatDataSync() {
+    try {
+        persistence.saveChatDataToDiskSync({
             chatHistory: chatHistory.slice(-CHAT_HISTORY_CONFIG.MAX_MESSAGES),
             activityLog: activityLog.slice(-CHAT_HISTORY_CONFIG.MAX_ACTIVITY_LOG),
             lastSaved: Date.now()
@@ -203,15 +215,17 @@ function initModules() {
 // ═══════════════════════════════════════════════════════════════════════════
 // App lifecycle
 // ═══════════════════════════════════════════════════════════════════════════
-function initializeApp() {
+async function initializeApp() {
     initModules();
 
-    // Load persisted data
-    llm.loadLlmConfig();
-    xpSystem.loadXpData();
-    petMemory.loadMemory();
-    loadChatData();
-    persistence.loadWindowStates();
+    // Load persisted data (async, parallelized)
+    await Promise.all([
+        llm.loadLlmConfig(),
+        xpSystem.loadXpData(),
+        petMemory.loadMemory(),
+        loadChatData(),
+        persistence.loadWindowStates(),
+    ]);
 
     // Create UI
     windows.createWindow();
@@ -296,7 +310,7 @@ app.on('will-quit', () => {
     petNeeds.stopNeedsDecay();
     pomodoro.stopPomodoro();
     networkDiscovery.stopNetworkDiscovery();
-    xpSystem.saveXpData();
-    petMemory.saveMemory();
-    saveChatData();
+    xpSystem.saveXpDataSync();
+    petMemory.saveMemorySync();
+    saveChatDataSync();
 });

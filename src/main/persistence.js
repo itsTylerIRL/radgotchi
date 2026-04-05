@@ -2,6 +2,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const fsp = fs.promises;
 
 let _app = null;
 let _screen = null;
@@ -30,20 +31,25 @@ function getXpDataPath() {
     return path.join(_app.getPath('userData'), 'xp-data.json');
 }
 
-function loadXpDataFromDisk() {
+async function loadXpDataFromDisk() {
     try {
-        const dataPath = getXpDataPath();
-        if (fs.existsSync(dataPath)) {
-            const data = fs.readFileSync(dataPath, 'utf8');
-            return JSON.parse(data);
-        }
+        const data = await fsp.readFile(getXpDataPath(), 'utf8');
+        return JSON.parse(data);
     } catch (e) {
-        console.error('Failed to load XP data:', e);
+        if (e.code !== 'ENOENT') console.error('Failed to load XP data:', e);
     }
     return null;
 }
 
-function saveXpDataToDisk(dataToSave) {
+async function saveXpDataToDisk(dataToSave) {
+    try {
+        await fsp.writeFile(getXpDataPath(), JSON.stringify(dataToSave, null, 2));
+    } catch (e) {
+        console.error('Failed to save XP data:', e);
+    }
+}
+
+function saveXpDataToDiskSync(dataToSave) {
     try {
         fs.writeFileSync(getXpDataPath(), JSON.stringify(dataToSave, null, 2));
     } catch (e) {
@@ -59,20 +65,25 @@ function getChatDataPath() {
     return path.join(_app.getPath('userData'), 'chat-data.json');
 }
 
-function loadChatDataFromDisk() {
+async function loadChatDataFromDisk() {
     try {
-        const dataPath = getChatDataPath();
-        if (fs.existsSync(dataPath)) {
-            const data = fs.readFileSync(dataPath, 'utf8');
-            return JSON.parse(data);
-        }
+        const data = await fsp.readFile(getChatDataPath(), 'utf8');
+        return JSON.parse(data);
     } catch (e) {
-        console.error('Failed to load chat data:', e);
+        if (e.code !== 'ENOENT') console.error('Failed to load chat data:', e);
     }
     return null;
 }
 
-function saveChatDataToDisk(dataToSave) {
+async function saveChatDataToDisk(dataToSave) {
+    try {
+        await fsp.writeFile(getChatDataPath(), JSON.stringify(dataToSave, null, 2));
+    } catch (e) {
+        console.error('Failed to save chat data:', e);
+    }
+}
+
+function saveChatDataToDiskSync(dataToSave) {
     try {
         fs.writeFileSync(getChatDataPath(), JSON.stringify(dataToSave, null, 2));
     } catch (e) {
@@ -90,22 +101,19 @@ function getWindowStatePath() {
     return path.join(_app.getPath('userData'), 'window-states.json');
 }
 
-function loadWindowStates() {
+async function loadWindowStates() {
     try {
-        const statePath = getWindowStatePath();
-        if (fs.existsSync(statePath)) {
-            const data = fs.readFileSync(statePath, 'utf8');
-            windowStates = JSON.parse(data);
-        }
+        const data = await fsp.readFile(getWindowStatePath(), 'utf8');
+        windowStates = JSON.parse(data);
     } catch (e) {
-        console.error('Failed to load window states:', e);
+        if (e.code !== 'ENOENT') console.error('Failed to load window states:', e);
         windowStates = {};
     }
 }
 
-function saveWindowStates() {
+async function saveWindowStates() {
     try {
-        fs.writeFileSync(getWindowStatePath(), JSON.stringify(windowStates, null, 2));
+        await fsp.writeFile(getWindowStatePath(), JSON.stringify(windowStates, null, 2));
     } catch (e) {
         console.error('Failed to save window states:', e);
     }
@@ -128,7 +136,7 @@ function saveWindowState(windowName, win, extraState = {}) {
     if (existing.zoom && !extraState.zoom) {
         windowStates[windowName].zoom = existing.zoom;
     }
-    saveWindowStates();
+    saveWindowStates(); // async fire-and-forget
 }
 
 function updateWindowStateProperty(windowName, property, value) {
@@ -136,7 +144,7 @@ function updateWindowStateProperty(windowName, property, value) {
         windowStates[windowName] = {};
     }
     windowStates[windowName][property] = value;
-    saveWindowStates();
+    saveWindowStates(); // async fire-and-forget
 }
 
 function getWindowState(windowName, defaults) {
@@ -200,22 +208,19 @@ function getLlmConfigPath() {
     return path.join(_app.getPath('userData'), 'llm-config.json');
 }
 
-function loadLlmConfigFromDisk() {
+async function loadLlmConfigFromDisk() {
     try {
-        const configPath = getLlmConfigPath();
-        if (fs.existsSync(configPath)) {
-            const data = fs.readFileSync(configPath, 'utf8');
-            return JSON.parse(data);
-        }
+        const data = await fsp.readFile(getLlmConfigPath(), 'utf8');
+        return JSON.parse(data);
     } catch (e) {
-        console.error('Failed to load LLM config:', e);
+        if (e.code !== 'ENOENT') console.error('Failed to load LLM config:', e);
     }
     return null;
 }
 
-function saveLlmConfigToDisk(config) {
+async function saveLlmConfigToDisk(config) {
     try {
-        fs.writeFileSync(getLlmConfigPath(), JSON.stringify(config, null, 2));
+        await fsp.writeFile(getLlmConfigPath(), JSON.stringify(config, null, 2));
         return true;
     } catch (e) {
         console.error('Failed to save LLM config:', e);
@@ -231,20 +236,25 @@ function getPetMemoryPath() {
     return path.join(_app.getPath('userData'), 'pet-memory.json');
 }
 
-function loadPetMemoryFromDisk() {
+async function loadPetMemoryFromDisk() {
     try {
-        const dataPath = getPetMemoryPath();
-        if (fs.existsSync(dataPath)) {
-            const data = fs.readFileSync(dataPath, 'utf8');
-            return JSON.parse(data);
-        }
+        const data = await fsp.readFile(getPetMemoryPath(), 'utf8');
+        return JSON.parse(data);
     } catch (e) {
-        console.error('Failed to load pet memory:', e);
+        if (e.code !== 'ENOENT') console.error('Failed to load pet memory:', e);
     }
     return null;
 }
 
-function savePetMemoryToDisk(dataToSave) {
+async function savePetMemoryToDisk(dataToSave) {
+    try {
+        await fsp.writeFile(getPetMemoryPath(), JSON.stringify(dataToSave, null, 2));
+    } catch (e) {
+        console.error('Failed to save pet memory:', e);
+    }
+}
+
+function savePetMemoryToDiskSync(dataToSave) {
     try {
         fs.writeFileSync(getPetMemoryPath(), JSON.stringify(dataToSave, null, 2));
     } catch (e) {
@@ -262,24 +272,21 @@ function getMeshMessagesPath() {
     return path.join(_app.getPath('userData'), 'mesh-messages.json');
 }
 
-function loadMeshMessagesFromDisk() {
+async function loadMeshMessagesFromDisk() {
     try {
-        const dataPath = getMeshMessagesPath();
-        if (fs.existsSync(dataPath)) {
-            const data = fs.readFileSync(dataPath, 'utf8');
-            const parsed = JSON.parse(data);
-            return Array.isArray(parsed) ? parsed.slice(-MESH_MSG_PERSIST_MAX) : [];
-        }
+        const data = await fsp.readFile(getMeshMessagesPath(), 'utf8');
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed.slice(-MESH_MSG_PERSIST_MAX) : [];
     } catch (e) {
-        console.error('Failed to load mesh messages:', e);
+        if (e.code !== 'ENOENT') console.error('Failed to load mesh messages:', e);
     }
     return [];
 }
 
-function saveMeshMessagesToDisk(messages) {
+async function saveMeshMessagesToDisk(messages) {
     try {
         const trimmed = Array.isArray(messages) ? messages.slice(-MESH_MSG_PERSIST_MAX) : [];
-        fs.writeFileSync(getMeshMessagesPath(), JSON.stringify(trimmed));
+        await fsp.writeFile(getMeshMessagesPath(), JSON.stringify(trimmed));
     } catch (e) {
         console.error('Failed to save mesh messages:', e);
     }
@@ -291,9 +298,11 @@ module.exports = {
     // XP data
     loadXpDataFromDisk,
     saveXpDataToDisk,
+    saveXpDataToDiskSync,
     // Chat data
     loadChatDataFromDisk,
     saveChatDataToDisk,
+    saveChatDataToDiskSync,
     // Window states
     loadWindowStates,
     saveWindowState,
@@ -306,6 +315,7 @@ module.exports = {
     // Pet memory
     loadPetMemoryFromDisk,
     savePetMemoryToDisk,
+    savePetMemoryToDiskSync,
     // Mesh messages
     loadMeshMessagesFromDisk,
     saveMeshMessagesToDisk,

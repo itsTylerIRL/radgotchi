@@ -13,6 +13,7 @@
     "build:linux": "electron-builder --linux",
     "build:portable": "electron-builder --win portable",
     "clean": "rimraf dist",
+    "lint": "node -c main.js && for f in src/main/*.js; do node -c \"$f\"; done",
     "demo": "node assets/demo/generate-demo.js"
   },
   "repository": {
@@ -42,8 +43,8 @@
   "homepage": "https://github.com/itsTylerIRL/radgotchi#readme",
   "devDependencies": {
     "canvas": "^2.11.2",
-    "electron": "^28.3.3",
-    "electron-builder": "^24.9.1"
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8"
   },
   "engines": {
     "node": ">=18.0.0"

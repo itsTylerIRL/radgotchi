@@ -1,13 +1,12 @@
 'use strict';
 
 const os = require('os');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 
 let lastCpuTimes = null;
 let lastWindowCount = 0;
 let systemEventInterval = null;
-let windowCountInterval = null;
-let notRespondingInterval = null;
+let windowAndHungInterval = null;
 
 let _getMainWindow = null;
 
@@ -55,49 +54,39 @@ function getNetworkStats() {
     return { hasConnection, interfaceCount };
 }
 
-function getWindowCount(callback) {
+// Batched window count + hung app check (single process spawn on Windows)
+function getWindowAndHungInfo(callback) {
     const platform = process.platform;
 
     if (platform === 'win32') {
-        exec('powershell -command "(Get-Process | Where-Object {$_.MainWindowHandle -ne 0}).Count"',
-            { timeout: 2000 },
+        // Single PowerShell invocation for both checks
+        const script = '$p = Get-Process; $wc = ($p | Where-Object {$_.MainWindowHandle -ne 0}).Count; $hung = ($p | Where-Object {$_.Responding -eq $false} | Select-Object -First 1).ProcessName; "$wc|$hung"';
+        execFile('powershell.exe', ['-NoProfile', '-NoLogo', '-Command', script],
+            { timeout: 4000, windowsHide: true },
             (err, stdout) => {
-                if (err) { callback(lastWindowCount); return; }
-                callback(parseInt(stdout.trim()) || 0);
+                if (err) { callback(lastWindowCount, null); return; }
+                const parts = stdout.trim().split('|');
+                const count = parseInt(parts[0]) || 0;
+                const hungApp = (parts[1] && parts[1].trim()) || null;
+                callback(count, hungApp);
             }
         );
     } else if (platform === 'darwin') {
-        exec('osascript -e "tell application \\"System Events\\" to count (every process whose background only is false)"',
+        execFile('osascript', ['-e', 'tell application "System Events" to count (every process whose background only is false)'],
             { timeout: 2000 },
             (err, stdout) => {
-                if (err) { callback(lastWindowCount); return; }
-                callback(parseInt(stdout.trim()) || 0);
+                if (err) { callback(lastWindowCount, null); return; }
+                callback(parseInt(stdout.trim()) || 0, null);
             }
         );
     } else {
-        exec('wmctrl -l 2>/dev/null | wc -l || xdotool search --onlyvisible --name "" 2>/dev/null | wc -l || echo 0',
+        execFile('sh', ['-c', 'wmctrl -l 2>/dev/null | wc -l || xdotool search --onlyvisible --name "" 2>/dev/null | wc -l || echo 0'],
             { timeout: 2000 },
             (err, stdout) => {
-                if (err) { callback(lastWindowCount); return; }
-                callback(parseInt(stdout.trim()) || 0);
+                if (err) { callback(lastWindowCount, null); return; }
+                callback(parseInt(stdout.trim()) || 0, null);
             }
         );
-    }
-}
-
-function checkNotResponding(callback) {
-    const platform = process.platform;
-
-    if (platform === 'win32') {
-        exec('powershell -command "Get-Process | Where-Object {$_.Responding -eq $false} | Select-Object -First 1 | ForEach-Object { $_.ProcessName }"',
-            { timeout: 3000 },
-            (err, stdout) => {
-                if (err) { callback(null); return; }
-                callback(stdout.trim() || null);
-            }
-        );
-    } else {
-        callback(null);
     }
 }
 
@@ -151,11 +140,12 @@ function startSystemEventMonitoring() {
         lastNetworkState = netStats;
     }, 3000);
 
-    windowCountInterval = setInterval(() => {
+    // Combined window count + hung app detection (single spawn, every 10s)
+    windowAndHungInterval = setInterval(() => {
         const mainWindow = _getMainWindow();
         if (!mainWindow || !mainWindow.webContents) return;
 
-        getWindowCount((count) => {
+        getWindowAndHungInfo((count, hungApp) => {
             if (lastWindowCount > 0) {
                 if (count > lastWindowCount) {
                     mainWindow.webContents.send('system-event', { type: 'window-opened', delta: count - lastWindowCount });
@@ -164,14 +154,7 @@ function startSystemEventMonitoring() {
                 }
             }
             lastWindowCount = count;
-        });
-    }, 5000);
 
-    notRespondingInterval = setInterval(() => {
-        const mainWindow = _getMainWindow();
-        if (!mainWindow || !mainWindow.webContents) return;
-
-        checkNotResponding((hungApp) => {
             if (hungApp) {
                 mainWindow.webContents.send('system-event', { type: 'app-not-responding', app: hungApp });
             }
@@ -181,8 +164,7 @@ function startSystemEventMonitoring() {
 
 function stopSystemEventMonitoring() {
     if (systemEventInterval) { clearInterval(systemEventInterval); systemEventInterval = null; }
-    if (windowCountInterval) { clearInterval(windowCountInterval); windowCountInterval = null; }
-    if (notRespondingInterval) { clearInterval(notRespondingInterval); notRespondingInterval = null; }
+    if (windowAndHungInterval) { clearInterval(windowAndHungInterval); windowAndHungInterval = null; }
 }
 
 module.exports = {

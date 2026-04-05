@@ -20,8 +20,8 @@ function init({ persistence, llm }) {
     _llm = llm;
 }
 
-function loadMemory() {
-    const saved = _persistence.loadPetMemoryFromDisk();
+async function loadMemory() {
+    const saved = await _persistence.loadPetMemoryFromDisk();
     if (saved) {
         memoryData = { ...memoryData, ...saved };
     }
@@ -29,6 +29,10 @@ function loadMemory() {
 
 function saveMemory() {
     _persistence.savePetMemoryToDisk(memoryData);
+}
+
+function saveMemorySync() {
+    _persistence.savePetMemoryToDiskSync(memoryData);
 }
 
 function getFacts() {
@@ -162,6 +166,7 @@ module.exports = {
     init,
     loadMemory,
     saveMemory,
+    saveMemorySync,
     getFacts,
     isEnabled,
     setEnabled,
