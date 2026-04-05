@@ -42,9 +42,11 @@
   },
   "homepage": "https://github.com/itsTylerIRL/radgotchi#readme",
   "devDependencies": {
-    "canvas": "^2.11.2",
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8"
+  },
+  "optionalDependencies": {
+    "canvas": "^2.11.2"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -53,6 +55,7 @@
     "appId": "com.radgotchi.app",
     "productName": "Radgotchi",
     "copyright": "Copyright © 2026 Radgotchi",
+    "npmRebuild": false,
     "directories": {
       "output": "dist"
     },
