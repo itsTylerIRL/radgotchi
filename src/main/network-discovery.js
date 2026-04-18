@@ -27,6 +27,7 @@ const MESH_DEDUP_MAX = 200;
 let _getXpData = null;
 let _getLlmConfig = null;
 let _getRank = null;
+let _getMainWindow = null;
 let _getChatWindow = null;
 let _getIsSleeping = null;
 let _getIsVibing = null;
@@ -34,10 +35,11 @@ let _getPomodoroState = null;
 let _getNeeds = null;
 let _getColor = null;
 
-function init({ getXpData, getLlmConfig, getRank, getChatWindow, getIsSleeping, getIsVibing, getPomodoroState, getNeeds, getColor }) {
+function init({ getXpData, getLlmConfig, getRank, getMainWindow, getChatWindow, getIsSleeping, getIsVibing, getPomodoroState, getNeeds, getColor }) {
     _getXpData = getXpData;
     _getLlmConfig = getLlmConfig;
     _getRank = getRank;
+    _getMainWindow = getMainWindow;
     _getChatWindow = getChatWindow;
     _getIsSleeping = getIsSleeping;
     _getIsVibing = getIsVibing;
@@ -247,13 +249,18 @@ function calculateSignalStrength(remoteIp) {
 }
 
 function broadcastNetworkUpdate(eventType, nodeData) {
+    const payload = {
+        type: eventType,
+        node: nodeData,
+        totalNodes: discoveredNodes.size,
+    };
+    const mainWindow = _getMainWindow && _getMainWindow();
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('network-update', payload);
+    }
     const chatWindow = _getChatWindow();
     if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('network-update', {
-            type: eventType,
-            node: nodeData,
-            totalNodes: discoveredNodes.size,
-        });
+        chatWindow.webContents.send('network-update', payload);
     }
 }
 

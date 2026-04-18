@@ -1,7 +1,11 @@
 'use strict';
 
 const { app, BrowserWindow, screen, session, desktopCapturer } = require('electron');
+const dns = require('dns');
 const path = require('path');
+
+// Force IPv4 DNS resolution — prevents IPv6 lookup failures on dual-stack networks
+dns.setDefaultResultOrder('ipv4first');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Modules
@@ -183,6 +187,7 @@ function initModules() {
         getXpData: xpSystem.getXpData,
         getLlmConfig: llm.getLlmConfig,
         getRank: xpSystem.getRank,
+        getMainWindow: windows.getMainWindow,
         getChatWindow: windows.getChatWindow,
         getIsSleeping: sleepWork.getIsSleeping,
         getIsVibing: sleepWork.getIsVibing,
@@ -241,6 +246,12 @@ function initializeApp() {
     // Restore sleep mode if it was active last session
     if (xpSystem.getXpData().savedSleeping) {
         sleepWork.startSleepMode();
+    }
+
+    // Restore network discovery if it was active last session
+    const ndState = persistence.getWindowState('networkDiscovery', {});
+    if (ndState.enabled) {
+        networkDiscovery.startNetworkDiscovery();
     }
 
     // Log session start

@@ -167,7 +167,7 @@ function createWindow() {
     });
 
     ipcMain.handle('get-llm-config', async () => {
-        const config = _llm.getLlmConfig();
+        const config = { ..._llm.getLlmConfig() };
         config.memoryEnabled = _petMemory.isEnabled();
         config.memoryCount = _petMemory.getFacts().length;
         return config;
@@ -177,7 +177,8 @@ function createWindow() {
         if (config.memoryEnabled !== undefined) {
             _petMemory.setEnabled(config.memoryEnabled);
         }
-        const result = _llm.saveLlmConfig(config);
+        const { memoryEnabled, memoryCount, ...llmFields } = config;
+        const result = _llm.saveLlmConfig(llmFields);
         if (chatWindow && chatWindow.webContents) {
             chatWindow.webContents.send('pfp-update', { operatorPfp: _llm.getLlmConfig().operatorPfp || null });
         }
@@ -331,6 +332,7 @@ function createWindow() {
     ipcMain.handle('network-discovery-toggle', async (event, enabled) => {
         if (enabled) _networkDiscovery.startNetworkDiscovery();
         else _networkDiscovery.stopNetworkDiscovery();
+        _persistence.updateWindowStateProperty('networkDiscovery', 'enabled', enabled);
         return _networkDiscovery.getNetworkStatus();
     });
     ipcMain.handle('get-network-status', async () => _networkDiscovery.getNetworkStatus());
