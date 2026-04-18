@@ -164,6 +164,32 @@ export function addMessage(role, content, isThinking = false, timestamp = null, 
     return msgEl;
 }
 
+export function addToolMessage(label, status = 'running', beforeEl = null) {
+    const msgEl = document.createElement('div');
+    msgEl.className = `message tool-call tool-${status}`;
+    msgEl.setAttribute('data-time', getTimeStr());
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'tool-label';
+    labelSpan.textContent = label;
+    msgEl.appendChild(labelSpan);
+
+    if (status === 'running') {
+        const spinner = document.createElement('span');
+        spinner.className = 'tool-spinner';
+        spinner.textContent = '…';
+        msgEl.appendChild(spinner);
+    }
+
+    if (beforeEl && beforeEl.parentNode === messagesEl) {
+        messagesEl.insertBefore(msgEl, beforeEl);
+    } else {
+        messagesEl.appendChild(msgEl);
+    }
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return msgEl;
+}
+
 export async function sendMessage() {
     const message = inputEl.value.trim();
     if (!message || isSending) return;
@@ -293,9 +319,34 @@ export async function sendMessage() {
         inputEl.focus();
     };
 
+    // Track tool call messages so we can update their status
+    const toolMsgEls = {};
+
+    const handleToolStatus = (data) => {
+        if (streamComplete) return;
+        const key = data.tool + '_' + (data.summary || '').slice(0, 30);
+        if (data.status === 'running') {
+            const label = `${data.icon} ${data.tool}${data.summary ? ': ' + data.summary : ''}`;
+            const el = addToolMessage(label, 'running', streamWrapperEl);
+            toolMsgEls[key] = el;
+        } else if (toolMsgEls[key]) {
+            const el = toolMsgEls[key];
+            const statusIcon = data.status === 'error' ? '✗' : '✓';
+            const textSpan = el.querySelector('.tool-label');
+            if (textSpan) {
+                textSpan.textContent = `${data.icon} ${data.tool} ${statusIcon}`;
+            }
+            el.classList.remove('tool-running');
+            el.classList.add(data.status === 'error' ? 'tool-error' : 'tool-done');
+        }
+    };
+
     window.electronAPI.removeChatStreamListeners();
     window.electronAPI.onChatStreamChunk(handleChunk);
     window.electronAPI.onChatStreamError(handleError);
+    if (window.electronAPI.onChatToolStatus) {
+        window.electronAPI.onChatToolStatus(handleToolStatus);
+    }
     window.electronAPI.sendChatMessageStream(chatHistory);
 }
 
@@ -321,7 +372,7 @@ export function loadResponseTimes(times) {
 }
 
 export function clearChatHistory() {
-    const msgEls = messagesEl.querySelectorAll('.message-wrapper, .message.system');
+    const msgEls = messagesEl.querySelectorAll('.message-wrapper, .message.system, .message.tool-call');
     msgEls.forEach(el => el.remove());
     chatHistory = [];
     responseTimes = [];

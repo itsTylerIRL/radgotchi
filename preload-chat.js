@@ -11,9 +11,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sendChatMessageStream: (messages) => ipcRenderer.send('send-chat-message-stream', { messages }),
     onChatStreamChunk: (callback) => ipcRenderer.on('chat-stream-chunk', (_event, data) => callback(data)),
     onChatStreamError: (callback) => ipcRenderer.on('chat-stream-error', (_event, data) => callback(data)),
+    onChatToolStatus: (callback) => ipcRenderer.on('chat-tool-status', (_event, data) => callback(data)),
     removeChatStreamListeners: () => {
         ipcRenderer.removeAllListeners('chat-stream-chunk');
         ipcRenderer.removeAllListeners('chat-stream-error');
+        ipcRenderer.removeAllListeners('chat-tool-status');
     },
     chatMood: (mood) => ipcRenderer.send('chat-mood', mood),
     onChatReady: (callback) => ipcRenderer.on('chat-ready', (_event, data) => callback(data)),

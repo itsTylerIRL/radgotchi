@@ -2627,6 +2627,81 @@ body::after {
     transform: translateY(-50%) scale(0.95);
 }
 
+/* Tool call messages */
+.message.tool-call {
+    background: color-mix(in srgb, var(--term-cyan) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--term-cyan) 40%, transparent);
+    color: var(--term-cyan);
+    font-size: 9px;
+    text-align: left;
+    margin: 4px 20px;
+    padding: 5px 10px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: 0.5px;
+    transition: opacity 0.3s ease, border-color 0.3s ease;
+}
+
+.message.tool-call::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--term-cyan);
+    opacity: 0.6;
+}
+
+.message.tool-call .tool-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.message.tool-call.tool-running {
+    border-color: color-mix(in srgb, var(--term-cyan) 50%, transparent);
+    animation: tool-pulse 1.5s ease-in-out infinite;
+}
+
+.message.tool-call.tool-running .tool-spinner {
+    animation: tool-dots 1s steps(3, end) infinite;
+}
+
+.message.tool-call.tool-done {
+    opacity: 0.6;
+    border-color: color-mix(in srgb, var(--term-green) 30%, transparent);
+    color: var(--term-green);
+}
+
+.message.tool-call.tool-done::before {
+    background: var(--term-green);
+}
+
+.message.tool-call.tool-error {
+    opacity: 0.7;
+    border-color: color-mix(in srgb, var(--term-red) 40%, transparent);
+    color: var(--term-red);
+}
+
+.message.tool-call.tool-error::before {
+    background: var(--term-red);
+}
+
+@keyframes tool-pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+@keyframes tool-dots {
+    0% { content: '.'; }
+    33% { content: '..'; }
+    66% { content: '...'; }
+}
+
 /* Message wrapper - avatar reactions */
 .message-wrapper:hover .message-avatar {
     transform: scale(1.08);

@@ -13,7 +13,8 @@ let llmConfig = {
     operatorName: 'OPERATOR',
     operatorPfp: {
         imageUrl: ''
-    }
+    },
+    toolsEnabled: false
 };
 
 // Current pet sprite state (for chat window bro avatar)
@@ -154,9 +155,12 @@ function buildContextPrompt(messages) {
     const nextRankIndex = _xpSystem.RANKS.findIndex(r => r.name === currentRank.name) + 1;
     const nextRank = nextRankIndex < _xpSystem.RANKS.length ? _xpSystem.RANKS[nextRankIndex] : null;
 
-    const recentContext = messages.slice(-4).map(m =>
-        `${m.role === 'user' ? 'Bro' : 'You'}: ${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}`
-    ).join('\n');
+    const recentContext = messages.slice(-4)
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .filter(m => m.content)
+        .map(m =>
+            `${m.role === 'user' ? 'Bro' : 'You'}: ${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}`
+        ).join('\n');
 
     const sleepWork = _getSleepWork();
     const movement = _getMovement();
@@ -182,7 +186,214 @@ CURRENT STATUS:
 - Hunger: ${needs.hunger !== undefined ? Math.round(needs.hunger) : '?'}% | Energy: ${needs.energy !== undefined ? Math.round(needs.energy) : '?'}%
 - Sessions together: ${status.totalSessions} | Current streak: ${status.currentStreak} days
 
-${_petMemory && _petMemory.buildMemoryBlock() ? _petMemory.buildMemoryBlock() + '\n\n' : ''}${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
+${llmConfig.toolsEnabled ? `TOOL USE — CRITICAL:
+You MUST use the provided tool functions for any request that needs real-time or external data. NEVER simulate, roleplay, or pretend to access data. NEVER generate fake outputs that look like tool results. If the user asks for current prices, weather, news, scores, or any live information, you MUST call the web_search tool. If asked to read, create, or list files, you MUST call the appropriate file tool. If asked to run a command, you MUST call run_command. Do NOT generate text that mimics tool output — actually call the tool.
+
+` : ''}${_petMemory && _petMemory.buildMemoryBlock() ? _petMemory.buildMemoryBlock() + '\n\n' : ''}${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Tool Definitions & Execution
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TOOL_DEFINITIONS = [
+    {
+        type: 'function',
+        function: {
+            name: 'web_search',
+            description: 'Search the internet for current information — news, weather, scores, prices, facts, etc.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    query: { type: 'string', description: 'The search query' }
+                },
+                required: ['query']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'read_file',
+            description: 'Read the contents of a file on the local filesystem. Use absolute paths.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Absolute path to the file to read' }
+                },
+                required: ['path']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'create_file',
+            description: 'Create or overwrite a file on the local filesystem with the given content.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Absolute path for the file' },
+                    content: { type: 'string', description: 'Content to write to the file' }
+                },
+                required: ['path', 'content']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'list_directory',
+            description: 'List files and folders in a directory.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Absolute path to the directory' }
+                },
+                required: ['path']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'run_command',
+            description: 'Run a shell command and return its output. Do NOT run destructive commands.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    command: { type: 'string', description: 'The shell command to execute' }
+                },
+                required: ['command']
+            }
+        }
+    }
+];
+
+// Blocked patterns for shell commands (safety)
+const BLOCKED_COMMANDS = [
+    /\brm\s+(-rf?|--recursive)\b/i, /\brm\s+-/i, /\brmdir\b/i,
+    /\bmkfs\b/i, /\bdd\s+/i, /\bshutdown\b/i, /\breboot\b/i,
+    /\bsudo\b/i, /\bformat\b/i, />\s*\/dev\//i,
+];
+
+function executeToolCall(name, args) {
+    const fs = require('fs');
+    const { execSync } = require('child_process');
+    const os = require('os');
+
+    try {
+        switch (name) {
+            case 'web_search': {
+                const query = args.query || '';
+                const https = require('https');
+                return new Promise((resolve) => {
+                    const searchPath = '/search?q=' + encodeURIComponent(query) + '&source=web';
+                    const req = https.get({
+                        hostname: 'search.brave.com',
+                        path: searchPath,
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                        },
+                        timeout: 15000
+                    }, (res) => {
+                        let data = '';
+                        res.on('data', c => data += c);
+                        res.on('end', () => {
+                            const snippets = [];
+                            let m;
+                            // Brave snippet descriptions (contain dates + content)
+                            const descRe = /<div class="snippet[^"]*svelte[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+                            while ((m = descRe.exec(data)) && snippets.length < 8) {
+                                const text = m[1].replace(/<[^>]+>/g, '').trim();
+                                if (text && text.length > 20) snippets.push(text);
+                            }
+                            // Generic snippet divs
+                            const genRe = /<div class="generic-snippet[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+                            while ((m = genRe.exec(data)) && snippets.length < 12) {
+                                const text = m[1].replace(/<[^>]+>/g, '').trim();
+                                if (text && text.length > 15) snippets.push(text);
+                            }
+                            if (snippets.length === 0) {
+                                resolve({ result: 'No search results found for: ' + query });
+                            } else {
+                                resolve({ result: snippets.join('\n') });
+                            }
+                        });
+                    });
+                    req.on('error', (e) => resolve({ error: 'Search failed: ' + e.message }));
+                    req.on('timeout', () => { req.destroy(); resolve({ error: 'Search timed out' }); });
+                });
+            }
+
+            case 'read_file': {
+                const filePath = args.path || '';
+                // Basic path traversal protection
+                const resolved = require('path').resolve(filePath);
+                if (!fs.existsSync(resolved)) {
+                    return { error: `File not found: ${resolved}` };
+                }
+                const stat = fs.statSync(resolved);
+                if (stat.size > 512 * 1024) {
+                    return { error: `File too large (${(stat.size / 1024).toFixed(0)}KB). Max 512KB.` };
+                }
+                const content = fs.readFileSync(resolved, 'utf-8');
+                return { result: content };
+            }
+
+            case 'create_file': {
+                const filePath = args.path || '';
+                const content = args.content || '';
+                const resolved = require('path').resolve(filePath);
+                const dir = require('path').dirname(resolved);
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
+                fs.writeFileSync(resolved, content, 'utf-8');
+                return { result: `File created: ${resolved} (${content.length} bytes)` };
+            }
+
+            case 'list_directory': {
+                const dirPath = args.path || os.homedir();
+                const resolved = require('path').resolve(dirPath);
+                if (!fs.existsSync(resolved)) {
+                    return { error: `Directory not found: ${resolved}` };
+                }
+                const entries = fs.readdirSync(resolved, { withFileTypes: true });
+                const listing = entries.slice(0, 100).map(e =>
+                    (e.isDirectory() ? '📁 ' : '📄 ') + e.name
+                ).join('\n');
+                return { result: listing || '(empty directory)' };
+            }
+
+            case 'run_command': {
+                const cmd = args.command || '';
+                if (BLOCKED_COMMANDS.some(re => re.test(cmd))) {
+                    return { error: 'Command blocked for safety: ' + cmd };
+                }
+                try {
+                    const output = execSync(cmd, {
+                        timeout: 15000,
+                        maxBuffer: 512 * 1024,
+                        cwd: os.homedir(),
+                        encoding: 'utf-8'
+                    });
+                    return { result: output.slice(0, 4000) || '(no output)' };
+                } catch (e) {
+                    const stderr = e.stderr ? e.stderr.slice(0, 1000) : '';
+                    const stdout = e.stdout ? e.stdout.slice(0, 1000) : '';
+                    return { error: `Command failed: ${stderr || stdout || e.message}` };
+                }
+            }
+
+            default:
+                return { error: `Unknown tool: ${name}` };
+        }
+    } catch (e) {
+        return { error: `Tool execution error: ${e.message}` };
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -191,7 +402,15 @@ ${_petMemory && _petMemory.buildMemoryBlock() ? _petMemory.buildMemoryBlock() + 
 
 function stripThinkTags(text) {
     if (!text) return text;
-    return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    return text
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/<toolcall>[\s\S]*?<\/tool_call>/gi, '')
+        .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+        .replace(/<\/?toolcall>/gi, '')
+        .replace(/<\/?tool_call>/gi, '')
+        .replace(/<function=[^>]*>[\s\S]*?<\/function>/gi, '')
+        .replace(/<parameter>[\s\S]*?<\/parameter>/gi, '')
+        .trim();
 }
 
 function extractResponseContent(json) {
@@ -241,8 +460,10 @@ function extractStreamDelta(json) {
     // Reasoning content delta (thinking models) — skip, don't show reasoning
     if (delta.reasoning_content) return null;
 
-    // Tool call deltas — stream function name/args as they arrive
+    // Tool call deltas — when tools are enabled, these are handled separately
+    // by the tool call accumulator. Only show as text when tools are disabled.
     if (delta.tool_calls) {
+        if (llmConfig.toolsEnabled) return null;
         const parts = delta.tool_calls.map(tc => {
             const fn = tc.function;
             if (!fn) return null;
@@ -328,6 +549,14 @@ function sendChatMessageStream(event, messages) {
         return;
     }
 
+    console.log('[LLM] sendChatMessageStream — toolsEnabled:', llmConfig.toolsEnabled, 'model:', llmConfig.model, 'apiUrl:', llmConfig.apiUrl);
+    _streamRequest(event, messages, 0);
+}
+
+// Maximum tool-call rounds to prevent infinite loops
+const MAX_TOOL_ROUNDS = 3;
+
+function _streamRequest(event, messages, toolRound) {
     try {
         const https = require('https');
         const http = require('http');
@@ -335,17 +564,56 @@ function sendChatMessageStream(event, messages) {
         const protocol = url.protocol === 'https:' ? https : http;
 
         const contextPrompt = buildContextPrompt(messages);
-        const userMessages = messages.filter(m => m.role !== 'system');
-        const requestBody = JSON.stringify({
+        let userMessages = messages.filter(m => m.role !== 'system');
+        const useTools = llmConfig.toolsEnabled && toolRound < MAX_TOOL_ROUNDS;
+        const hasToolContext = userMessages.some(m => m.role === 'tool');
+
+        // When we're done with tool rounds but have tool results in the conversation,
+        // collapse tool messages into a plain assistant message. Many backends (llama.cpp)
+        // reject role:'tool' messages when no tools array is in the request body.
+        if (!useTools && hasToolContext) {
+            const collapsed = [];
+            let toolSummary = '';
+            for (const m of userMessages) {
+                if (m.tool_calls || m.role === 'tool') {
+                    // Collect tool results into a summary
+                    if (m.role === 'tool') {
+                        try {
+                            const parsed = JSON.parse(m.content);
+                            const resultText = parsed.result || parsed.error || m.content;
+                            toolSummary += (typeof resultText === 'string' ? resultText : JSON.stringify(resultText)) + '\n';
+                        } catch { toolSummary += m.content + '\n'; }
+                    }
+                } else {
+                    collapsed.push(m);
+                }
+            }
+            if (toolSummary) {
+                collapsed.push({ role: 'assistant', content: '[Tool results]\n' + toolSummary.trim() });
+            }
+            userMessages = collapsed;
+            console.log('[LLM] Collapsed tool messages for final round. Messages:', userMessages.length);
+        }
+
+        const body = {
             model: llmConfig.model,
             messages: [
                 { role: 'system', content: contextPrompt },
                 ...userMessages
             ],
-            max_tokens: 200,
-            temperature: 0.8,
-            stream: true
-        });
+            max_tokens: (useTools || hasToolContext) ? 2048 : 200,
+            temperature: useTools ? 0.3 : 0.8,
+            // Disable streaming when tools are active or when we have tool context —
+            // non-streaming gives us accurate usage stats and avoids issues with some backends.
+            stream: !(useTools || hasToolContext)
+        };
+        if (useTools) {
+            body.tools = TOOL_DEFINITIONS;
+            body.tool_choice = 'auto';
+        }
+        if (useTools) console.log('[LLM] Tools enabled (non-streaming), sending', TOOL_DEFINITIONS.length, 'tool definitions, round', toolRound);
+        const requestBody = JSON.stringify(body);
+        const streamStartTime = Date.now();
 
         const req = protocol.request({
             hostname: url.hostname,
@@ -357,18 +625,23 @@ function sendChatMessageStream(event, messages) {
                 'Content-Length': Buffer.byteLength(requestBody),
                 ...(llmConfig.apiKey ? { 'Authorization': `Bearer ${llmConfig.apiKey}` } : {})
             },
-            timeout: 30000
+            timeout: useTools ? 60000 : 30000
         }, (res) => {
             let buffer = '';
             let fullContent = '';
             let thinkBuffer = '';
             let insideThink = false;
-            const streamStartTime = Date.now();
+            let insideThinkTag = null; // 'think' or 'tool'
             let firstTokenTime = null;
             let tokenCount = 0;
 
-            if (!res.headers['content-type']?.includes('text/event-stream') &&
-                !res.headers['content-type']?.includes('application/x-ndjson')) {
+            // Tool call accumulation during streaming
+            let pendingToolCalls = {};  // index -> { id, name, arguments }
+
+            const ct = res.headers['content-type'] || '';
+            console.log('[LLM] Response status:', res.statusCode, 'content-type:', ct);
+            // Non-streaming response handler (used for tool-call rounds, or when provider returns JSON)
+            if (!body.stream || (ct.includes('application/json') && !ct.includes('stream'))) {
                 let data = '';
                 res.on('data', chunk => data += chunk);
                 res.on('end', () => {
@@ -376,16 +649,36 @@ function sendChatMessageStream(event, messages) {
                         const json = JSON.parse(data);
                         if (json.error) {
                             event.reply('chat-stream-error', { error: json.error.message || 'API error' });
-                        } else {
-                            const content = extractResponseContent(json) || 'No response';
-                            const totalTime = ((Date.now() - streamStartTime) / 1000).toFixed(1);
-                            event.reply('chat-stream-chunk', { content, done: true, metrics: { ttft: null, tokensPerSec: null, totalTime, tokenCount: 0 } });
-                            if (_petMemory && content !== 'No response') {
-                                const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-                                if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, content);
-                            }
+                            return;
+                        }
+                        const choice = json.choices?.[0];
+                        const msg = choice?.message;
+                        console.log('[LLM] Non-stream response — finish_reason:', choice?.finish_reason, 'has tool_calls:', !!(msg?.tool_calls?.length), 'content length:', (msg?.content || '').length);
+                        // Check for tool calls in non-streaming response
+                        if (msg?.tool_calls && msg.tool_calls.length > 0 && llmConfig.toolsEnabled && toolRound < MAX_TOOL_ROUNDS) {
+                            // Don't send any content to UI when tool calls are present —
+                            // models often emit thinking/XML text alongside tool_calls
+                            const assistantMsg = {
+                                role: 'assistant',
+                                content: null,
+                                tool_calls: msg.tool_calls
+                            };
+                            _handleToolCalls(event, messages, assistantMsg, streamStartTime, toolRound);
+                            return;
+                        }
+                        const content = stripThinkTags(msg?.content) || extractResponseContent(json) || 'No response';
+                        const totalTime = ((Date.now() - streamStartTime) / 1000).toFixed(1);
+                        const usage = json.usage || {};
+                        const completionTokens = usage.completion_tokens || 0;
+                        const tokensPerSec = completionTokens > 0 && totalTime > 0 ? (completionTokens / parseFloat(totalTime)).toFixed(1) : null;
+                        console.log('[LLM] Non-stream metrics — usage:', JSON.stringify(usage), 'completionTokens:', completionTokens, 'totalTime:', totalTime, 'tokensPerSec:', tokensPerSec);
+                        event.reply('chat-stream-chunk', { content, done: true, metrics: { ttft: null, tokensPerSec, totalTime, tokenCount: completionTokens } });
+                        if (_petMemory && content !== 'No response') {
+                            const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+                            if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, content);
                         }
                     } catch (e) {
+                        console.error('[LLM] Failed to parse non-streaming response:', e.message);
                         event.reply('chat-stream-error', { error: 'Invalid response from API' });
                     }
                 });
@@ -403,33 +696,65 @@ function sendChatMessageStream(event, messages) {
                     if (trimmed.startsWith('data: ')) {
                         try {
                             const json = JSON.parse(trimmed.slice(6));
-                            const delta = extractStreamDelta(json);
-                            if (delta) {
+                            const delta = json.choices?.[0]?.delta;
+
+                            // Accumulate tool call deltas
+                            if (delta?.tool_calls) {
+                                console.log('[LLM] Tool call delta:', JSON.stringify(delta.tool_calls));
+                                for (const tc of delta.tool_calls) {
+                                    const idx = tc.index ?? 0;
+                                    if (!pendingToolCalls[idx]) {
+                                        pendingToolCalls[idx] = { id: tc.id || '', name: '', arguments: '' };
+                                    }
+                                    if (tc.id) pendingToolCalls[idx].id = tc.id;
+                                    if (tc.function?.name) pendingToolCalls[idx].name += tc.function.name;
+                                    if (tc.function?.arguments) pendingToolCalls[idx].arguments += tc.function.arguments;
+                                }
+                            }
+
+                            const contentDelta = extractStreamDelta(json);
+                            if (contentDelta) {
                                 if (!firstTokenTime) firstTokenTime = Date.now();
                                 tokenCount++;
-                                fullContent += delta;
+                                fullContent += contentDelta;
                                 // Filter <think>...</think> blocks in real-time
-                                thinkBuffer += delta;
+                                thinkBuffer += contentDelta;
                                 while (thinkBuffer) {
                                     if (insideThink) {
-                                        const closeIdx = thinkBuffer.indexOf('</think>');
+                                        // Look for any closing tag we're inside
+                                        const closeTag = insideThinkTag === 'think' ? '</think>' : '</tool_call>';
+                                        const closeIdx = thinkBuffer.indexOf(closeTag);
                                         if (closeIdx !== -1) {
-                                            thinkBuffer = thinkBuffer.slice(closeIdx + 8);
+                                            thinkBuffer = thinkBuffer.slice(closeIdx + closeTag.length);
                                             insideThink = false;
+                                            insideThinkTag = null;
                                         } else { thinkBuffer = ''; break; }
                                     } else {
-                                        const openIdx = thinkBuffer.indexOf('<think>');
-                                        if (openIdx !== -1) {
-                                            const before = thinkBuffer.slice(0, openIdx);
+                                        // Check for any opening suppression tag
+                                        const thinkIdx = thinkBuffer.indexOf('<think>');
+                                        const toolIdx = thinkBuffer.indexOf('<toolcall>');
+                                        const toolIdx2 = thinkBuffer.indexOf('<tool_call>');
+                                        // Find earliest match
+                                        let bestIdx = -1, bestTag = null, bestLen = 0;
+                                        if (thinkIdx !== -1) { bestIdx = thinkIdx; bestTag = 'think'; bestLen = 7; }
+                                        if (toolIdx !== -1 && (bestIdx === -1 || toolIdx < bestIdx)) { bestIdx = toolIdx; bestTag = 'toolcall'; bestLen = 10; }
+                                        if (toolIdx2 !== -1 && (bestIdx === -1 || toolIdx2 < bestIdx)) { bestIdx = toolIdx2; bestTag = 'tool_call'; bestLen = 11; }
+
+                                        if (bestIdx !== -1) {
+                                            const before = thinkBuffer.slice(0, bestIdx);
                                             if (before) event.reply('chat-stream-chunk', { content: before, done: false });
-                                            thinkBuffer = thinkBuffer.slice(openIdx + 7);
+                                            thinkBuffer = thinkBuffer.slice(bestIdx + bestLen);
                                             insideThink = true;
+                                            insideThinkTag = bestTag === 'think' ? 'think' : 'tool';
                                         } else {
-                                            // Check for partial '<think' at the end — hold it back
+                                            // Check for partial tags at the end — hold them back
+                                            const partials = ['<think>', '<toolcall>', '<tool_call>'];
                                             let holdBack = 0;
-                                            for (let i = 1; i < 7 && i <= thinkBuffer.length; i++) {
-                                                if ('<think>'.startsWith(thinkBuffer.slice(-i))) {
-                                                    holdBack = i;
+                                            for (const tag of partials) {
+                                                for (let i = 1; i < tag.length && i <= thinkBuffer.length; i++) {
+                                                    if (tag.startsWith(thinkBuffer.slice(-i))) {
+                                                        holdBack = Math.max(holdBack, i);
+                                                    }
                                                 }
                                             }
                                             const safe = holdBack ? thinkBuffer.slice(0, -holdBack) : thinkBuffer;
@@ -450,16 +775,48 @@ function sendChatMessageStream(event, messages) {
                     if (buffer.trim().startsWith('data: ')) {
                         try {
                             const json = JSON.parse(buffer.trim().slice(6));
-                            const delta = extractStreamDelta(json);
-                            if (delta) {
-                                fullContent += delta;
-                                thinkBuffer += delta;
+                            const delta = json.choices?.[0]?.delta;
+                            if (delta?.tool_calls) {
+                                for (const tc of delta.tool_calls) {
+                                    const idx = tc.index ?? 0;
+                                    if (!pendingToolCalls[idx]) {
+                                        pendingToolCalls[idx] = { id: tc.id || '', name: '', arguments: '' };
+                                    }
+                                    if (tc.id) pendingToolCalls[idx].id = tc.id;
+                                    if (tc.function?.name) pendingToolCalls[idx].name += tc.function.name;
+                                    if (tc.function?.arguments) pendingToolCalls[idx].arguments += tc.function.arguments;
+                                }
+                            }
+                            const contentDelta = extractStreamDelta(json);
+                            if (contentDelta) {
+                                fullContent += contentDelta;
+                                thinkBuffer += contentDelta;
                             }
                         } catch (e) {
                             // Incomplete SSE chunk — expected during streaming
                         }
                     }
                 }
+
+                // Check if we accumulated tool calls
+                const toolCallList = Object.values(pendingToolCalls).filter(tc => tc.name);
+                console.log('[LLM] Stream ended. Accumulated tool calls:', toolCallList.length, toolCallList.length > 0 ? JSON.stringify(toolCallList.map(tc => tc.name)) : '', 'Content length:', fullContent.length);
+                if (toolCallList.length > 0 && llmConfig.toolsEnabled && toolRound < MAX_TOOL_ROUNDS) {
+                    // Build the assistant message with tool_calls for the conversation
+                    const assistantMsg = {
+                        role: 'assistant',
+                        content: fullContent || null,
+                        tool_calls: toolCallList.map(tc => ({
+                            id: tc.id || ('call_' + Math.random().toString(36).slice(2, 10)),
+                            type: 'function',
+                            function: { name: tc.name, arguments: tc.arguments }
+                        }))
+                    };
+                    _handleToolCalls(event, messages, assistantMsg, streamStartTime, toolRound);
+                    return;
+                }
+
+                // Normal completion (no tool calls)
                 // Flush remaining thinkBuffer (outside think blocks)
                 if (thinkBuffer && !insideThink) {
                     const cleaned = stripThinkTags(thinkBuffer);
@@ -494,6 +851,72 @@ function sendChatMessageStream(event, messages) {
     } catch (e) {
         event.reply('chat-stream-error', { error: e.message || 'Failed to connect to LLM' });
     }
+}
+
+// Handle tool calls: execute each tool, notify the chat window, then re-call the LLM
+async function _handleToolCalls(event, messages, assistantMsg, streamStartTime, toolRound) {
+    const toolCalls = assistantMsg.tool_calls || [];
+
+    // Notify chat window about each tool call
+    const TOOL_ICONS = {
+        web_search: '🔍', read_file: '📖', create_file: '📝',
+        list_directory: '📁', run_command: '⚙️'
+    };
+
+    // Build the updated conversation with the assistant's tool_calls message
+    const userMessages = messages.filter(m => m.role !== 'system');
+    const updatedMessages = [...userMessages, assistantMsg];
+
+    // Execute each tool call and collect results
+    for (const tc of toolCalls) {
+        const fn = tc.function;
+        const toolName = fn.name;
+        let args = {};
+        try { args = JSON.parse(fn.arguments || '{}'); } catch { /* use empty */ }
+
+        const icon = TOOL_ICONS[toolName] || '🔧';
+        const argSummary = Object.values(args).map(v =>
+            String(v).length > 60 ? String(v).slice(0, 57) + '...' : String(v)
+        ).join(', ');
+        event.reply('chat-tool-status', {
+            tool: toolName,
+            icon,
+            status: 'running',
+            summary: argSummary
+        });
+
+        let result;
+        try {
+            result = await Promise.resolve(executeToolCall(toolName, args));
+        } catch (e) {
+            result = { error: 'Execution failed: ' + e.message };
+        }
+
+        const resultContent = result.error
+            ? JSON.stringify({ error: result.error })
+            : JSON.stringify({ result: typeof result.result === 'string' ? result.result.slice(0, 4000) : result.result });
+
+        event.reply('chat-tool-status', {
+            tool: toolName,
+            icon,
+            status: result.error ? 'error' : 'done',
+            summary: result.error
+                ? result.error.slice(0, 100)
+                : (typeof result.result === 'string' ? result.result.slice(0, 80) : 'OK')
+        });
+
+        // Add tool result to conversation
+        updatedMessages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: resultContent
+        });
+    }
+
+    // Re-call the LLM with tool results. Allow one more tool round for multi-step tasks,
+    // but cap at MAX_TOOL_ROUNDS to prevent infinite loops.
+    const nextRound = Math.max(toolRound + 1, MAX_TOOL_ROUNDS - 1);
+    _streamRequest(event, updatedMessages, nextRound);
 }
 
 // Settings dialog
@@ -763,6 +1186,12 @@ function buildSettingsHtml() {
             </div>
             <div class="hint" style="margin-bottom:8px;">Remembers facts about you across sessions (<span id="memoryCount">0</span> stored)</div>
             <button type="button" class="btn-clear-memory" onclick="clearMemory()" style="flex:none;width:auto;padding:6px 14px;font-size:9px;border-color:var(--term-red);color:var(--term-red);">WIPE MEMORY</button>
+            <div class="section-header">TOOLS</div>
+            <div class="field checkbox-field">
+                <input type="checkbox" id="toolsEnabled">
+                <label for="toolsEnabled">ENABLE TOOL USE (SEARCH, FILES, SHELL)</label>
+            </div>
+            <div class="hint">When enabled, the LLM can search the web, read/write files, and run commands. Requires a model that supports tool calling.</div>
         </div>
         <div class="button-row">
             <button class="btn-cancel" onclick="window.close()">ABORT</button>
@@ -801,6 +1230,7 @@ function buildSettingsHtml() {
             document.getElementById('operatorName').value = config.operatorName || 'OPERATOR';
             document.getElementById('memoryEnabled').checked = config.memoryEnabled !== false;
             document.getElementById('memoryCount').textContent = config.memoryCount || 0;
+            document.getElementById('toolsEnabled').checked = config.toolsEnabled === true;
             if (config.operatorPfp && config.operatorPfp.imageUrl) {
                 operatorPfpImageUrl = config.operatorPfp.imageUrl;
                 const prevEl = document.getElementById('operatorPfpPreview');
@@ -820,6 +1250,7 @@ function buildSettingsHtml() {
                 systemPrompt: document.getElementById('systemPrompt').value,
                 operatorName: document.getElementById('operatorName').value.trim() || 'OPERATOR',
                 memoryEnabled: document.getElementById('memoryEnabled').checked,
+                toolsEnabled: document.getElementById('toolsEnabled').checked,
                 operatorPfp: { imageUrl: operatorPfpImageUrl }
             };
             await window.electronAPI.saveLlmConfig(config);
