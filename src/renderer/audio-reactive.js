@@ -23,7 +23,6 @@ let audioHealthCheckInterval = null;
 let consecutiveZeroFrames = 0;
 let isRestartingAudio = false;
 let lastMeaningfulAudioTime = 0;
-let audioDebugCounter = 0;
 
 const AUDIO_CONFIG = {
     VOLUME_THRESHOLD: 1,
@@ -211,13 +210,6 @@ function analyzeAudio() {
     }
     const avgVolume = sum / bufferLength;
 
-    audioDebugCounter++;
-    if (audioDebugCounter >= 120) {
-        audioDebugCounter = 0;
-        const secsSinceMeaningful = lastMeaningfulAudioTime ? ((Date.now() - lastMeaningfulAudioTime) / 1000).toFixed(1) : 'never';
-        console.log('Audio levels - avgVolume:', avgVolume.toFixed(1), 'hasData:', hasAnyData, 'consecutiveZero:', consecutiveZeroFrames, 'lastMeaningful:', secsSinceMeaningful + 's ago');
-    }
-
     if (avgVolume > AUDIO_CONFIG.VOLUME_THRESHOLD) lastMeaningfulAudioTime = Date.now();
     if (!hasAnyData && sum === 0) consecutiveZeroFrames++;
     else consecutiveZeroFrames = 0;
@@ -367,7 +359,6 @@ function connectAudioStream(stream) {
     audioSource.connect(audioAnalyser);
     audioListening = true;
     consecutiveZeroFrames = 0;
-    audioDebugCounter = 0;
     lastMeaningfulAudioTime = Date.now();
     startAudioHealthCheck();
     analyzeAudio();
@@ -385,7 +376,6 @@ async function startAudioListening() {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         stream.getVideoTracks().forEach(t => t.stop());
         if (stream.getAudioTracks().length > 0) {
-            console.log('Audio capture: using system audio (getDisplayMedia)');
             return connectAudioStream(stream);
         }
         stream.getTracks().forEach(t => t.stop());
@@ -400,7 +390,6 @@ async function startAudioListening() {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: { deviceId: { exact: monitorId } }
             });
-            console.log('Audio capture: using PulseAudio/PipeWire monitor device');
             return connectAudioStream(stream);
         }
     } catch (err) {

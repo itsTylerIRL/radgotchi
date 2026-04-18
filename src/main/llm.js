@@ -12,8 +12,6 @@ let llmConfig = {
     systemPrompt: 'You are Radgotchi, a radbro themed virtual pet assistant. Keep responses short and punchy, using tech/hacker slang. You\'re helpful but maintain a mysterious, cool demeanor. You remember your conversations and are aware of your current level, rank, and stats. Reference your progression naturally when relevant.',
     operatorName: 'OPERATOR',
     operatorPfp: {
-        collection: 'radbro',
-        tokenId: '',
         imageUrl: ''
     }
 };
@@ -34,8 +32,13 @@ let _xpSystem = null;
 let _getSleepWork = null;
 let _getMovement = null;
 let _petMemory = null;
+let _petNeeds = null;
 
-function init({ persistence, getMainWindow, getChatWindow, screen, xpSystem, getSleepWork, getMovement, petMemory }) {
+// LLM Profiles
+let llmProfiles = [];
+let activeProfileId = null;
+
+function init({ persistence, getMainWindow, getChatWindow, screen, xpSystem, getSleepWork, getMovement, petMemory, petNeeds }) {
     _persistence = persistence;
     _getMainWindow = getMainWindow;
     _getChatWindow = getChatWindow;
@@ -44,6 +47,7 @@ function init({ persistence, getMainWindow, getChatWindow, screen, xpSystem, get
     _getSleepWork = getSleepWork;
     _getMovement = getMovement;
     _petMemory = petMemory;
+    _petNeeds = petNeeds;
 }
 
 function getLlmConfig() {
@@ -57,13 +61,90 @@ function getSpriteState() {
 function loadLlmConfig() {
     const saved = _persistence.loadLlmConfigFromDisk();
     if (saved) {
+        activeProfileId = saved.activeProfileId || null;
+        delete saved.activeProfileId;
         llmConfig = { ...llmConfig, ...saved };
     }
+    loadProfiles();
 }
 
 function saveLlmConfig(config) {
     llmConfig = { ...llmConfig, ...config };
-    return _persistence.saveLlmConfigToDisk(llmConfig);
+    return _persistence.saveLlmConfigToDisk({ ...llmConfig, activeProfileId });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Profile Management
+// ═══════════════════════════════════════════════════════════════════════════
+
+function generateProfileId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+}
+
+function getProfileFields() {
+    return {
+        apiUrl: llmConfig.apiUrl,
+        apiKey: llmConfig.apiKey,
+        model: llmConfig.model,
+        systemPrompt: llmConfig.systemPrompt,
+    };
+}
+
+function loadProfiles() {
+    llmProfiles = _persistence.loadLlmProfilesFromDisk();
+}
+
+function getProfiles() {
+    return { profiles: llmProfiles, activeProfileId };
+}
+
+function saveProfile(name) {
+    const id = generateProfileId();
+    const profile = { id, name, ...getProfileFields() };
+    llmProfiles.push(profile);
+    activeProfileId = id;
+    _persistence.saveLlmProfilesToDisk(llmProfiles);
+    _persistence.saveLlmConfigToDisk({ ...llmConfig, activeProfileId });
+    return { profiles: llmProfiles, activeProfileId };
+}
+
+function updateProfile(id) {
+    const idx = llmProfiles.findIndex(p => p.id === id);
+    if (idx === -1) return { profiles: llmProfiles, activeProfileId };
+    llmProfiles[idx] = { ...llmProfiles[idx], ...getProfileFields() };
+    _persistence.saveLlmProfilesToDisk(llmProfiles);
+    return { profiles: llmProfiles, activeProfileId };
+}
+
+function loadProfile(id) {
+    const profile = llmProfiles.find(p => p.id === id);
+    if (!profile) return null;
+    llmConfig = {
+        ...llmConfig,
+        apiUrl: profile.apiUrl,
+        apiKey: profile.apiKey,
+        model: profile.model,
+        systemPrompt: profile.systemPrompt,
+    };
+    activeProfileId = id;
+    _persistence.saveLlmConfigToDisk({ ...llmConfig, activeProfileId });
+    return llmConfig;
+}
+
+function deleteProfile(id) {
+    llmProfiles = llmProfiles.filter(p => p.id !== id);
+    if (activeProfileId === id) activeProfileId = null;
+    _persistence.saveLlmProfilesToDisk(llmProfiles);
+    _persistence.saveLlmConfigToDisk({ ...llmConfig, activeProfileId });
+    return { profiles: llmProfiles, activeProfileId };
+}
+
+function renameProfile(id, name) {
+    const profile = llmProfiles.find(p => p.id === id);
+    if (!profile) return { profiles: llmProfiles, activeProfileId };
+    profile.name = name;
+    _persistence.saveLlmProfilesToDisk(llmProfiles);
+    return { profiles: llmProfiles, activeProfileId };
 }
 
 // Build context prompt for LLM
@@ -84,6 +165,7 @@ function buildContextPrompt(messages) {
                          sleepWork.getIsVibing() ? 'VIBE' :
                          movement.getIsUserIdle() ? 'IDLE' : 'NORMAL';
     const movementLabel = movement.getMovementMode() === 'none' ? 'stationary' : movement.getMovementMode();
+    const needs = _petNeeds ? _petNeeds.getNeeds() : { hunger: undefined, energy: undefined };
     const now = new Date();
     const dateTimeStr = now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -97,10 +179,82 @@ CURRENT STATUS:
 - State: ${currentState} | Movement: ${movementLabel}
 - Level: ${status.level} | XP: ${status.totalXp} (${Math.round(status.progress * 100)}% to next level)
 - Rank: ${currentRank.name}${nextRank ? ` | Next rank: ${nextRank.name} at Level ${nextRank.minLevel}` : ' (MAX RANK)'}
-- Hunger: ${Math.round(status.hunger)}% | Energy: ${Math.round(status.energy)}%
+- Hunger: ${needs.hunger !== undefined ? Math.round(needs.hunger) : '?'}% | Energy: ${needs.energy !== undefined ? Math.round(needs.energy) : '?'}%
 - Sessions together: ${status.totalSessions} | Current streak: ${status.currentStreak} days
 
 ${_petMemory && _petMemory.buildMemoryBlock() ? _petMemory.buildMemoryBlock() + '\n\n' : ''}${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Response Extraction — handles standard, tool-calling, and thinking LLMs
+// ═══════════════════════════════════════════════════════════════════════════
+
+function stripThinkTags(text) {
+    if (!text) return text;
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
+function extractResponseContent(json) {
+    const choice = json.choices?.[0];
+    if (!choice) return null;
+    const msg = choice.message;
+    if (!msg) return null;
+
+    // Standard content
+    if (msg.content) return stripThinkTags(msg.content);
+
+    // Thinking / reasoning models (DeepSeek-R1, QwQ, etc.)
+    if (msg.reasoning_content) return stripThinkTags(msg.reasoning_content);
+
+    // Tool-calling response — summarize the calls as readable text
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+        const parts = msg.tool_calls.map(tc => {
+            const fn = tc.function;
+            if (!fn) return null;
+            try {
+                const args = JSON.parse(fn.arguments || '{}');
+                const argStr = Object.entries(args).map(([k, v]) => `${k}: ${v}`).join(', ');
+                return `[${fn.name}(${argStr})]`;
+            } catch {
+                return `[${fn.name}()]`;
+            }
+        }).filter(Boolean);
+        return parts.join(' ') || null;
+    }
+
+    // function_call (legacy OpenAI format)
+    if (msg.function_call) {
+        const fn = msg.function_call;
+        return `[${fn.name}(${fn.arguments || ''})]`;
+    }
+
+    return null;
+}
+
+function extractStreamDelta(json) {
+    const delta = json.choices?.[0]?.delta;
+    if (!delta) return null;
+
+    // Standard content delta
+    if (delta.content) return delta.content;
+
+    // Reasoning content delta (thinking models) — skip, don't show reasoning
+    if (delta.reasoning_content) return null;
+
+    // Tool call deltas — stream function name/args as they arrive
+    if (delta.tool_calls) {
+        const parts = delta.tool_calls.map(tc => {
+            const fn = tc.function;
+            if (!fn) return null;
+            let text = '';
+            if (fn.name) text += `[${fn.name}: `;
+            if (fn.arguments) text += fn.arguments;
+            return text || null;
+        }).filter(Boolean);
+        return parts.join('') || null;
+    }
+
+    return null;
 }
 
 // Non-streaming chat handler
@@ -116,11 +270,12 @@ async function sendChatMessage(messages) {
         const protocol = url.protocol === 'https:' ? https : http;
 
         const contextPrompt = buildContextPrompt(messages);
+        const userMessages = messages.filter(m => m.role !== 'system');
         const requestBody = JSON.stringify({
             model: llmConfig.model,
             messages: [
                 { role: 'system', content: contextPrompt },
-                ...messages
+                ...userMessages
             ],
             max_tokens: 200,
             temperature: 0.8
@@ -155,7 +310,7 @@ async function sendChatMessage(messages) {
         if (response.error) {
             return { error: response.error.message || 'API error' };
         }
-        const content = response.choices?.[0]?.message?.content || 'No response';
+        const content = extractResponseContent(response) || 'No response';
         if (_petMemory && content !== 'No response') {
             const lastUserMsg = messages.filter(m => m.role === 'user').pop();
             if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, content);
@@ -180,11 +335,12 @@ function sendChatMessageStream(event, messages) {
         const protocol = url.protocol === 'https:' ? https : http;
 
         const contextPrompt = buildContextPrompt(messages);
+        const userMessages = messages.filter(m => m.role !== 'system');
         const requestBody = JSON.stringify({
             model: llmConfig.model,
             messages: [
                 { role: 'system', content: contextPrompt },
-                ...messages
+                ...userMessages
             ],
             max_tokens: 200,
             temperature: 0.8,
@@ -205,6 +361,11 @@ function sendChatMessageStream(event, messages) {
         }, (res) => {
             let buffer = '';
             let fullContent = '';
+            let thinkBuffer = '';
+            let insideThink = false;
+            const streamStartTime = Date.now();
+            let firstTokenTime = null;
+            let tokenCount = 0;
 
             if (!res.headers['content-type']?.includes('text/event-stream') &&
                 !res.headers['content-type']?.includes('application/x-ndjson')) {
@@ -216,8 +377,9 @@ function sendChatMessageStream(event, messages) {
                         if (json.error) {
                             event.reply('chat-stream-error', { error: json.error.message || 'API error' });
                         } else {
-                            const content = json.choices?.[0]?.message?.content || 'No response';
-                            event.reply('chat-stream-chunk', { content, done: true });
+                            const content = extractResponseContent(json) || 'No response';
+                            const totalTime = ((Date.now() - streamStartTime) / 1000).toFixed(1);
+                            event.reply('chat-stream-chunk', { content, done: true, metrics: { ttft: null, tokensPerSec: null, totalTime, tokenCount: 0 } });
                             if (_petMemory && content !== 'No response') {
                                 const lastUserMsg = messages.filter(m => m.role === 'user').pop();
                                 if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, content);
@@ -241,10 +403,42 @@ function sendChatMessageStream(event, messages) {
                     if (trimmed.startsWith('data: ')) {
                         try {
                             const json = JSON.parse(trimmed.slice(6));
-                            const delta = json.choices?.[0]?.delta?.content;
+                            const delta = extractStreamDelta(json);
                             if (delta) {
+                                if (!firstTokenTime) firstTokenTime = Date.now();
+                                tokenCount++;
                                 fullContent += delta;
-                                event.reply('chat-stream-chunk', { content: delta, done: false });
+                                // Filter <think>...</think> blocks in real-time
+                                thinkBuffer += delta;
+                                while (thinkBuffer) {
+                                    if (insideThink) {
+                                        const closeIdx = thinkBuffer.indexOf('</think>');
+                                        if (closeIdx !== -1) {
+                                            thinkBuffer = thinkBuffer.slice(closeIdx + 8);
+                                            insideThink = false;
+                                        } else { thinkBuffer = ''; break; }
+                                    } else {
+                                        const openIdx = thinkBuffer.indexOf('<think>');
+                                        if (openIdx !== -1) {
+                                            const before = thinkBuffer.slice(0, openIdx);
+                                            if (before) event.reply('chat-stream-chunk', { content: before, done: false });
+                                            thinkBuffer = thinkBuffer.slice(openIdx + 7);
+                                            insideThink = true;
+                                        } else {
+                                            // Check for partial '<think' at the end — hold it back
+                                            let holdBack = 0;
+                                            for (let i = 1; i < 7 && i <= thinkBuffer.length; i++) {
+                                                if ('<think>'.startsWith(thinkBuffer.slice(-i))) {
+                                                    holdBack = i;
+                                                }
+                                            }
+                                            const safe = holdBack ? thinkBuffer.slice(0, -holdBack) : thinkBuffer;
+                                            if (safe) event.reply('chat-stream-chunk', { content: safe, done: false });
+                                            thinkBuffer = holdBack ? thinkBuffer.slice(-holdBack) : '';
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                         } catch (e) { /* skip malformed */ }
                     }
@@ -256,18 +450,29 @@ function sendChatMessageStream(event, messages) {
                     if (buffer.trim().startsWith('data: ')) {
                         try {
                             const json = JSON.parse(buffer.trim().slice(6));
-                            const delta = json.choices?.[0]?.delta?.content;
+                            const delta = extractStreamDelta(json);
                             if (delta) {
                                 fullContent += delta;
-                                event.reply('chat-stream-chunk', { content: delta, done: false });
+                                thinkBuffer += delta;
                             }
-                        } catch (e) {}
+                        } catch (e) {
+                            // Incomplete SSE chunk — expected during streaming
+                        }
                     }
                 }
-                event.reply('chat-stream-chunk', { content: '', done: true, fullContent });
-                if (_petMemory && fullContent) {
+                // Flush remaining thinkBuffer (outside think blocks)
+                if (thinkBuffer && !insideThink) {
+                    const cleaned = stripThinkTags(thinkBuffer);
+                    if (cleaned) event.reply('chat-stream-chunk', { content: cleaned, done: false });
+                }
+                const cleanedFull = stripThinkTags(fullContent);
+                const totalTime = (Date.now() - streamStartTime) / 1000;
+                const ttft = firstTokenTime ? (firstTokenTime - streamStartTime) / 1000 : null;
+                const tokensPerSec = tokenCount > 0 && totalTime > 0 ? (tokenCount / totalTime).toFixed(1) : null;
+                event.reply('chat-stream-chunk', { content: '', done: true, fullContent: cleanedFull, metrics: { ttft, tokensPerSec, totalTime: totalTime.toFixed(1), tokenCount } });
+                if (_petMemory && cleanedFull) {
                     const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-                    if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, fullContent);
+                    if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, cleanedFull);
                 }
             });
 
@@ -349,7 +554,9 @@ function showChatSettingsDialog() {
                         syncColorToWindow(settingsWindow, color);
                     }
                 })
-                .catch(() => {});
+                .catch(() => {
+                    // Main window may be unavailable — non-critical
+                });
         }
     });
 
@@ -373,7 +580,9 @@ function syncColorToWindow(win, color) {
         const bg = Math.round(parseInt(hex.substr(2,2), 16) * 0.25);
         const bb = Math.round(parseInt(hex.substr(4,2), 16) * 0.25);
         document.documentElement.style.setProperty('--term-border', '#' + br.toString(16).padStart(2,'0') + bg.toString(16).padStart(2,'0') + bb.toString(16).padStart(2,'0'));
-    `).catch(() => {});
+    `).catch(() => {
+        // Settings window may have closed — non-critical
+    });
 }
 
 function syncColorToSettingsWindow(color) {
@@ -460,19 +669,25 @@ function buildSettingsHtml() {
         .identity-row { display: flex; gap: 16px; align-items: flex-start; }
         .identity-left { flex: 1; }
         .identity-right { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-        .pfp-preview-large { width: 64px; height: 64px; border: 2px solid var(--term-cyan); background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; box-shadow: 0 0 12px color-mix(in srgb, var(--term-cyan) 30%, transparent); }
+        .pfp-preview-large { width: 64px; height: 64px; border: 2px solid var(--term-cyan); background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; box-shadow: 0 0 12px color-mix(in srgb, var(--term-cyan) 30%, transparent); cursor: pointer; transition: border-color 0.2s; }
+        .pfp-preview-large:hover { border-color: var(--term-green); box-shadow: 0 0 12px color-mix(in srgb, var(--term-green) 30%, transparent); }
         .pfp-preview-large img { width: 100%; height: 100%; object-fit: cover; }
-        .pfp-controls { display: flex; align-items: center; gap: 6px; }
-        .pfp-controls select, .pfp-controls input { padding: 4px 6px; font-size: 8px; background: var(--term-bg); border: 1px solid var(--term-border); color: var(--term-green); }
-        .pfp-controls input { width: 50px; }
-        .pfp-controls select:focus, .pfp-controls input:focus { border-color: var(--term-green); outline: none; }
-        .pfp-fetch-btn { padding: 5px 10px; background: var(--term-panel); border: 1px solid var(--term-dim); color: var(--term-dim); font-family: inherit; font-size: 8px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
-        .pfp-fetch-btn:hover { border-color: var(--term-green); color: var(--term-green); box-shadow: 0 0 8px color-mix(in srgb, var(--term-green) 30%, transparent); }
         .pfp-preview-placeholder { font-size: 9px; color: var(--term-dim); text-align: center; }
-        .pfp-status-inline { font-size: 7px; color: var(--term-dim); white-space: nowrap; }
-        .pfp-status-inline.success { color: var(--term-green); }
-        .pfp-status-inline.error { color: var(--term-red); }
-        .pfp-status-inline.loading { color: var(--term-dim); }
+        .pfp-upload-btn { padding: 4px 10px; background: var(--term-panel); border: 1px solid var(--term-dim); color: var(--term-dim); font-family: inherit; font-size: 7px; cursor: pointer; transition: all 0.2s; white-space: nowrap; letter-spacing: 1px; }
+        .pfp-upload-btn:hover { border-color: var(--term-green); color: var(--term-green); box-shadow: 0 0 8px color-mix(in srgb, var(--term-green) 30%, transparent); }
+        .pfp-clear-btn { padding: 4px 8px; background: var(--term-panel); border: 1px solid var(--term-dim); color: var(--term-dim); font-family: inherit; font-size: 7px; cursor: pointer; transition: all 0.2s; letter-spacing: 1px; }
+        .pfp-clear-btn:hover { border-color: var(--term-red); color: var(--term-red); }
+        .profile-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: linear-gradient(180deg, #080a08 0%, #0d100d 100%); border-bottom: 1px solid var(--term-border); }
+        .profile-bar select { flex: 1; padding: 5px 8px; font-size: 9px; background: var(--term-panel); border: 1px solid var(--term-border); color: var(--term-green); font-family: inherit; letter-spacing: 1px; outline: none; cursor: pointer; }
+        .profile-bar select:focus { border-color: var(--term-green); }
+        .profile-btn { padding: 5px 8px; background: var(--term-panel); border: 1px solid var(--term-border); color: var(--term-dim); font-family: inherit; font-size: 8px; cursor: pointer; transition: all 0.2s; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; flex: none; }
+        .profile-btn:hover { border-color: var(--term-green); color: var(--term-green); box-shadow: 0 0 8px rgba(0,255,136,0.2); }
+        .profile-btn.danger:hover { border-color: var(--term-red); color: var(--term-red); box-shadow: 0 0 8px rgba(255,51,68,0.3); }
+        .profile-bar label { font-size: 8px; color: var(--term-dim); letter-spacing: 1.5px; white-space: nowrap; margin: 0; }
+        .profile-bar label::before { content: ''; }
+        .profile-name-prompt { display: flex; align-items: center; gap: 6px; padding: 6px 0; margin-bottom: 8px; }
+        .profile-name-prompt input { flex: 1; padding: 5px 8px; font-size: 9px; background: var(--term-panel); border: 1px solid var(--term-green); color: var(--term-green); font-family: inherit; letter-spacing: 1px; outline: none; box-shadow: 0 0 8px rgba(0,255,136,0.15); }
+        .profile-name-prompt input::placeholder { color: #335544; }
     </style>
 </head>
 <body>
@@ -499,23 +714,30 @@ function buildSettingsHtml() {
                         <label>CALLSIGN</label>
                         <input type="text" id="operatorName" placeholder="OPERATOR">
                     </div>
-                    <div class="pfp-controls" style="margin-top: 8px;">
-                        <select id="operatorCollection">
-                            <option value="radbro">RADBRO</option>
-                            <option value="schizo">SCHIZO</option>
-                        </select>
-                        <input type="text" id="operatorTokenId" placeholder="#">
-                        <button type="button" class="pfp-fetch-btn" onclick="fetchPfp()">FETCH</button>
-                        <span class="pfp-status-inline" id="operatorStatus"></span>
-                    </div>
                 </div>
                 <div class="identity-right">
-                    <div class="pfp-preview-large" id="operatorPfpPreview">
+                    <div class="pfp-preview-large" id="operatorPfpPreview" onclick="uploadPfp()" title="Click to upload">
                         <span class="pfp-preview-placeholder">?</span>
+                    </div>
+                    <div style="display:flex; gap:4px;">
+                        <button type="button" class="pfp-upload-btn" onclick="uploadPfp()">UPLOAD</button>
+                        <button type="button" class="pfp-clear-btn" onclick="clearPfp()">CLR</button>
                     </div>
                 </div>
             </div>
             <div class="section-header">CONNECTION</div>
+            <div class="profile-bar">
+                <label>PROFILE</label>
+                <select id="profileSelect"><option value="">&mdash; none &mdash;</option></select>
+                <button type="button" class="profile-btn" onclick="newProfile()">NEW</button>
+                <button type="button" class="profile-btn" onclick="overwriteProfile()">SAVE</button>
+                <button type="button" class="profile-btn danger" onclick="deleteCurrentProfile()">DEL</button>
+            </div>
+            <div id="profileNamePrompt" class="profile-name-prompt" style="display:none;">
+                <input type="text" id="profileNameInput" placeholder="Profile name..." maxlength="40">
+                <button type="button" class="profile-btn" onclick="confirmNewProfile()">OK</button>
+                <button type="button" class="profile-btn" onclick="cancelNewProfile()">ESC</button>
+            </div>
             <div class="field">
                 <label>ENDPOINT URL</label>
                 <input type="text" id="apiUrl" placeholder="http://localhost:11434/v1/chat/completions">
@@ -549,38 +771,25 @@ function buildSettingsHtml() {
     </div>
     <script>
         document.addEventListener('contextmenu', (e) => { e.preventDefault(); window.close(); });
-        let operatorPfpData = { collection: 'radbro', tokenId: '', imageUrl: '' };
-        const API_URLS = { radbro: 'https://radbro.xyz/api/tokens/metadata/', schizo: 'https://schizoposters.xyz/api/tokens/metadata/' };
-        function normalizeIpfsUrl(url) {
-            const subdomainMatch = url.match(/https?:\\/\\/([a-zA-Z0-9]+)\\.ipfs\\.[^/]+(\\/.*)?$/);
-            if (subdomainMatch) { return 'https://' + subdomainMatch[1] + '.ipfs.dweb.link' + (subdomainMatch[2] || ''); }
-            const pathMatch = url.match(/https?:\\/\\/[^/]+\\/ipfs\\/([a-zA-Z0-9]+)(\\/.*)?$/);
-            if (pathMatch) { return 'https://' + pathMatch[1] + '.ipfs.dweb.link' + (pathMatch[2] || ''); }
-            return url;
+        let operatorPfpImageUrl = '';
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
-        async function fetchPfp() {
-            const collection = document.getElementById('operatorCollection').value;
-            const tokenId = document.getElementById('operatorTokenId').value.trim();
-            const statusEl = document.getElementById('operatorStatus');
-            const previewEl = document.getElementById('operatorPfpPreview');
-            if (!tokenId) { statusEl.textContent = 'Enter ID'; statusEl.className = 'pfp-status-inline error'; return; }
-            statusEl.textContent = 'Fetching...'; statusEl.className = 'pfp-status-inline loading';
-            try {
-                const apiUrl = API_URLS[collection] + tokenId;
-                const response = await fetch(apiUrl, { method: 'GET', headers: { 'Accept': 'application/json' } });
-                if (!response.ok) throw new Error('Token not found (' + response.status + ')');
-                const data = await response.json();
-                let imageUrl = data.image;
-                if (!imageUrl) throw new Error('No image in metadata');
-                imageUrl = normalizeIpfsUrl(imageUrl);
-                statusEl.textContent = 'Loading image...';
-                previewEl.innerHTML = '<img src="' + imageUrl + '" alt="PFP" onerror="this.parentElement.innerHTML=\\'<span class=pfp-preview-placeholder>LOAD ERR</span>\\'">';
-                operatorPfpData = { collection, tokenId, imageUrl };
-                statusEl.textContent = 'Loaded: #' + tokenId; statusEl.className = 'pfp-status-inline success';
-            } catch (err) {
-                statusEl.textContent = err.message || 'Failed to fetch'; statusEl.className = 'pfp-status-inline error';
-                previewEl.innerHTML = '<span class="pfp-preview-placeholder">ERROR</span>';
+        async function uploadPfp() {
+            const result = await window.electronAPI.uploadPfp();
+            if (result && result.imageUrl) {
+                operatorPfpImageUrl = result.imageUrl;
+                const previewEl = document.getElementById('operatorPfpPreview');
+                previewEl.innerHTML = '';
+                const pfpImg = document.createElement('img');
+                pfpImg.src = operatorPfpImageUrl;
+                pfpImg.alt = 'PFP';
+                previewEl.appendChild(pfpImg);
             }
+        }
+        function clearPfp() {
+            operatorPfpImageUrl = '';
+            document.getElementById('operatorPfpPreview').innerHTML = '<span class="pfp-preview-placeholder">?</span>';
         }
         async function loadSettings() {
             const config = await window.electronAPI.getLlmConfig();
@@ -592,15 +801,14 @@ function buildSettingsHtml() {
             document.getElementById('operatorName').value = config.operatorName || 'OPERATOR';
             document.getElementById('memoryEnabled').checked = config.memoryEnabled !== false;
             document.getElementById('memoryCount').textContent = config.memoryCount || 0;
-            if (config.operatorPfp && config.operatorPfp.tokenId) {
-                operatorPfpData = { ...operatorPfpData, ...config.operatorPfp };
-                document.getElementById('operatorCollection').value = operatorPfpData.collection || 'radbro';
-                document.getElementById('operatorTokenId').value = operatorPfpData.tokenId || '';
-                if (operatorPfpData.imageUrl) {
-                    document.getElementById('operatorPfpPreview').innerHTML = '<img src="' + operatorPfpData.imageUrl + '" alt="PFP">';
-                    document.getElementById('operatorStatus').textContent = 'Loaded: #' + operatorPfpData.tokenId;
-                    document.getElementById('operatorStatus').className = 'pfp-status-inline success';
-                }
+            if (config.operatorPfp && config.operatorPfp.imageUrl) {
+                operatorPfpImageUrl = config.operatorPfp.imageUrl;
+                const prevEl = document.getElementById('operatorPfpPreview');
+                prevEl.innerHTML = '';
+                const pfpImg = document.createElement('img');
+                pfpImg.src = operatorPfpImageUrl;
+                pfpImg.alt = 'PFP';
+                prevEl.appendChild(pfpImg);
             }
         }
         async function saveSettings() {
@@ -612,7 +820,7 @@ function buildSettingsHtml() {
                 systemPrompt: document.getElementById('systemPrompt').value,
                 operatorName: document.getElementById('operatorName').value.trim() || 'OPERATOR',
                 memoryEnabled: document.getElementById('memoryEnabled').checked,
-                operatorPfp: { collection: document.getElementById('operatorCollection').value, tokenId: document.getElementById('operatorTokenId').value.trim(), imageUrl: operatorPfpData.imageUrl || '' }
+                operatorPfp: { imageUrl: operatorPfpImageUrl }
             };
             await window.electronAPI.saveLlmConfig(config);
             window.close();
@@ -623,7 +831,105 @@ function buildSettingsHtml() {
                 document.getElementById('memoryCount').textContent = '0';
             }
         }
+
+        // ── Profile Management ──
+        const profileSelect = document.getElementById('profileSelect');
+        let profilesData = [];
+        let currentActiveId = null;
+
+        async function loadProfileList() {
+            const { profiles, activeProfileId } = await window.electronAPI.getLlmProfiles();
+            profilesData = profiles || [];
+            currentActiveId = activeProfileId || null;
+            renderProfileDropdown();
+        }
+
+        function renderProfileDropdown() {
+            profileSelect.innerHTML = '<option value="">&mdash; none &mdash;</option>';
+            profilesData.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                profileSelect.appendChild(opt);
+            });
+            profileSelect.value = currentActiveId || '';
+        }
+
+        profileSelect.addEventListener('change', async () => {
+            const id = profileSelect.value;
+            if (!id) return;
+            const config = await window.electronAPI.loadLlmProfile(id);
+            if (config) {
+                document.getElementById('apiUrl').value = config.apiUrl || '';
+                document.getElementById('apiKey').value = config.apiKey || '';
+                document.getElementById('model').value = config.model || '';
+                document.getElementById('systemPrompt').value = config.systemPrompt || '';
+            }
+            currentActiveId = id;
+        });
+
+        async function newProfile() {
+            document.getElementById('profileNamePrompt').style.display = 'flex';
+            const inp = document.getElementById('profileNameInput');
+            inp.value = '';
+            inp.focus();
+        }
+
+        async function confirmNewProfile() {
+            const name = document.getElementById('profileNameInput').value.trim();
+            if (!name) return;
+            document.getElementById('profileNamePrompt').style.display = 'none';
+            await saveFieldsToConfig();
+            const result = await window.electronAPI.saveLlmProfile(name);
+            profilesData = result.profiles;
+            currentActiveId = result.activeProfileId;
+            renderProfileDropdown();
+        }
+
+        function cancelNewProfile() {
+            document.getElementById('profileNamePrompt').style.display = 'none';
+        }
+
+        document.getElementById('profileNameInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') confirmNewProfile();
+            if (e.key === 'Escape') cancelNewProfile();
+        });
+
+        async function overwriteProfile() {
+            const id = profileSelect.value;
+            if (!id) { newProfile(); return; }
+            const profile = profilesData.find(p => p.id === id);
+            if (!confirm('Overwrite "' + (profile ? profile.name : 'profile') + '" with current settings?')) return;
+            await saveFieldsToConfig();
+            const result = await window.electronAPI.updateLlmProfile(id);
+            profilesData = result.profiles;
+            currentActiveId = result.activeProfileId;
+            renderProfileDropdown();
+        }
+
+        async function deleteCurrentProfile() {
+            const id = profileSelect.value;
+            if (!id) return;
+            const profile = profilesData.find(p => p.id === id);
+            if (!confirm('Delete profile "' + (profile ? profile.name : '') + '"?')) return;
+            const result = await window.electronAPI.deleteLlmProfile(id);
+            profilesData = result.profiles;
+            currentActiveId = result.activeProfileId;
+            renderProfileDropdown();
+        }
+
+        async function saveFieldsToConfig() {
+            const config = {
+                apiUrl: document.getElementById('apiUrl').value.trim(),
+                apiKey: document.getElementById('apiKey').value,
+                model: document.getElementById('model').value.trim(),
+                systemPrompt: document.getElementById('systemPrompt').value,
+            };
+            await window.electronAPI.saveLlmConfig(config);
+        }
+
         loadSettings();
+        loadProfileList();
     </script>
 </body>
 </html>`;
@@ -641,4 +947,11 @@ module.exports = {
     syncColorToSettingsWindow,
     broadcastColor,
     colorPresets,
+    // Profiles
+    getProfiles,
+    saveProfile,
+    updateProfile,
+    loadProfile,
+    deleteProfile,
+    renameProfile,
 };

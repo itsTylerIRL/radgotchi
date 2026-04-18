@@ -156,7 +156,6 @@ function setClickThrough(ignore) {
             const info = await window.electronAPI.getPlatformInfo();
             if (info.isWayland) {
                 clickThroughEnabled = false;
-                console.log('Wayland detected: click-through disabled for compatibility');
                 // Ensure mouse events are not ignored
                 if (window.electronAPI.setIgnoreMouseEvents) {
                     window.electronAPI.setIgnoreMouseEvents(false);

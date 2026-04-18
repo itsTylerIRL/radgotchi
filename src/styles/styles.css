@@ -8,6 +8,11 @@
     --rg-vibe-glow: #00ccbb88;
     --rg-font: 'Segoe UI', 'Consolas', 'Courier New', monospace;
     --rg-bg: rgba(10, 10, 15, 0.85);
+    /* z-index scale */
+    --z-base: 1;
+    --z-ui: 100;
+    --z-overlay: 150;
+    --z-tooltip: 1000;
 }
 
 * {
@@ -542,7 +547,7 @@ body {
     display: flex;
     flex-direction: column;
     box-shadow: 0 0 16px var(--rg-glow);
-    z-index: 1000;
+    z-index: var(--z-tooltip);
     -webkit-app-region: no-drag;
 }
 
@@ -743,7 +748,7 @@ body {
     font-weight: bold;
     color: var(--rg-color);
     text-shadow: 0 0 8px var(--rg-color), 0 0 12px var(--rg-glow);
-    z-index: 100;
+    z-index: var(--z-ui);
     animation: rg-xp-float 1s ease-out forwards;
 }
 
@@ -778,7 +783,7 @@ body {
     font-weight: bold;
     color: #ff4444;
     text-shadow: 0 0 4px #ff0000, 0 0 8px #ff000088;
-    z-index: 100;
+    z-index: var(--z-ui);
     animation: rg-xp-sink 0.8s ease-out forwards;
 }
 
@@ -799,7 +804,7 @@ body {
     width: 8px;
     height: 8px;
     pointer-events: none;
-    z-index: 150;
+    z-index: var(--z-overlay);
     animation: rg-confetti-burst var(--confetti-duration, 1.5s) ease-out forwards;
 }
 
@@ -865,7 +870,7 @@ body {
     height: 4px;
     background: #666;
     pointer-events: none;
-    z-index: 100;
+    z-index: var(--z-ui);
     animation: rg-debris-fall var(--debris-duration, 1s) ease-in forwards;
 }
 

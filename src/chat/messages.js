@@ -11,6 +11,11 @@ const sendBtn = document.getElementById('send-btn');
 export let chatHistory = [];
 let isSending = false;
 
+// Session token counter
+let sessionTokens = 0;
+// Response time history for sparkline
+let responseTimes = [];
+
 // Sprite state for bro avatar
 let spriteState = { sprite: 'AWAKE.png', color: '#00ff88' };
 let operatorPfp = null;
@@ -59,7 +64,7 @@ export function updateBroAvatars() {
 function getTimeStr() { return new Date().toTimeString().split(' ')[0]; }
 function formatTimestamp(ts) { return ts ? new Date(ts).toTimeString().split(' ')[0] : getTimeStr(); }
 
-export function addMessage(role, content, isThinking = false, timestamp = null, persist = false) {
+export function addMessage(role, content, isThinking = false, timestamp = null, persist = false, metrics = null) {
     const t = translations[getCurrentLang()];
 
     if (role === 'user' || role === 'assistant') {
@@ -102,6 +107,27 @@ export function addMessage(role, content, isThinking = false, timestamp = null, 
 
         wrapperEl.appendChild(avatarEl);
         wrapperEl.appendChild(msgEl);
+        // Render persisted metrics (for history restore)
+        if (metrics && role === 'assistant') {
+            const parts = [];
+            if (metrics.ttft !== null && metrics.ttft !== undefined) parts.push('TTFT: ' + Number(metrics.ttft).toFixed(2) + 's');
+            if (metrics.tokensPerSec) parts.push(metrics.tokensPerSec + ' tok/s');
+            if (metrics.totalTime) parts.push(metrics.totalTime + 's total');
+            if (parts.length) {
+                const metricsEl = document.createElement('div');
+                metricsEl.className = 'message-metrics';
+                const statsSpan = document.createElement('span');
+                statsSpan.textContent = parts.join(' \u00b7 ');
+                metricsEl.appendChild(statsSpan);
+                if (metrics.profileName) {
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'metrics-profile';
+                    nameSpan.textContent = metrics.profileName;
+                    metricsEl.appendChild(nameSpan);
+                }
+                msgEl.appendChild(metricsEl);
+            }
+        }
         messagesEl.appendChild(wrapperEl);
         messagesEl.scrollTop = messagesEl.scrollHeight;
         return msgEl;
@@ -201,8 +227,53 @@ export async function sendMessage() {
             if (streamedContent) {
                 chatHistory.push({ role: 'assistant', content: streamedContent });
                 SoundSystem.play('messageReceive');
-                if (window.electronAPI && window.electronAPI.saveChatMessage) window.electronAPI.saveChatMessage('assistant', streamedContent);
                 window.electronAPI.chatMood('success');
+                // Build metrics for persistence
+                let savedMetrics = null;
+                // Show generation metrics
+                if (data.metrics) {
+                    const m = data.metrics;
+                    const profileSelect = document.getElementById('select-llm-profile');
+                    const profileName = (profileSelect?.selectedOptions[0]?.textContent && profileSelect.value) ? profileSelect.selectedOptions[0].textContent : null;
+                    savedMetrics = {
+                        ttft: m.ttft,
+                        tokensPerSec: m.tokensPerSec,
+                        totalTime: m.totalTime,
+                        tokenCount: m.tokenCount,
+                        profileName: profileName
+                    };
+                    const parts = [];
+                    if (m.ttft !== null && m.ttft !== undefined) parts.push('TTFT: ' + Number(m.ttft).toFixed(2) + 's');
+                    if (m.tokensPerSec) parts.push(m.tokensPerSec + ' tok/s');
+                    if (m.totalTime) parts.push(m.totalTime + 's total');
+                    if (parts.length) {
+                        const metricsEl = document.createElement('div');
+                        metricsEl.className = 'message-metrics';
+                        const statsSpan = document.createElement('span');
+                        statsSpan.textContent = parts.join(' · ');
+                        metricsEl.appendChild(statsSpan);
+                        if (profileName) {
+                            const nameSpan = document.createElement('span');
+                            nameSpan.className = 'metrics-profile';
+                            nameSpan.textContent = profileName;
+                            metricsEl.appendChild(nameSpan);
+                        }
+                        streamMsgEl.appendChild(metricsEl);
+                    }
+                    // Update session token counter
+                    if (m.tokenCount) {
+                        sessionTokens += m.tokenCount;
+                        const tokEl = document.getElementById('session-tokens');
+                        if (tokEl) tokEl.textContent = sessionTokens;
+                    }
+                    // Update response time sparkline
+                    if (m.totalTime) {
+                        responseTimes.push(parseFloat(m.totalTime));
+                        if (responseTimes.length > 40) responseTimes.shift();
+                        updateSparkline();
+                    }
+                }
+                if (window.electronAPI && window.electronAPI.saveChatMessage) window.electronAPI.saveChatMessage('assistant', streamedContent, savedMetrics);
             }
             isSending = false;
             sendBtn.disabled = false;
@@ -228,10 +299,36 @@ export async function sendMessage() {
     window.electronAPI.sendChatMessageStream(chatHistory);
 }
 
+function updateSparkline() {
+    const container = document.getElementById('latency-sparkline');
+    if (!container) return;
+    container.innerHTML = '';
+    const max = Math.max(...responseTimes, 1);
+    responseTimes.forEach(t => {
+        const bar = document.createElement('div');
+        bar.className = 'spark-bar' + (t > 5 ? ' very-slow' : t > 2 ? ' slow' : '');
+        bar.style.height = Math.max(1, (t / max) * 10) + 'px';
+        bar.title = t + 's';
+        container.appendChild(bar);
+    });
+}
+
+export function loadResponseTimes(times) {
+    if (Array.isArray(times) && times.length) {
+        responseTimes = times.slice(-40);
+        updateSparkline();
+    }
+}
+
 export function clearChatHistory() {
     const msgEls = messagesEl.querySelectorAll('.message-wrapper, .message.system');
     msgEls.forEach(el => el.remove());
     chatHistory = [];
+    responseTimes = [];
+    sessionTokens = 0;
+    const tokEl = document.getElementById('session-tokens');
+    if (tokEl) tokEl.textContent = '0';
+    updateSparkline();
     if (window.electronAPI && window.electronAPI.clearChatHistory) window.electronAPI.clearChatHistory();
     addMessage('system', '[ CHAT HISTORY CLEARED ]');
 }

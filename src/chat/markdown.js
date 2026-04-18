@@ -44,14 +44,34 @@ export function copyCode(btn) {
     const text = codeEl.textContent || codeEl.innerText;
     const t = translations[getCurrentLang()];
 
-    navigator.clipboard.writeText(text).then(() => {
+    function onSuccess() {
         btn.textContent = t.copied;
         btn.classList.add('copied');
         setTimeout(() => { btn.textContent = t.copy; btn.classList.remove('copied'); }, 1500);
-    }).catch(() => {
+    }
+    function onFail() {
         btn.textContent = t.error;
         setTimeout(() => { btn.textContent = t.copy; }, 1500);
-    });
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text) ? onSuccess() : onFail());
+    } else {
+        fallbackCopy(text) ? onSuccess() : onFail();
+    }
+}
+
+function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+    return ok;
 }
 
 export function getHueRotation(hexColor) {

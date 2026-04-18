@@ -152,6 +152,6 @@ export function updatePomodoroDisplay(data) {
 // Stats toggle
 levelBadge.addEventListener('click', () => {
     levelBadge.classList.toggle('active');
-    statsPanel.classList.toggle('visible');
-    SoundSystem.play(statsPanel.classList.contains('visible') ? 'statsOpen' : 'statsClose');
+    statsPanel.classList.toggle('hidden');
+    SoundSystem.play(statsPanel.classList.contains('hidden') ? 'statsClose' : 'statsOpen');
 });

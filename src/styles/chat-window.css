@@ -452,10 +452,10 @@ body::after {
     align-items: center;
     gap: 8px;
     padding: 4px 12px;
-    background: rgba(255, 170, 0, 0.03);
-    border-bottom: 1px solid rgba(255, 170, 0, 0.15);
+    background: color-mix(in srgb, var(--term-green) 3%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--term-green) 15%, transparent);
     font-size: 8px;
-    color: var(--term-amber);
+    color: var(--term-green);
     letter-spacing: 1px;
 }
 
@@ -465,11 +465,11 @@ body::after {
     justify-content: center;
     min-width: 32px;
     padding: 2px 6px;
-    background: rgba(255, 170, 0, 0.15);
-    border: 1px solid var(--term-amber);
+    background: color-mix(in srgb, var(--term-green) 15%, transparent);
+    border: 1px solid var(--term-green);
     font-weight: 700;
     font-size: 9px;
-    text-shadow: 0 0 6px var(--term-amber);
+    text-shadow: 0 0 6px var(--term-green);
 }
 
 .xp-progress-container {
@@ -489,7 +489,7 @@ body::after {
 .xp-progress-bar {
     height: 6px;
     background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 170, 0, 0.3);
+    border: 1px solid color-mix(in srgb, var(--term-green) 30%, transparent);
     border-radius: 2px;
     overflow: hidden;
     position: relative;
@@ -497,8 +497,8 @@ body::after {
 
 .xp-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--term-amber), #ffcc00);
-    box-shadow: 0 0 8px rgba(255, 170, 0, 0.5);
+    background: linear-gradient(90deg, var(--term-green), color-mix(in srgb, var(--term-green) 70%, white));
+    box-shadow: 0 0 8px color-mix(in srgb, var(--term-green) 50%, transparent);
     transition: width 0.3s ease;
     position: relative;
 }
@@ -532,11 +532,11 @@ body::after {
 
 @keyframes level-up-glow {
     0% { 
-        background: rgba(255, 170, 0, 0.4);
-        box-shadow: 0 0 20px var(--term-amber);
+        background: color-mix(in srgb, var(--term-green) 40%, transparent);
+        box-shadow: 0 0 20px var(--term-green);
     }
     100% { 
-        background: rgba(255, 170, 0, 0.03);
+        background: color-mix(in srgb, var(--term-green) 3%, transparent);
         box-shadow: none;
     }
 }
@@ -551,7 +551,7 @@ body::after {
         box-shadow: 0 0 20px #ff3232;
     }
     100% { 
-        background: rgba(255, 170, 0, 0.03);
+        background: color-mix(in srgb, var(--term-green) 3%, transparent);
         box-shadow: none;
     }
 }
@@ -761,7 +761,7 @@ body::after {
 
 /* Stats panel - dense intelligence style */
 .stats-panel {
-    display: none;
+    display: block;
     flex-shrink: 0;
     padding: 6px 12px;
     background: rgba(0, 0, 0, 0.4);
@@ -773,6 +773,10 @@ body::after {
 
 .stats-panel.visible {
     display: block;
+}
+
+.stats-panel.hidden {
+    display: none;
 }
 
 .stats-grid {
@@ -1423,13 +1427,11 @@ body::after {
     content: var(--operator-label, 'OPERATOR');
     position: absolute;
     top: 8px;
-    left: -40px;
+    right: -28px;
     font-size: 6px;
     color: var(--term-cyan);
     letter-spacing: 0.5px;
     writing-mode: vertical-rl;
-    text-orientation: mixed;
-    transform: rotate(180deg);
     opacity: 0.7;
 }
 
@@ -1443,12 +1445,33 @@ body::after {
     content: var(--bro-label, 'BRO');
     position: absolute;
     top: 8px;
-    right: -28px;
+    left: -40px;
     font-size: 6px;
     color: var(--term-green);
     letter-spacing: 0.5px;
     writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
     opacity: 0.7;
+}
+
+.message-metrics {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid color-mix(in srgb, var(--term-green) 15%, transparent);
+    font-size: 7px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.5px;
+    color: var(--term-dim);
+    opacity: 0.7;
+}
+
+.metrics-profile {
+    color: var(--term-green);
+    opacity: 0.8;
 }
 
 .message.system {
@@ -1495,11 +1518,11 @@ body::after {
 }
 
 .message-wrapper.user {
-    flex-direction: row-reverse;
+    padding-left: 32px;
 }
 
 .message-wrapper.assistant {
-    padding-left: 32px;
+    flex-direction: row-reverse;
 }
 
 .message-wrapper .message {
@@ -1531,7 +1554,6 @@ body::after {
 }
 
 .message-wrapper.user .message-avatar img {
-    transform: scaleX(-1);
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -1564,6 +1586,7 @@ body::after {
     object-fit: contain;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+    transform: scaleX(-1);
     /* Sprite color filter - matches main window pet style */
     filter: 
         invert(1) sepia(1) saturate(8) hue-rotate(var(--sprite-hue, 100deg)) brightness(1.1)
@@ -2298,12 +2321,12 @@ body::after {
 .level-badge:hover {
     animation: power-surge 0.4s ease;
     transform: scale(1.1);
-    box-shadow: 0 0 15px var(--term-amber), inset 0 0 10px rgba(255, 170, 0, 0.2);
+    box-shadow: 0 0 15px var(--term-green), inset 0 0 10px color-mix(in srgb, var(--term-green) 20%, transparent);
 }
 
 .level-badge.active {
-    background: rgba(255, 170, 0, 0.3);
-    box-shadow: 0 0 12px var(--term-amber), inset 0 0 8px rgba(255, 170, 0, 0.3);
+    background: color-mix(in srgb, var(--term-green) 30%, transparent);
+    box-shadow: 0 0 12px var(--term-green), inset 0 0 8px color-mix(in srgb, var(--term-green) 30%, transparent);
 }
 
 /* XP progress bar - glow on hover */
@@ -2313,8 +2336,8 @@ body::after {
 }
 
 .xp-progress-bar:hover {
-    border-color: var(--term-amber);
-    box-shadow: 0 0 10px rgba(255, 170, 0, 0.4);
+    border-color: var(--term-green);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--term-green) 40%, transparent);
 }
 
 .xp-progress-bar:hover .xp-progress-fill::after {
@@ -2397,6 +2420,106 @@ body::after {
 
 .stat-item:hover .stat-label {
     color: var(--term-green);
+}
+
+/* === Info density features === */
+
+/* Info bar separators */
+.info-sep {
+    color: rgba(0, 255, 136, 0.2);
+    margin: 0 2px;
+}
+
+#model-name {
+    color: var(--term-cyan);
+}
+
+#session-tokens {
+    color: var(--term-amber);
+    font-variant-numeric: tabular-nums;
+}
+
+/* CPU/RAM bar fills */
+.need-fill.cpu {
+    background: linear-gradient(90deg, #00d4ff, #0088ff);
+}
+
+.need-fill.ram {
+    background: linear-gradient(90deg, #bf00ff, #ff00aa);
+}
+
+.need-divider {
+    color: rgba(0, 255, 136, 0.15);
+    font-size: 10px;
+    margin: 0 2px;
+    align-self: center;
+    flex-shrink: 0;
+}
+
+/* LLM status dot */
+.llm-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #555;
+    box-shadow: 0 0 4px #333;
+    transition: all 0.3s;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+.llm-status-dot.online {
+    background: #00ff88;
+    box-shadow: 0 0 6px #00ff88;
+}
+
+.llm-status-dot.offline {
+    background: #ff3344;
+    box-shadow: 0 0 6px #ff3344;
+}
+
+.llm-status-dot.checking {
+    background: #ffaa00;
+    box-shadow: 0 0 6px #ffaa00;
+    animation: dot-pulse 1s infinite;
+}
+
+@keyframes dot-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Latency sparkline */
+.latency-sparkline {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    height: 14px;
+    padding: 2px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid rgba(0, 255, 136, 0.08);
+    flex-shrink: 0;
+}
+
+.latency-sparkline:empty {
+    display: none;
+}
+
+.latency-sparkline .spark-bar {
+    width: 3px;
+    min-height: 1px;
+    background: var(--term-green);
+    opacity: 0.6;
+    border-radius: 1px 1px 0 0;
+    transition: height 0.2s;
+}
+
+.latency-sparkline .spark-bar.slow {
+    background: var(--term-amber);
+}
+
+.latency-sparkline .spark-bar.very-slow {
+    background: var(--term-red);
 }
 
 .stat-value {

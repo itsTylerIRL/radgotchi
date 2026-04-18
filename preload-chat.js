@@ -52,7 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onPomodoroComplete: (callback) => ipcRenderer.on('pomodoro-complete', (_event, data) => callback(data)),
     // Chat History & Activity Log
     getChatHistory: () => ipcRenderer.invoke('get-chat-history'),
-    saveChatMessage: (role, content) => ipcRenderer.send('save-chat-message', { role, content }),
+    saveChatMessage: (role, content, metrics) => ipcRenderer.send('save-chat-message', { role, content, metrics }),
     clearChatHistory: () => ipcRenderer.invoke('clear-chat-history'),
     onActivityLogUpdate: (callback) => ipcRenderer.on('activity-log-update', (_event, entry) => callback(entry)),
     // PFP Updates (operator only)
@@ -67,4 +67,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getMeshMessages: () => ipcRenderer.invoke('get-mesh-messages'),
     saveMeshMessages: (messages) => ipcRenderer.invoke('save-mesh-messages', messages),
     onNetworkUpdate: (callback) => ipcRenderer.on('network-update', (_event, data) => callback(data)),
+    // LLM Profiles
+    getLlmProfiles: () => ipcRenderer.invoke('get-llm-profiles'),
+    loadLlmProfile: (id) => ipcRenderer.invoke('load-llm-profile', id),
+    // System Metrics & LLM Config
+    getSystemMetrics: () => ipcRenderer.invoke('get-system-metrics'),
+    getLlmConfig: () => ipcRenderer.invoke('get-llm-config'),
 });

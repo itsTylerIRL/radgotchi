@@ -133,7 +133,7 @@ function startNetworkDiscovery() {
                 discoveredNodes.set(data.nodeId, nodeData);
                 broadcastNetworkUpdate(isNew ? 'node-online' : 'node-update', nodeData);
             } catch (e) {
-                // Invalid message, ignore
+                // Invalid UDP message — expected for malformed broadcasts
             }
         });
 
@@ -143,7 +143,6 @@ function startNetworkDiscovery() {
             broadcastInterval = setInterval(broadcastPresence, NETWORK_CONFIG.BROADCAST_INTERVAL_MS);
             broadcastPresence();
             cleanupInterval = setInterval(cleanupStaleNodes, NETWORK_CONFIG.CLEANUP_INTERVAL_MS);
-            console.log(`Network discovery active on port ${NETWORK_CONFIG.PORT}`);
         });
 
         udpSocket.bind(NETWORK_CONFIG.PORT);

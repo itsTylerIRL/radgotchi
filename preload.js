@@ -67,7 +67,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getLlmConfig: () => ipcRenderer.invoke('get-llm-config'),
     saveLlmConfig: (config) => ipcRenderer.invoke('save-llm-config', config),
     clearPetMemory: () => ipcRenderer.invoke('clear-pet-memory'),
+    uploadPfp: () => ipcRenderer.invoke('upload-pfp'),
     sendChatMessage: (messages) => ipcRenderer.invoke('send-chat-message', { messages }),
+
+    // LLM Profiles
+    getLlmProfiles: () => ipcRenderer.invoke('get-llm-profiles'),
+    saveLlmProfile: (name) => ipcRenderer.invoke('save-llm-profile', name),
+    updateLlmProfile: (id) => ipcRenderer.invoke('update-llm-profile', id),
+    loadLlmProfile: (id) => ipcRenderer.invoke('load-llm-profile', id),
+    deleteLlmProfile: (id) => ipcRenderer.invoke('delete-llm-profile', id),
+    renameLlmProfile: (id, name) => ipcRenderer.invoke('rename-llm-profile', { id, name }),
     
     // Chat window control
     openChat: () => ipcRenderer.send('open-chat'),

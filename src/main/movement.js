@@ -1,6 +1,7 @@
 'use strict';
 
 const { powerMonitor } = require('electron');
+const { broadcastToWindows } = require('./broadcast');
 
 // Movement modes: 'none', 'bounce', 'follow', 'wander'
 let movementMode = 'none';
@@ -75,14 +76,7 @@ function setMovementMode(mode) {
     else if (mode === 'follow') startFollow();
     else if (mode === 'wander') startWander();
 
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('movement-mode-change', mode);
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('movement-mode-change', mode);
-    }
+    broadcastToWindows('movement-mode-change', mode);
 }
 
 function stopMovement() {

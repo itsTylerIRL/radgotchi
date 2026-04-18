@@ -41,6 +41,10 @@
         </div>
         <div class="info-bar">
             <span>SESSION: <span id="session-id">RG-0000</span></span>
+            <span class="info-sep">&middot;</span>
+            <span>MDL: <span id="model-name">--</span></span>
+            <span class="info-sep">&middot;</span>
+            <span>TOK: <span id="session-tokens">0</span></span>
             <span class="timestamp" id="timestamp">--:--:--</span>
             <span>OS: <span id="os-info">DETECTING</span></span>
         </div>
@@ -78,6 +82,21 @@
                     <div class="need-fill energy" id="energy-fill" style="width: 100%"></div>
                 </div>
                 <span class="need-value" id="energy-value">100</span>
+            </div>
+            <span class="need-divider">|</span>
+            <div class="need-item">
+                <span class="need-label">CPU</span>
+                <div class="need-progress">
+                    <div class="need-fill cpu" id="cpu-fill" style="width: 0%"></div>
+                </div>
+                <span class="need-value" id="cpu-value">0</span>
+            </div>
+            <div class="need-item">
+                <span class="need-label">RAM</span>
+                <div class="need-progress">
+                    <div class="need-fill ram" id="ram-fill" style="width: 0%"></div>
+                </div>
+                <span class="need-value" id="ram-value">0</span>
             </div>
         </div>
         <!-- Network Discovery Panel (RAD MESH) -->
@@ -157,6 +176,7 @@
             <span class="pomo-count" id="pomo-count">&#x1F345; 0</span>
             <button class="pomo-btn stop" id="pomo-stop-btn">STOP</button>
         </div>
+        <div class="latency-sparkline" id="latency-sparkline" title="Response time history"></div>
         <div class="messages-area" id="messages"></div>
         <div class="input-area">
             <span class="input-prefix">&gt;</span>
@@ -207,6 +227,14 @@
                     <option value="bounce">BOUNCE</option>
                     <option value="follow">FOLLOW</option>
                     <option value="wander">WANDER</option>
+                </select>
+            </div>
+            <span class="control-divider"></span>
+            <div class="control-group">
+                <span class="control-label" id="label-llm">LLM</span>
+                <span class="llm-status-dot" id="llm-status-dot" title="LLM status"></span>
+                <select class="control-select" id="select-llm-profile">
+                    <option value="">NONE</option>
                 </select>
             </div>
         </div>

@@ -3,7 +3,7 @@
 import SoundSystem from '../renderer/sounds.js';
 import { getCurrentLang, setCurrentLang, updateLanguage } from './translations.js';
 import { addMessage, chatHistory, runBootAnimation, setSpriteState, setOperatorPfp,
-         updateBroAvatars, startSleepTimer, stopSleepTimer, attentionMsgEl, setAttentionMsgEl } from './messages.js';
+         updateBroAvatars, startSleepTimer, stopSleepTimer, attentionMsgEl, setAttentionMsgEl, loadResponseTimes } from './messages.js';
 import { updateXpDisplay, updateNeedsDisplay, updatePomodoroDisplay } from './xp-display.js';
 import { addNetworkNode, updateNetworkNode, removeNetworkNode, updateNetworkTranslations, handleMeshMessage, loadMeshHistory } from './network-panel.js';
 import { handleAudioLevels } from './equalizer.js';
@@ -47,6 +47,53 @@ if (getCurrentLang() === 'zh') {
 // Boot animation
 runBootAnimation();
 
+// === System Metrics Polling (CPU/RAM) ===
+const cpuFill = document.getElementById('cpu-fill');
+const cpuValue = document.getElementById('cpu-value');
+const ramFill = document.getElementById('ram-fill');
+const ramValue = document.getElementById('ram-value');
+
+setInterval(async () => {
+    try {
+        const m = await window.electronAPI.getSystemMetrics();
+        const cpu = Math.round(m.cpu.usage_total);
+        const ram = Math.round(m.memory.percent);
+        cpuFill.style.width = cpu + '%';
+        cpuValue.textContent = cpu;
+        ramFill.style.width = ram + '%';
+        ramValue.textContent = ram;
+    } catch (e) {}
+}, 3000);
+
+// === Model Name + LLM Status Dot ===
+const modelNameEl = document.getElementById('model-name');
+const llmStatusDot = document.getElementById('llm-status-dot');
+
+async function refreshLlmInfo() {
+    try {
+        const config = await window.electronAPI.getLlmConfig();
+        modelNameEl.textContent = config.model ? config.model.toUpperCase() : '--';
+        if (config.enabled && config.apiUrl) {
+            llmStatusDot.className = 'llm-status-dot checking';
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const modelsUrl = config.apiUrl.replace(/\/chat\/completions\/?$/, '/models');
+                await fetch(modelsUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                llmStatusDot.className = 'llm-status-dot online';
+            } catch (e) {
+                llmStatusDot.className = 'llm-status-dot offline';
+            }
+        } else {
+            llmStatusDot.className = 'llm-status-dot';
+        }
+    } catch (e) {}
+}
+refreshLlmInfo();
+setInterval(refreshLlmInfo, 30000);
+window.addEventListener('focus', refreshLlmInfo);
+
 // === IPC Listeners ===
 
 const api = window.electronAPI;
@@ -69,11 +116,13 @@ api.onChatReady(async (data) => {
                 addMessage('system', lang === 'zh' ? '─── 之前的会话 ───' : '─── PREVIOUS SESSION ───');
                 const recent = historyData.chatHistory.slice(-20);
                 recent.forEach(msg => {
-                    addMessage(msg.role, msg.content, false, msg.timestamp);
+                    addMessage(msg.role, msg.content, false, msg.timestamp, false, msg.metrics || null);
                     chatHistory.push({ role: msg.role, content: msg.content });
                 });
                 addMessage('system', lang === 'zh' ? '─── 当前会话 ───' : '─── CURRENT SESSION ───');
             }
+            // Restore sparkline data
+            if (historyData.responseTimes) loadResponseTimes(historyData.responseTimes);
         } catch (e) { console.error('Failed to load chat history:', e); }
     }
 

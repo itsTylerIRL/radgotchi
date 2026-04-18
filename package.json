@@ -43,7 +43,8 @@
   "devDependencies": {
     "canvas": "^2.11.2",
     "electron": "^28.3.3",
-    "electron-builder": "^24.9.1"
+    "electron-builder": "^24.9.1",
+    "rimraf": "^5.0.5"
   },
   "engines": {
     "node": ">=18.0.0"

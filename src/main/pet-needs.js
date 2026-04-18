@@ -1,10 +1,12 @@
 'use strict';
 
+const { broadcastToWindows } = require('./broadcast');
+
 const NEEDS_CONFIG = {
     MAX_VALUE: 100,
     DECAY_INTERVAL_MS: 60000,
-    HUNGER_DECAY: 0.5,
-    ENERGY_DECAY: 0.3,
+    HUNGER_DECAY: 1.5,
+    ENERGY_DECAY: 0.8,
     CLICK_FEED: 2,
     MESSAGE_FEED: 5,
     MESSAGE_ENERGY: 3,
@@ -23,13 +25,9 @@ let petNeeds = {
 
 let needsDecayInterval = null;
 
-let _getMainWindow = null;
-let _getChatWindow = null;
 let _getIsSleeping = null;
 
 function init({ getMainWindow, getChatWindow, getIsSleeping }) {
-    _getMainWindow = getMainWindow;
-    _getChatWindow = getChatWindow;
     _getIsSleeping = getIsSleeping || (() => false);
 }
 
@@ -86,14 +84,7 @@ function broadcastNeeds() {
         energyCritical: petNeeds.energy < NEEDS_CONFIG.CRITICAL_THRESHOLD,
     };
 
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('needs-update', needsData);
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('needs-update', needsData);
-    }
+    broadcastToWindows('needs-update', needsData);
 }
 
 module.exports = {

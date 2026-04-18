@@ -224,6 +224,38 @@ function saveLlmConfigToDisk(config) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// LLM Profiles Persistence
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getLlmProfilesPath() {
+    return path.join(_app.getPath('userData'), 'llm-profiles.json');
+}
+
+function loadLlmProfilesFromDisk() {
+    try {
+        const profilesPath = getLlmProfilesPath();
+        if (fs.existsSync(profilesPath)) {
+            const data = fs.readFileSync(profilesPath, 'utf8');
+            const parsed = JSON.parse(data);
+            return Array.isArray(parsed) ? parsed : [];
+        }
+    } catch (e) {
+        console.error('Failed to load LLM profiles:', e);
+    }
+    return [];
+}
+
+function saveLlmProfilesToDisk(profiles) {
+    try {
+        fs.writeFileSync(getLlmProfilesPath(), JSON.stringify(profiles, null, 2));
+        return true;
+    } catch (e) {
+        console.error('Failed to save LLM profiles:', e);
+        return false;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Pet Memory Persistence
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -303,6 +335,9 @@ module.exports = {
     // LLM config
     loadLlmConfigFromDisk,
     saveLlmConfigToDisk,
+    // LLM profiles
+    loadLlmProfilesFromDisk,
+    saveLlmProfilesToDisk,
     // Pet memory
     loadPetMemoryFromDisk,
     savePetMemoryToDisk,

@@ -154,7 +154,7 @@ Respond ONLY with a JSON array of short fact strings, e.g. ["works on a game cal
 
         saveMemory();
     } catch (e) {
-        // Silent fail — memory extraction is best-effort
+        console.warn('Pet memory: fact extraction failed:', e.message);
     }
 }
 

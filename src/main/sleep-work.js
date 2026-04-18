@@ -1,5 +1,12 @@
 'use strict';
 
+const { broadcastToWindows } = require('./broadcast');
+
+const SLEEP_WORK_CONFIG = {
+    SLEEP_ANIMATION_INTERVAL_MS: 3000,
+    WORK_ANIMATION_INTERVAL_MS: 4000,
+};
+
 const SLEEP_ANIMATIONS = ['sleep', 'sleep2'];
 let sleepAnimationIndex = 0;
 let sleepAnimationInterval = null;
@@ -58,7 +65,7 @@ function startWorkAnimation() {
         if (mw && mw.webContents) {
             mw.webContents.send('work-animation', WORK_ANIMATIONS[workAnimationIndex]);
         }
-    }, 4000);
+    }, SLEEP_WORK_CONFIG.WORK_ANIMATION_INTERVAL_MS);
 }
 
 function stopWorkAnimation() {
@@ -91,17 +98,11 @@ function startSleepMode() {
 
     // Clear active attention event
     _cancelAttentionEvent();
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('attention-event', { active: false });
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('attention-event', { active: false });
-    }
+    broadcastToWindows('attention-event', { active: false });
 
     // Start sleep animation rotation
     sleepAnimationIndex = 0;
+    const mainWindow = _getMainWindow();
     if (mainWindow && mainWindow.webContents) {
         mainWindow.webContents.send('set-sleep', true);
         mainWindow.webContents.send('sleep-animation', SLEEP_ANIMATIONS[sleepAnimationIndex]);
@@ -113,7 +114,7 @@ function startSleepMode() {
         if (mw && mw.webContents) {
             mw.webContents.send('sleep-animation', SLEEP_ANIMATIONS[sleepAnimationIndex]);
         }
-    }, 3000);
+    }, SLEEP_WORK_CONFIG.SLEEP_ANIMATION_INTERVAL_MS);
 }
 
 function stopSleepMode() {
@@ -139,14 +140,7 @@ function stopSleepMode() {
         modeBeforeSleep = 'none';
     }
 
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('set-sleep', false);
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('set-sleep', false);
-    }
+    broadcastToWindows('set-sleep', false);
 }
 
 module.exports = {

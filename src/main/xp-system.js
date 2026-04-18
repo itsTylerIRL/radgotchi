@@ -1,5 +1,7 @@
 'use strict';
 
+const { broadcastToWindows } = require('./broadcast');
+
 // XP gains and losses
 const XP_CONFIG = {
     PASSIVE_INTERVAL_MS: 30000,
@@ -89,8 +91,6 @@ let attentionEvent = {
 
 // Dependencies set during init
 let _persistence = null;
-let _getMainWindow = null;
-let _getChatWindow = null;
 let _isSleeping = null;
 let _isUserIdle = null;
 let _feedPet = null;
@@ -99,8 +99,6 @@ let _addActivityLogEntry = null;
 
 function init({ persistence, getMainWindow, getChatWindow, isSleeping, isUserIdle, feedPet, getPomosCompleted, addActivityLogEntry }) {
     _persistence = persistence;
-    _getMainWindow = getMainWindow;
-    _getChatWindow = getChatWindow;
     _isSleeping = isSleeping;
     _isUserIdle = isUserIdle;
     _feedPet = feedPet;
@@ -196,8 +194,8 @@ function loadXpData(petNeedsRef) {
     if (saved.petNeeds && petNeedsRef) {
         const timeSinceSave = Date.now() - (saved.lastSaved || Date.now());
         const decayMinutes = timeSinceSave / 60000;
-        petNeedsRef.hunger = Math.max(0, (saved.petNeeds.hunger || 100) - (decayMinutes * 0.5));
-        petNeedsRef.energy = Math.max(0, (saved.petNeeds.energy || 100) - (decayMinutes * 0.3));
+        petNeedsRef.hunger = Math.max(0, (saved.petNeeds.hunger || 100) - (decayMinutes * 1.5));
+        petNeedsRef.energy = Math.max(0, (saved.petNeeds.energy || 100) - (decayMinutes * 0.8));
     }
 
     xpData.level = calculateLevel(xpData.totalXp);
@@ -334,14 +332,7 @@ function removeXp(amount, source = 'unknown') {
     update.leveledDown = leveledDown;
     update.oldLevel = oldLevel;
 
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('xp-update', update);
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('xp-update', update);
-    }
+    broadcastToWindows('xp-update', update);
 
     return { leveledDown, newLevel: xpData.level, totalXp: xpData.totalXp };
 }
@@ -351,14 +342,7 @@ function broadcastXpUpdate(leveledUp = false, oldLevel = 0) {
     update.leveledUp = leveledUp;
     update.oldLevel = oldLevel;
 
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('xp-update', update);
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('xp-update', update);
-    }
+    broadcastToWindows('xp-update', update);
 }
 
 function getXpStatus() {
@@ -480,14 +464,7 @@ function triggerAttentionEvent() {
         'Attention required! Link unstable.',
         '注意！连接不稳定。');
 
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('attention-event', { active: true });
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('attention-event', { active: true });
-    }
+    broadcastToWindows('attention-event', { active: true });
 
     attentionEvent.lossInterval = setInterval(() => {
         if (!attentionEvent.active) {
@@ -510,14 +487,7 @@ function resolveAttentionEvent() {
     const duration = Date.now() - attentionEvent.startTime;
     attentionEvent.startTime = 0;
 
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('attention-event', { active: false, resolved: true });
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('attention-event', { active: false, resolved: true });
-    }
+    broadcastToWindows('attention-event', { active: false, resolved: true });
 
     addXp(XP_CONFIG.ATTENTION_RESOLVE_XP, 'attention-resolve');
 

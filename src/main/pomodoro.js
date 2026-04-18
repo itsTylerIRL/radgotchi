@@ -1,5 +1,7 @@
 'use strict';
 
+const { broadcastToWindows } = require('./broadcast');
+
 const POMODORO_CONFIG = {
     WORK_DURATION_MS: 25 * 60 * 1000,
     BREAK_DURATION_MS: 5 * 60 * 1000,
@@ -23,8 +25,6 @@ let pomodoroInterval = null;
 let _addXp = null;
 let _feedPet = null;
 let _addActivityLogEntry = null;
-let _getMainWindow = null;
-let _getChatWindow = null;
 let _isSleeping = null;
 let _stopSleepMode = null;
 let _startWorkAnimation = null;
@@ -36,8 +36,6 @@ function init({ addXp, feedPet, addActivityLogEntry, getMainWindow, getChatWindo
     _addXp = addXp;
     _feedPet = feedPet;
     _addActivityLogEntry = addActivityLogEntry;
-    _getMainWindow = getMainWindow;
-    _getChatWindow = getChatWindow;
     _isSleeping = isSleeping;
     _stopSleepMode = stopSleepMode;
     _startWorkAnimation = startWorkAnimation;
@@ -149,14 +147,7 @@ function completePomodoro() {
         autoStarting: completedMode === 'work',
     };
 
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('pomodoro-complete', notification);
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('pomodoro-complete', notification);
-    }
+    broadcastToWindows('pomodoro-complete', notification);
 
     broadcastPomodoro();
 
@@ -180,14 +171,7 @@ function broadcastPomodoro() {
             (Date.now() - pomodoroState.startTime) / pomodoroState.duration : 0,
     };
 
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('pomodoro-update', data);
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('pomodoro-update', data);
-    }
+    broadcastToWindows('pomodoro-update', data);
 }
 
 module.exports = {

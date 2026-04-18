@@ -11,6 +11,7 @@ let isAlwaysOnTop = true;
 let isDragging = false;
 let audioListeningEnabled = true;
 let trayMenuOpen = false;
+let alwaysOnTopInterval = null;
 
 // Dependencies set during init
 let _persistence = null;
@@ -25,6 +26,7 @@ let _systemMonitor = null;
 let _networkDiscovery = null;
 let _chatHistory = null;
 let _activityLog = null;
+let _responseTimes = null;
 let _saveChatData = null;
 let _addActivityLogEntry = null;
 
@@ -41,12 +43,20 @@ function init(deps) {
     _networkDiscovery = deps.networkDiscovery;
     _chatHistory = deps.chatHistory;
     _activityLog = deps.activityLog;
+    _responseTimes = deps.responseTimes;
     _saveChatData = deps.saveChatData;
     _addActivityLogEntry = deps.addActivityLogEntry;
 }
 
 function getMainWindow() { return mainWindow; }
 function getChatWindow() { return chatWindow; }
+
+function cleanup() {
+    if (alwaysOnTopInterval) {
+        clearInterval(alwaysOnTopInterval);
+        alwaysOnTopInterval = null;
+    }
+}
 
 function createWindow() {
     const primaryDisplay = screen.getPrimaryDisplay();
@@ -84,7 +94,7 @@ function createWindow() {
         mainWindow.setAlwaysOnTop(true, 'screen-saver');
     }
 
-    setInterval(() => {
+    alwaysOnTopInterval = setInterval(() => {
         if (mainWindow && !mainWindow.isDestroyed() && isAlwaysOnTop && !trayMenuOpen) {
             mainWindow.setAlwaysOnTop(true, 'screen-saver');
         }
@@ -177,6 +187,49 @@ function createWindow() {
     ipcMain.handle('clear-pet-memory', async () => {
         _petMemory.clearMemory();
         return { success: true };
+    });
+
+    ipcMain.handle('upload-pfp', async () => {
+        const { dialog } = require('electron');
+        const fs = require('fs');
+        const result = await dialog.showOpenDialog({
+            title: 'Select Profile Picture',
+            filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+            properties: ['openFile']
+        });
+        if (result.canceled || !result.filePaths.length) return null;
+        const filePath = result.filePaths[0];
+        const ext = path.extname(filePath).toLowerCase().replace('.', '');
+        const mimeMap = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' };
+        const mime = mimeMap[ext] || 'image/png';
+        const data = fs.readFileSync(filePath);
+        const base64 = data.toString('base64');
+        return { imageUrl: 'data:' + mime + ';base64,' + base64 };
+    });
+
+    // LLM Profiles
+    ipcMain.handle('get-llm-profiles', async () => {
+        return _llm.getProfiles();
+    });
+
+    ipcMain.handle('save-llm-profile', async (event, name) => {
+        return _llm.saveProfile(name);
+    });
+
+    ipcMain.handle('update-llm-profile', async (event, id) => {
+        return _llm.updateProfile(id);
+    });
+
+    ipcMain.handle('load-llm-profile', async (event, id) => {
+        return _llm.loadProfile(id);
+    });
+
+    ipcMain.handle('delete-llm-profile', async (event, id) => {
+        return _llm.deleteProfile(id);
+    });
+
+    ipcMain.handle('rename-llm-profile', async (event, { id, name }) => {
+        return _llm.renameProfile(id, name);
     });
 
     // Chat with LLM (non-streaming)
@@ -452,11 +505,20 @@ function registerChatIpc() {
 
     ipcMain.handle('get-chat-history', async () => ({
         chatHistory: _chatHistory(),
-        activityLog: _activityLog()
+        activityLog: _activityLog(),
+        responseTimes: _responseTimes()
     }));
 
-    ipcMain.on('save-chat-message', (event, { role, content }) => {
-        _chatHistory().push({ role, content, timestamp: Date.now() });
+    ipcMain.on('save-chat-message', (event, { role, content, metrics }) => {
+        const entry = { role, content, timestamp: Date.now() };
+        if (metrics) entry.metrics = metrics;
+        _chatHistory().push(entry);
+        // Persist response time for sparkline
+        if (metrics && metrics.totalTime) {
+            const times = _responseTimes();
+            times.push(parseFloat(metrics.totalTime));
+            if (times.length > 40) times.shift();
+        }
         _saveChatData();
     });
 
@@ -564,4 +626,5 @@ module.exports = {
     createChatWindow,
     registerChatIpc,
     createTray,
+    cleanup,
 };

@@ -36,14 +36,21 @@ export function registerIpcListeners() {
     if (api.onSystemEvent) api.onSystemEvent((event) => handleSystemEvent(event));
 
     // System metrics polling
+    let metricsInterval = null;
     async function pollMetrics() {
         try {
             const metrics = await api.getSystemMetrics();
             assessHealth(metrics);
-        } catch (e) {}
+        } catch (e) {
+            // Metrics unavailable — non-critical, skip silently
+        }
     }
-    setInterval(pollMetrics, 5000);
+    metricsInterval = setInterval(pollMetrics, 5000);
     setTimeout(pollMetrics, 1000);
+
+    window.addEventListener('beforeunload', () => {
+        if (metricsInterval) clearInterval(metricsInterval);
+    });
 
     // Idle state
     if (api.onIdleChange) {

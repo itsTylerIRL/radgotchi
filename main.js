@@ -18,6 +18,7 @@ const selfUpdate    = require('./src/main/self-update');
 const petMemory     = require('./src/main/pet-memory');
 const llm           = require('./src/main/llm');
 const windows       = require('./src/main/windows');
+const broadcast     = require('./src/main/broadcast');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Platform GPU configuration (must happen before app ready)
@@ -65,6 +66,7 @@ if (!gotTheLock) {
 const CHAT_HISTORY_CONFIG = { MAX_MESSAGES: 100, MAX_ACTIVITY_LOG: 50 };
 let chatHistory = [];
 let activityLog = [];
+let responseTimes = [];
 
 function loadChatData() {
     try {
@@ -72,11 +74,13 @@ function loadChatData() {
         if (saved) {
             chatHistory = (saved.chatHistory || []).slice(-CHAT_HISTORY_CONFIG.MAX_MESSAGES);
             activityLog = (saved.activityLog || []).slice(-CHAT_HISTORY_CONFIG.MAX_ACTIVITY_LOG);
+            responseTimes = (saved.responseTimes || []).slice(-40);
         }
     } catch (e) {
         console.error('Failed to load chat data:', e);
         chatHistory = [];
         activityLog = [];
+        responseTimes = [];
     }
 }
 
@@ -85,6 +89,7 @@ function saveChatData() {
         persistence.saveChatDataToDisk({
             chatHistory: chatHistory.slice(-CHAT_HISTORY_CONFIG.MAX_MESSAGES),
             activityLog: activityLog.slice(-CHAT_HISTORY_CONFIG.MAX_ACTIVITY_LOG),
+            responseTimes: responseTimes.slice(-40),
             lastSaved: Date.now()
         });
     } catch (e) {
@@ -105,6 +110,11 @@ function addActivityLogEntry(type, message, messageZh) {
 // ═══════════════════════════════════════════════════════════════════════════
 function initModules() {
     persistence.init(app, screen);
+
+    broadcast.init({
+        getMainWindow: windows.getMainWindow,
+        getChatWindow: windows.getChatWindow,
+    });
 
     petNeeds.init({
         getMainWindow: windows.getMainWindow,
@@ -166,6 +176,7 @@ function initModules() {
         getSleepWork: () => sleepWork,
         getMovement: () => movement,
         petMemory,
+        petNeeds,
     });
 
     networkDiscovery.init({
@@ -195,6 +206,7 @@ function initModules() {
         networkDiscovery,
         chatHistory: () => chatHistory,
         activityLog: () => activityLog,
+        responseTimes: () => responseTimes,
         saveChatData,
         addActivityLogEntry,
     });
@@ -208,7 +220,10 @@ function initializeApp() {
 
     // Load persisted data
     llm.loadLlmConfig();
-    xpSystem.loadXpData();
+    const loadResult = xpSystem.loadXpData(petNeeds.getNeeds());
+    if (loadResult && loadResult.pomosCompleted) {
+        pomodoro.setPomosCompleted(loadResult.pomosCompleted);
+    }
     petMemory.loadMemory();
     loadChatData();
     persistence.loadWindowStates();
@@ -220,6 +235,7 @@ function initializeApp() {
 
     // Start background systems
     xpSystem.startPassiveXpGain();
+    petNeeds.broadcastNeeds();
     petNeeds.startNeedsDecay();
 
     // Restore sleep mode if it was active last session
@@ -287,6 +303,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {});
 
 app.on('will-quit', () => {
+    windows.cleanup();
     systemMonitor.stopSystemEventMonitoring();
     movement.stopMovement();
     movement.stopIdleDetection();
@@ -296,7 +313,7 @@ app.on('will-quit', () => {
     petNeeds.stopNeedsDecay();
     pomodoro.stopPomodoro();
     networkDiscovery.stopNetworkDiscovery();
-    xpSystem.saveXpData();
+    xpSystem.saveXpData(petNeeds.getNeeds());
     petMemory.saveMemory();
     saveChatData();
 });

@@ -46,6 +46,10 @@ export function updateNetworkTranslations() {
     }
 }
 
+function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function renderNetworkNodes() {
     const t = networkTranslations[getCurrentLang()];
     const count = discoveredNodesMap.size;
@@ -74,14 +78,14 @@ function renderNetworkNodes() {
             const nodeColor = node.color || 'var(--term-green)';
 
             nodeEl.innerHTML = `
-                <div class="node-signal ${signalClass}" title="Signal: ${node.signalStrength || 'UNKNOWN'}"></div>
+                <div class="node-signal ${escapeHtml(signalClass)}" title="Signal: ${escapeHtml(node.signalStrength || 'UNKNOWN')}"></div>
                 <div class="node-info">
                     <div class="node-top-row">
-                        <span class="node-id" style="color: ${nodeColor}">${node.nodeId}</span>
-                        <span class="node-operator">${node.operatorName || 'UNKNOWN'}</span>
-                        <span class="node-rank">${node.rank || 'TRAINEE'}</span>
-                        <span class="node-level">LV${node.level || 1}</span>
-                        <span class="node-activity ${actClass}" title="${node.activity || 'idle'}">${actIcon}</span>
+                        <span class="node-id" style="color: ${escapeHtml(nodeColor)}">${escapeHtml(node.nodeId)}</span>
+                        <span class="node-operator">${escapeHtml(node.operatorName || 'UNKNOWN')}</span>
+                        <span class="node-rank">${escapeHtml(node.rank || 'TRAINEE')}</span>
+                        <span class="node-level">LV${escapeHtml(String(node.level || 1))}</span>
+                        <span class="node-activity ${escapeHtml(actClass)}" title="${escapeHtml(node.activity || 'idle')}">${actIcon}</span>
                     </div>
                     <div class="node-bars">
                         <div class="node-bar-track"><div class="node-bar-fill hunger" style="width:${hunger}%"></div></div>
@@ -131,8 +135,8 @@ function addMeshMessage(nodeId, operatorName, text, timestamp = null) {
     msgEl.className = 'mesh-msg';
     const ts = timestamp ? new Date(timestamp) : new Date();
     const time = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const safeOp = (operatorName || 'UNKNOWN').replace(/</g, '&lt;');
-    const safeText = (text || '').replace(/</g, '&lt;');
+    const safeOp = escapeHtml(operatorName || 'UNKNOWN');
+    const safeText = escapeHtml(text || '');
     msgEl.innerHTML = `<span class="mesh-msg-time">${time}</span><span class="mesh-msg-sender">${safeOp}</span><span class="mesh-msg-text">${safeText}</span>`;
     meshMessages.appendChild(msgEl);
 

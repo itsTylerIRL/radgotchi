@@ -68,6 +68,47 @@ selectMovement.addEventListener('change', () => {
     if (window.electronAPI && window.electronAPI.setMovementMode) window.electronAPI.setMovementMode(selectMovement.value);
 });
 
+// LLM Profile selector
+const selectLlmProfile = document.getElementById('select-llm-profile');
+
+async function loadLlmProfileList() {
+    if (!window.electronAPI?.getLlmProfiles) return;
+    try {
+        const { profiles, activeProfileId } = await window.electronAPI.getLlmProfiles();
+        const prev = selectLlmProfile.value;
+        selectLlmProfile.innerHTML = '<option value="">NONE</option>';
+        for (const p of profiles) {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.name.toUpperCase();
+            selectLlmProfile.appendChild(opt);
+        }
+        selectLlmProfile.value = activeProfileId || prev || '';
+    } catch (e) {
+        console.warn('Failed to load LLM profiles:', e);
+    }
+}
+
+selectLlmProfile.addEventListener('change', async () => {
+    SoundSystem.play('selectChange');
+    const id = selectLlmProfile.value;
+    if (id && window.electronAPI?.loadLlmProfile) {
+        await window.electronAPI.loadLlmProfile(id);
+        // Refresh model name and LLM status after profile switch
+        if (window.electronAPI?.getLlmConfig) {
+            try {
+                const config = await window.electronAPI.getLlmConfig();
+                const modelEl = document.getElementById('model-name');
+                if (modelEl) modelEl.textContent = config.model ? config.model.toUpperCase() : '--';
+            } catch (e) {}
+        }
+    }
+});
+
+// Refresh profile list when settings might have changed (window regains focus)
+window.addEventListener('focus', loadLlmProfileList);
+loadLlmProfileList();
+
 // Color picker
 colorPickerTrigger.addEventListener('click', () => { colorPickerWrapper.classList.toggle('open'); SoundSystem.play('selectChange'); });
 document.addEventListener('click', (e) => { if (!colorPickerWrapper.contains(e.target)) colorPickerWrapper.classList.remove('open'); });
