@@ -167,6 +167,47 @@ if (api.onSpriteUpdate) {
     api.onSpriteUpdate((data) => { setSpriteState(data); updateBroAvatars(); updateWebSprite(); });
 }
 
+// Web sprite click → XP gain + animation (tamagotchi interaction)
+{
+    const webSpriteEl = document.getElementById('web-sprite-container');
+    if (webSpriteEl) {
+        const CLICK_COOLDOWN = 3000;
+        let lastClickTime = 0;
+        const clickAnims = ['click-bounce', 'click-wiggle', 'click-nod', 'click-spin', 'click-pulse'];
+
+        webSpriteEl.addEventListener('click', (e) => {
+            const now = Date.now();
+            if (now - lastClickTime < CLICK_COOLDOWN) return;
+            lastClickTime = now;
+
+            // Award XP via web bridge
+            if (api.addXp) api.addXp(2, 'click');
+
+            // Play sound
+            SoundSystem.play('click');
+
+            // Random animation on sprite
+            const img = webSpriteEl.querySelector('img');
+            if (img) {
+                const anim = clickAnims[Math.floor(Math.random() * clickAnims.length)];
+                img.classList.remove(...clickAnims);
+                void img.offsetWidth; // reflow
+                img.classList.add(anim);
+                img.addEventListener('animationend', () => img.classList.remove(anim), { once: true });
+            }
+
+            // Click ripple effect
+            const rect = webSpriteEl.getBoundingClientRect();
+            const ripple = document.createElement('div');
+            ripple.className = 'web-click-ripple';
+            ripple.style.left = (e.clientX - rect.left) + 'px';
+            ripple.style.top = (e.clientY - rect.top) + 'px';
+            webSpriteEl.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 600);
+        });
+    }
+}
+
 // Color sync
 if (api.onSetColor) api.onSetColor(applyColor);
 
