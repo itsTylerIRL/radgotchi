@@ -3044,3 +3044,80 @@ body[data-web-mode="true"] input,
 body[data-web-mode="true"] textarea {
     font-size: 16px; /* Prevents iOS auto-zoom on focus */
 }
+
+/* ── Web mode: persistent centered sprite ────────────────────────── */
+
+/* Hidden by default (Electron mode) */
+.web-sprite-container {
+    display: none;
+}
+
+/* Visible in web mode — centered above stats */
+body[data-web-mode="true"] .web-sprite-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 8px 0 4px 0;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+}
+
+body[data-web-mode="true"] .web-sprite-container img {
+    height: 56px;
+    width: auto;
+    object-fit: contain;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    transform: scaleX(-1);
+    filter:
+        invert(1) sepia(1) saturate(8) hue-rotate(var(--sprite-hue, 100deg)) brightness(1.1)
+        drop-shadow(0 0 3px var(--term-green))
+        drop-shadow(0 0 6px var(--term-green))
+        contrast(1.1);
+    transition: filter 0.3s ease, transform 0.2s ease;
+}
+
+/* Sprite mood animations */
+body[data-web-mode="true"] .web-sprite-container.thinking img {
+    animation: web-sprite-think 1.2s ease-in-out infinite;
+}
+
+body[data-web-mode="true"] .web-sprite-container.responding img {
+    animation: web-sprite-bounce 0.4s ease-in-out infinite;
+}
+
+body[data-web-mode="true"] .web-sprite-container.success img {
+    animation: web-sprite-nod 0.5s ease-out;
+}
+
+body[data-web-mode="true"] .web-sprite-container.error img {
+    animation: web-sprite-shake 0.4s ease-out;
+}
+
+@keyframes web-sprite-think {
+    0%, 100% { transform: scaleX(-1) translateY(0); opacity: 1; }
+    50% { transform: scaleX(-1) translateY(-4px); opacity: 0.7; }
+}
+
+@keyframes web-sprite-bounce {
+    0%, 100% { transform: scaleX(-1) translateY(0); }
+    50% { transform: scaleX(-1) translateY(-6px); }
+}
+
+@keyframes web-sprite-nod {
+    0% { transform: scaleX(-1) scale(1); }
+    40% { transform: scaleX(-1) scale(1.15); }
+    100% { transform: scaleX(-1) scale(1); }
+}
+
+@keyframes web-sprite-shake {
+    0%, 100% { transform: scaleX(-1) translateX(0); }
+    25% { transform: scaleX(-1) translateX(-4px); }
+    75% { transform: scaleX(-1) translateX(4px); }
+}
+
+/* Hide per-message sprite avatars in web mode (save horizontal space) */
+body[data-web-mode="true"] .message-wrapper.assistant .message-avatar.sprite-avatar {
+    display: none !important;
+}

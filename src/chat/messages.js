@@ -34,9 +34,37 @@ export function setPomodoroMsgEl(el) { pomodoroMsgEl = el; }
 export function setSpriteState(state) {
     if (state.sprite) spriteState.sprite = state.sprite;
     if (state.color) spriteState.color = state.color;
+    updateWebSprite();
 }
 export function setOperatorPfp(pfp) { operatorPfp = pfp; }
 export function getSpriteState() { return spriteState; }
+
+// Persistent web-mode sprite (single centered sprite above stats)
+const webSpriteContainer = document.getElementById('web-sprite-container');
+const webSpriteImg = document.getElementById('web-sprite');
+
+export function updateWebSprite() {
+    if (!webSpriteImg) return;
+    webSpriteImg.src = 'assets/gotchi/' + spriteState.sprite;
+    const hueRotate = getHueRotation(spriteState.color);
+    webSpriteContainer.style.setProperty('--sprite-hue', hueRotate + 'deg');
+}
+
+let webSpriteMoodTimer = null;
+export function setWebSpriteMood(mood) {
+    if (!webSpriteContainer) return;
+    webSpriteContainer.classList.remove('thinking', 'responding', 'success', 'error');
+    if (webSpriteMoodTimer) { clearTimeout(webSpriteMoodTimer); webSpriteMoodTimer = null; }
+    if (mood) {
+        webSpriteContainer.classList.add(mood);
+        // Auto-clear one-shot animations
+        if (mood === 'success' || mood === 'error') {
+            webSpriteMoodTimer = setTimeout(() => {
+                webSpriteContainer.classList.remove(mood);
+            }, 600);
+        }
+    }
+}
 
 function createBroSpriteAvatar() {
     const avatarEl = document.createElement('div');
@@ -230,6 +258,7 @@ export async function sendMessage() {
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
     window.electronAPI.chatMood('thinking');
+    setWebSpriteMood('thinking');
 
     let streamedContent = '';
     let streamComplete = false;
@@ -239,6 +268,7 @@ export async function sendMessage() {
         if (data.content) {
             streamedContent += data.content;
             streamMsgEl.classList.remove('thinking');
+            setWebSpriteMood('responding');
             streamMsgEl.innerHTML = parseMarkdown(streamedContent);
             streamMsgEl.querySelectorAll('.copy-btn').forEach(btn => {
                 btn.textContent = t.copy;
@@ -254,6 +284,7 @@ export async function sendMessage() {
                 chatHistory.push({ role: 'assistant', content: streamedContent });
                 SoundSystem.play('messageReceive');
                 window.electronAPI.chatMood('success');
+                setWebSpriteMood('success');
                 // Build metrics for persistence
                 let savedMetrics = null;
                 // Show generation metrics
@@ -314,6 +345,7 @@ export async function sendMessage() {
         streamWrapperEl.remove();
         addMessage('system', t.err + ': ' + (data.error || 'Unknown error'));
         window.electronAPI.chatMood('error');
+        setWebSpriteMood('error');
         isSending = false;
         sendBtn.disabled = false;
         inputEl.focus();

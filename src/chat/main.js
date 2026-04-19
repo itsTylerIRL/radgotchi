@@ -3,7 +3,7 @@
 import SoundSystem from '../renderer/sounds.js';
 import { getCurrentLang, setCurrentLang, updateLanguage } from './translations.js';
 import { addMessage, chatHistory, runBootAnimation, setSpriteState, setOperatorPfp,
-         updateBroAvatars, startSleepTimer, stopSleepTimer, attentionMsgEl, setAttentionMsgEl, loadResponseTimes } from './messages.js';
+         updateBroAvatars, updateWebSprite, startSleepTimer, stopSleepTimer, attentionMsgEl, setAttentionMsgEl, loadResponseTimes } from './messages.js';
 import { updateXpDisplay, updateNeedsDisplay, updatePomodoroDisplay } from './xp-display.js';
 import { addNetworkNode, updateNetworkNode, removeNetworkNode, updateNetworkTranslations, handleMeshMessage, loadMeshHistory } from './network-panel.js';
 import { handleAudioLevels } from './equalizer.js';
@@ -162,7 +162,7 @@ api.onPfpUpdate((data) => {
 
 // Sprite updates
 if (api.onSpriteUpdate) {
-    api.onSpriteUpdate((data) => { setSpriteState(data); updateBroAvatars(); });
+    api.onSpriteUpdate((data) => { setSpriteState(data); updateBroAvatars(); updateWebSprite(); });
 }
 
 // Color sync
