@@ -3,6 +3,7 @@
 const { BrowserWindow, Tray, Menu, ipcMain, nativeImage, desktopCapturer, screen, shell } = require('electron');
 const path = require('path');
 const os = require('os');
+const { broadcastToWindows: _broadcastToWindows } = require('./broadcast');
 
 let mainWindow = null;
 let chatWindow = null;
@@ -181,9 +182,7 @@ function createWindow() {
         }
         const { memoryEnabled, memoryCount, ...llmFields } = config;
         const result = _llm.saveLlmConfig(llmFields);
-        if (chatWindow && chatWindow.webContents) {
-            chatWindow.webContents.send('pfp-update', { operatorPfp: _llm.getLlmConfig().operatorPfp || null });
-        }
+        _broadcastToWindows('pfp-update', { operatorPfp: _llm.getLlmConfig().operatorPfp || null });
         return result;
     });
 
@@ -509,7 +508,7 @@ function registerChatIpc() {
     ipcMain.on('sprite-update', (event, sprite) => {
         const spriteState = _llm.getSpriteState();
         spriteState.sprite = sprite;
-        if (chatWindow && chatWindow.webContents) chatWindow.webContents.send('sprite-update', spriteState);
+        _broadcastToWindows('sprite-update', spriteState);
     });
 
     ipcMain.on('audio-levels', (event, levels) => {

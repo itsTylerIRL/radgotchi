@@ -2,6 +2,7 @@
 
 const { BrowserWindow } = require('electron');
 const path = require('path');
+const { broadcastToWindows } = require('./broadcast');
 const skillLoader = require('./skill-loader');
 
 // LLM Configuration
@@ -159,9 +160,12 @@ function buildContextPrompt(messages) {
     const recentContext = messages.slice(-4)
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .filter(m => m.content)
-        .map(m =>
-            `${m.role === 'user' ? 'Bro' : 'You'}: ${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}`
-        ).join('\n');
+        .map(m => {
+            const text = typeof m.content === 'string' ? m.content
+                : Array.isArray(m.content) ? m.content.filter(p => p.type === 'text').map(p => p.text).join(' ')
+                : '';
+            return `${m.role === 'user' ? 'Bro' : 'You'}: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`;
+        }).join('\n');
 
     const sleepWork = _getSleepWork();
     const movement = _getMovement();
@@ -194,6 +198,17 @@ You MUST use the provided tool functions for any request that needs real-time or
 }
 
 // Tool definitions and execution are loaded from skills/*.md via skill-loader
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Multimodal helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Extract plain text from a message content field (string or multimodal array) */
+function extractTextContent(content) {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) return content.filter(p => p.type === 'text').map(p => p.text).join(' ');
+    return '';
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Response Extraction — handles standard, tool-calling, and thinking LLMs
@@ -290,7 +305,7 @@ async function sendChatMessage(messages) {
         const protocol = url.protocol === 'https:' ? https : http;
 
         const contextPrompt = buildContextPrompt(messages);
-        const userMessages = messages.filter(m => m.role !== 'system');
+        const userMessages = _stripOldImages(messages.filter(m => m.role !== 'system'));
         const requestBody = JSON.stringify({
             model: llmConfig.model,
             messages: [
@@ -333,7 +348,7 @@ async function sendChatMessage(messages) {
         const content = extractResponseContent(response) || 'No response';
         if (_petMemory && content !== 'No response') {
             const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-            if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, content);
+            if (lastUserMsg) _petMemory.afterResponse(extractTextContent(lastUserMsg.content), content);
         }
         return { content };
     } catch (e) {
@@ -355,6 +370,32 @@ function sendChatMessageStream(event, messages) {
 // Maximum tool-call rounds to prevent infinite loops
 const MAX_TOOL_ROUNDS = 3;
 
+/**
+ * Strip image_url entries from all user messages except the latest one.
+ * Many vision models only process images in the current turn, and resending
+ * old base64 images bloats the prompt causing "Failed to tokenize" errors.
+ */
+function _stripOldImages(messages) {
+    // Find the index of the last user message that has multimodal content
+    let lastMultimodalIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'user' && Array.isArray(messages[i].content)) {
+            lastMultimodalIdx = i;
+            break;
+        }
+    }
+    if (lastMultimodalIdx < 0) return messages;
+
+    return messages.map((m, i) => {
+        if (m.role !== 'user' || !Array.isArray(m.content) || i === lastMultimodalIdx) return m;
+        // Flatten older multimodal messages to text-only
+        const textParts = m.content.filter(p => p.type === 'text').map(p => p.text);
+        const imageCount = m.content.filter(p => p.type === 'image_url').length;
+        const text = textParts.join(' ') + (imageCount ? ` [${imageCount} image(s) attached]` : '');
+        return { ...m, content: text || '[attachment]' };
+    });
+}
+
 function _streamRequest(event, messages, toolRound) {
     try {
         const https = require('https');
@@ -364,6 +405,21 @@ function _streamRequest(event, messages, toolRound) {
 
         const contextPrompt = buildContextPrompt(messages);
         let userMessages = messages.filter(m => m.role !== 'system');
+
+        // Strip image/video data from non-latest user messages to avoid bloating
+        // the prompt and hitting tokenization limits. Keep images only in the most
+        // recent user message so the model can see the current attachment.
+        userMessages = _stripOldImages(userMessages);
+
+        // Log multimodal content summary
+        const multimodalMsgs = userMessages.filter(m => Array.isArray(m.content));
+        if (multimodalMsgs.length > 0) {
+            for (const m of multimodalMsgs) {
+                const parts = m.content.map(p => p.type === 'image_url' ? `image(${(p.image_url.url || '').substring(0, 30)}...)` : `text(${(p.text || '').substring(0, 40)})`);
+                console.log('[LLM] Multimodal message parts:', parts.join(', '));
+            }
+        }
+
         const useTools = llmConfig.toolsEnabled && toolRound < MAX_TOOL_ROUNDS;
         const hasToolContext = userMessages.some(m => m.role === 'tool');
 
@@ -412,6 +468,7 @@ function _streamRequest(event, messages, toolRound) {
         }
         if (useTools) console.log('[LLM] Tools enabled (non-streaming), sending', skillLoader.getSkillCount(), 'tool definitions, round', toolRound);
         const requestBody = JSON.stringify(body);
+        console.log('[LLM] Request body size:', (Buffer.byteLength(requestBody) / 1024).toFixed(1), 'KB, messages:', body.messages.length);
         const streamStartTime = Date.now();
 
         const req = protocol.request({
@@ -474,7 +531,7 @@ function _streamRequest(event, messages, toolRound) {
                         event.reply('chat-stream-chunk', { content, done: true, metrics: { ttft: null, tokensPerSec, totalTime, tokenCount: completionTokens } });
                         if (_petMemory && content !== 'No response') {
                             const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-                            if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, content);
+                            if (lastUserMsg) _petMemory.afterResponse(extractTextContent(lastUserMsg.content), content);
                         }
                     } catch (e) {
                         console.error('[LLM] Failed to parse non-streaming response:', e.message);
@@ -628,7 +685,7 @@ function _streamRequest(event, messages, toolRound) {
                 event.reply('chat-stream-chunk', { content: '', done: true, fullContent: cleanedFull, metrics: { ttft, tokensPerSec, totalTime: totalTime.toFixed(1), tokenCount } });
                 if (_petMemory && cleanedFull) {
                     const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-                    if (lastUserMsg) _petMemory.afterResponse(lastUserMsg.content, cleanedFull);
+                    if (lastUserMsg) _petMemory.afterResponse(extractTextContent(lastUserMsg.content), cleanedFull);
                 }
             });
 
@@ -812,14 +869,7 @@ function syncColorToSettingsWindow(color) {
 
 function broadcastColor(color) {
     currentSpriteState.color = color;
-    const mainWindow = _getMainWindow();
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('set-color', color);
-    }
-    const chatWindow = _getChatWindow();
-    if (chatWindow && chatWindow.webContents) {
-        chatWindow.webContents.send('set-color', color);
-    }
+    broadcastToWindows('set-color', color);
     syncColorToSettingsWindow(color);
 }
 

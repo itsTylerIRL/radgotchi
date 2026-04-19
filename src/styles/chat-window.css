@@ -2279,6 +2279,114 @@ body::after {
     cursor: not-allowed;
 }
 
+/* Attach button */
+.attach-btn {
+    font-size: 14px;
+    background: transparent;
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    color: var(--term-green);
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: all 0.2s ease;
+    line-height: 1;
+}
+.attach-btn:hover {
+    border-color: var(--term-green);
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+}
+
+/* Attachment preview strip */
+.attachment-preview {
+    display: none;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.4);
+    border-top: 1px solid rgba(0, 255, 136, 0.2);
+}
+.attachment-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 255, 136, 0.05);
+    border: 1px solid rgba(0, 255, 136, 0.25);
+    padding: 3px 6px;
+    max-width: 140px;
+}
+.attachment-item img {
+    width: 36px;
+    height: 36px;
+    object-fit: cover;
+    border: 1px solid rgba(0, 255, 136, 0.2);
+}
+.attachment-icon {
+    font-size: 14px;
+}
+.attachment-name {
+    font-size: 8px;
+    color: var(--term-green);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 80px;
+}
+.attachment-remove {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    font-size: 10px;
+    line-height: 1;
+    padding: 0;
+    border: 1px solid var(--term-red);
+    background: var(--term-bg, #0a0c0a);
+    color: var(--term-red);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.attachment-remove:hover {
+    background: var(--term-red);
+    color: #000;
+}
+
+/* Message attachment thumbnails */
+.message-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.msg-attachment-thumb {
+    max-width: 200px;
+    max-height: 150px;
+    object-fit: contain;
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+.msg-attachment-thumb:hover {
+    border-color: var(--term-green);
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+}
+.msg-attachment-badge {
+    font-size: 8px;
+    color: var(--term-cyan);
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.25);
+    padding: 3px 8px;
+}
+
+/* Drag over state */
+.messages-area.drag-over {
+    outline: 2px dashed var(--term-green);
+    outline-offset: -4px;
+    background: rgba(0, 255, 136, 0.02);
+}
+
 /* WORK button in input area */
 .input-btn {
     font-family: var(--font-mono);

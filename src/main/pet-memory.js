@@ -2,13 +2,14 @@
 
 // Pet Memory — extracts and persists facts about the operator across sessions
 
+const { broadcastToWindows } = require('./broadcast');
+
 const MAX_FACTS = 50;
 const MIN_MESSAGE_LENGTH = 20;
 const EXTRACT_EVERY_N_TURNS = 3;
 
 let _persistence = null;
 let _llm = null;
-let _getChatWindow = null;
 let turnsSinceExtract = 0;
 
 let memoryData = {
@@ -16,10 +17,9 @@ let memoryData = {
     enabled: true,
 };
 
-function init({ persistence, llm, getChatWindow }) {
+function init({ persistence, llm }) {
     _persistence = persistence;
     _llm = llm;
-    _getChatWindow = getChatWindow || null;
 }
 
 function loadMemory() {
@@ -73,15 +73,10 @@ function addFact(factText) {
     saveMemory();
 
     // Notify the chat window
-    if (_getChatWindow) {
-        const chatWindow = _getChatWindow();
-        if (chatWindow && chatWindow.webContents) {
-            chatWindow.webContents.send('memory-updated', {
-                newFacts: [factText],
-                totalFacts: memoryData.facts.length,
-            });
-        }
-    }
+    broadcastToWindows('memory-updated', {
+        newFacts: [factText],
+        totalFacts: memoryData.facts.length,
+    });
     return true;
 }
 
@@ -190,14 +185,11 @@ Respond ONLY with a JSON array of short fact strings, e.g. ["works on a game cal
         saveMemory();
 
         // Notify the chat window about newly stored memories
-        if (_getChatWindow && newFacts.length > 0) {
-            const chatWindow = _getChatWindow();
-            if (chatWindow && chatWindow.webContents) {
-                chatWindow.webContents.send('memory-updated', {
-                    newFacts: newFacts.filter(f => typeof f === 'string' && f.length >= 3),
-                    totalFacts: memoryData.facts.length,
-                });
-            }
+        if (newFacts.length > 0) {
+            broadcastToWindows('memory-updated', {
+                newFacts: newFacts.filter(f => typeof f === 'string' && f.length >= 3),
+                totalFacts: memoryData.facts.length,
+            });
         }
     } catch (e) {
         console.warn('Pet memory: fact extraction failed:', e.message);

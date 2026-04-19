@@ -249,9 +249,12 @@
             <img id="web-sprite" src="assets/gotchi/AWAKE.png" alt="Radgotchi" draggable="false">
         </div>
         <div class="messages-area" id="messages"></div>
+        <div class="attachment-preview" id="attachment-preview"></div>
         <div class="input-area">
             <span class="input-prefix">&gt;</span>
             <input type="text" class="message-input" id="input" placeholder="ENTER QUERY..." autocomplete="off">
+            <input type="file" id="file-input" multiple accept="image/*,video/*,.pdf,.txt,.csv,.json,.md,.log" style="display:none;">
+            <button class="attach-btn" id="attach-btn" title="Attach file (images, video, documents)">📎</button>
             <button class="send-btn" id="send-btn">XMIT</button>
             <button class="header-btn input-btn" id="toggle-pomo" title="Start Work">
                 <span id="label-pomo">WORK</span>

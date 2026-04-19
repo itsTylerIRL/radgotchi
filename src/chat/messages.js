@@ -7,9 +7,18 @@ import { parseMarkdown, copyCode, getHueRotation } from './markdown.js';
 const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
+const fileInputEl = document.getElementById('file-input');
+const attachBtn = document.getElementById('attach-btn');
+const attachmentPreviewEl = document.getElementById('attachment-preview');
 
 export let chatHistory = [];
 let isSending = false;
+
+// Pending file attachments (base64 data URLs)
+let pendingAttachments = [];
+const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024; // 20MB
+const SUPPORTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+const SUPPORTED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/ogg'];
 
 // Session token counter
 let sessionTokens = 0;
@@ -436,7 +445,7 @@ export function addToolMessage(label, status = 'running', beforeEl = null) {
 
 export async function sendMessage() {
     const message = inputEl.value.trim();
-    if (!message || isSending) return;
+    if ((!message && pendingAttachments.length === 0) || isSending) return;
 
     // Handle /remember command — store a memory directly
     if (message.toLowerCase().startsWith('/remember ')) {
@@ -468,8 +477,15 @@ export async function sendMessage() {
     }
 
     inputEl.value = '';
-    addMessage('user', message);
-    chatHistory.push({ role: 'user', content: message });
+    const currentAttachments = [...pendingAttachments];
+    clearAttachments();
+
+    const msgEl = addMessage('user', message || (currentAttachments.length + ' file(s) attached'));
+    if (currentAttachments.length > 0) renderMessageAttachments(msgEl, currentAttachments);
+
+    // Build multimodal content for the API if attachments present
+    const apiContent = buildMultimodalContent(message, currentAttachments);
+    chatHistory.push({ role: 'user', content: apiContent });
     SoundSystem.play('messageSend');
 
     if (window.electronAPI && window.electronAPI.saveChatMessage) window.electronAPI.saveChatMessage('user', message);
@@ -733,3 +749,186 @@ function initAudioOnInteraction() {
 }
 document.addEventListener('click', initAudioOnInteraction, { once: true });
 document.addEventListener('keydown', initAudioOnInteraction, { once: true });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// File Attachments — images, video, documents for multimodal LLMs
+// ═══════════════════════════════════════════════════════════════════════════
+
+function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function addAttachmentFiles(files) {
+    for (const file of files) {
+        if (file.size > MAX_ATTACHMENT_SIZE) {
+            addMessage('system', `File too large: ${file.name} (max 20MB)`);
+            continue;
+        }
+        try {
+            const dataUrl = await readFileAsDataURL(file);
+            const isImage = SUPPORTED_IMAGE_TYPES.includes(file.type);
+            const isVideo = SUPPORTED_VIDEO_TYPES.includes(file.type);
+            pendingAttachments.push({
+                name: file.name,
+                type: file.type,
+                dataUrl,
+                isImage,
+                isVideo,
+            });
+        } catch (e) {
+            addMessage('system', `Failed to read: ${file.name}`);
+        }
+    }
+    renderAttachmentPreview();
+}
+
+function removeAttachment(index) {
+    pendingAttachments.splice(index, 1);
+    renderAttachmentPreview();
+}
+
+function clearAttachments() {
+    pendingAttachments = [];
+    renderAttachmentPreview();
+}
+
+function renderAttachmentPreview() {
+    attachmentPreviewEl.innerHTML = '';
+    if (pendingAttachments.length === 0) {
+        attachmentPreviewEl.style.display = 'none';
+        return;
+    }
+    attachmentPreviewEl.style.display = 'flex';
+    pendingAttachments.forEach((att, i) => {
+        const item = document.createElement('div');
+        item.className = 'attachment-item';
+        if (att.isImage) {
+            const img = document.createElement('img');
+            img.src = att.dataUrl;
+            img.alt = att.name;
+            item.appendChild(img);
+        } else if (att.isVideo) {
+            const icon = document.createElement('span');
+            icon.className = 'attachment-icon';
+            icon.textContent = '🎬';
+            item.appendChild(icon);
+            const label = document.createElement('span');
+            label.className = 'attachment-name';
+            label.textContent = att.name;
+            item.appendChild(label);
+        } else {
+            const icon = document.createElement('span');
+            icon.className = 'attachment-icon';
+            icon.textContent = '📄';
+            item.appendChild(icon);
+            const label = document.createElement('span');
+            label.className = 'attachment-name';
+            label.textContent = att.name;
+            item.appendChild(label);
+        }
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'attachment-remove';
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', () => removeAttachment(i));
+        item.appendChild(removeBtn);
+        attachmentPreviewEl.appendChild(item);
+    });
+}
+
+/** Build the multimodal content array for an OpenAI-compatible API message */
+function buildMultimodalContent(text, attachments) {
+    if (!attachments || attachments.length === 0) return text;
+    const parts = [];
+    if (text) parts.push({ type: 'text', text });
+    for (const att of attachments) {
+        if (att.isImage) {
+            parts.push({ type: 'image_url', image_url: { url: att.dataUrl } });
+        } else if (att.isVideo) {
+            // Some APIs support video as image_url with video mime type
+            parts.push({ type: 'image_url', image_url: { url: att.dataUrl } });
+        } else {
+            // Text-based files: extract base64 content as text
+            const base64 = att.dataUrl.split(',')[1];
+            let decoded;
+            try { decoded = atob(base64); } catch { decoded = '[binary file]'; }
+            parts.push({ type: 'text', text: `[File: ${att.name}]\n${decoded}` });
+        }
+    }
+    return parts;
+}
+
+/** Render attachment thumbnails inside a message bubble */
+function renderMessageAttachments(msgEl, attachments) {
+    if (!attachments || attachments.length === 0) return;
+    const strip = document.createElement('div');
+    strip.className = 'message-attachments';
+    for (const att of attachments) {
+        if (att.isImage) {
+            const img = document.createElement('img');
+            img.src = att.dataUrl;
+            img.alt = att.name;
+            img.className = 'msg-attachment-thumb';
+            img.addEventListener('click', () => window.open(att.dataUrl, '_blank'));
+            strip.appendChild(img);
+        } else if (att.isVideo) {
+            const video = document.createElement('video');
+            video.src = att.dataUrl;
+            video.className = 'msg-attachment-thumb';
+            video.controls = true;
+            video.muted = true;
+            strip.appendChild(video);
+        } else {
+            const badge = document.createElement('span');
+            badge.className = 'msg-attachment-badge';
+            badge.textContent = '📄 ' + att.name;
+            strip.appendChild(badge);
+        }
+    }
+    msgEl.prepend(strip);
+}
+
+export function getAttachments() { return pendingAttachments; }
+export { addAttachmentFiles, clearAttachments, buildMultimodalContent, renderMessageAttachments };
+
+// Attach button
+attachBtn.addEventListener('click', () => {
+    SoundSystem.play('click');
+    fileInputEl.click();
+});
+
+fileInputEl.addEventListener('change', () => {
+    if (fileInputEl.files.length > 0) addAttachmentFiles(Array.from(fileInputEl.files));
+    fileInputEl.value = '';
+});
+
+// Drag and drop on messages area
+messagesEl.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    messagesEl.classList.add('drag-over');
+});
+messagesEl.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    messagesEl.classList.remove('drag-over');
+});
+messagesEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    messagesEl.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) addAttachmentFiles(Array.from(e.dataTransfer.files));
+});
+
+// Paste images from clipboard
+inputEl.addEventListener('paste', (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files = [];
+    for (const item of items) {
+        if (item.kind === 'file') files.push(item.getAsFile());
+    }
+    if (files.length > 0) addAttachmentFiles(files);
+});

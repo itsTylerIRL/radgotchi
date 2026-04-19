@@ -117,10 +117,7 @@ function addActivityLogEntry(type, message, messageZh) {
     const entry = { type, message, messageZh: messageZh || message, timestamp: Date.now() };
     activityLog.push(entry);
     if (activityLog.length % 5 === 0) saveChatData();
-    if (!isWebMode) {
-        const cw = windows.getChatWindow();
-        if (cw && cw.webContents) cw.webContents.send('activity-log-update', entry);
-    }
+    broadcast.broadcastToWindows('activity-log-update', entry);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -210,7 +207,7 @@ function initModules() {
         getColor: () => llm.getSpriteState().color || '#ff3344',
     });
 
-    petMemory.init({ persistence, llm, getChatWindow: windows.getChatWindow });
+    petMemory.init({ persistence, llm });
 
     arcade.init({
         xpSystem,
