@@ -54,6 +54,9 @@ function renderNetworkNodes() {
     const t = networkTranslations[getCurrentLang()];
     const count = discoveredNodesMap.size;
     networkNodeCount.textContent = `${count} ${t.assets}`;
+    // Toggle scan-line intensity based on peer count
+    const networkBar = document.getElementById('network-bar');
+    if (networkBar) networkBar.classList.toggle('has-peers', count > 0);
     networkNodes.innerHTML = '';
 
     if (count === 0) {

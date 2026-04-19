@@ -982,6 +982,70 @@ body::after {
     border: 1px solid rgba(0, 212, 255, 0.3);
 }
 
+/* ── Mesh scan-line animation ── */
+.mesh-scan-line {
+    flex: 1;
+    height: 1px;
+    margin: 0 10px;
+    position: relative;
+    overflow: hidden;
+    background: rgba(0, 255, 136, 0.08);
+}
+.mesh-scan-line::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -40%;
+    width: 40%;
+    height: 3px;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 255, 136, 0.15) 20%,
+        var(--term-green) 50%,
+        rgba(0, 255, 136, 0.15) 80%,
+        transparent 100%
+    );
+    box-shadow: 0 0 8px var(--term-green), 0 0 16px rgba(0, 255, 136, 0.3);
+    animation: mesh-sweep 3s ease-in-out infinite;
+}
+.mesh-scan-line::after {
+    content: '··:··:··:··:··:··:··:··:··:··:··:··';
+    position: absolute;
+    top: -3px;
+    left: 0;
+    right: 0;
+    font-size: 5px;
+    letter-spacing: 2px;
+    color: rgba(0, 255, 136, 0.12);
+    white-space: nowrap;
+    overflow: hidden;
+    animation: mesh-data-scroll 8s linear infinite;
+}
+@keyframes mesh-sweep {
+    0%   { left: -40%; opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { left: 100%; opacity: 0; }
+}
+@keyframes mesh-data-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
+/* Pulse brighter when a peer is connected */
+.network-bar.has-peers .mesh-scan-line {
+    background: rgba(0, 255, 136, 0.12);
+}
+.network-bar.has-peers .mesh-scan-line::before {
+    animation-duration: 1.8s;
+    box-shadow: 0 0 10px var(--term-green), 0 0 24px rgba(0, 255, 136, 0.5);
+}
+.network-bar.has-peers .mesh-scan-line::after {
+    color: rgba(0, 255, 136, 0.2);
+    animation-duration: 4s;
+}
+
 .network-toggle-btn {
     background: transparent;
     border: 1px solid var(--term-dim);
