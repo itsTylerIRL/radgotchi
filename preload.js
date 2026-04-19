@@ -67,6 +67,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getLlmConfig: () => ipcRenderer.invoke('get-llm-config'),
     saveLlmConfig: (config) => ipcRenderer.invoke('save-llm-config', config),
     clearPetMemory: () => ipcRenderer.invoke('clear-pet-memory'),
+    getPetMemoryFacts: () => ipcRenderer.invoke('get-pet-memory-facts'),
+    removePetMemoryFact: (index) => ipcRenderer.invoke('remove-pet-memory-fact', { index }),
     uploadPfp: () => ipcRenderer.invoke('upload-pfp'),
     sendChatMessage: (messages) => ipcRenderer.invoke('send-chat-message', { messages }),
 

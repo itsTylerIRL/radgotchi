@@ -192,6 +192,20 @@ function createWindow() {
         return { success: true };
     });
 
+    ipcMain.handle('get-pet-memory-facts', async () => {
+        return _petMemory.getFacts();
+    });
+
+    ipcMain.handle('remove-pet-memory-fact', async (_event, { index }) => {
+        const removed = _petMemory.removeFact(index);
+        return { success: removed, facts: _petMemory.getFacts() };
+    });
+
+    ipcMain.handle('add-pet-memory-fact', async (_event, { fact }) => {
+        const added = _petMemory.addFact(fact);
+        return { success: added };
+    });
+
     ipcMain.handle('upload-pfp', async () => {
         const { dialog } = require('electron');
         const fs = require('fs');

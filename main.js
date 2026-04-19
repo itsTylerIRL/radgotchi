@@ -210,7 +210,7 @@ function initModules() {
         getColor: () => llm.getSpriteState().color || '#ff3344',
     });
 
-    petMemory.init({ persistence, llm });
+    petMemory.init({ persistence, llm, getChatWindow: windows.getChatWindow });
 
     arcade.init({
         xpSystem,

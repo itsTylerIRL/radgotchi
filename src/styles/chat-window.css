@@ -1956,6 +1956,20 @@ body::after {
     animation: sleep-timer-pulse 2s ease-in-out infinite;
 }
 
+/* Memory saved notification */
+.message.system.memory-note {
+    background: color-mix(in srgb, #a855f7 10%, transparent);
+    border-color: #a855f7;
+    color: #c084fc;
+    text-shadow: 0 0 6px rgba(168, 85, 247, 0.5);
+    font-size: 8px;
+}
+
+.message.system.memory-note::after {
+    content: 'MEMORY';
+    color: #a855f7;
+}
+
 @keyframes sleep-timer-pulse {
     0%, 100% { opacity: 0.7; }
     50% { opacity: 0.4; }

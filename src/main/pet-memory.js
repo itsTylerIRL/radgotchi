@@ -8,6 +8,7 @@ const EXTRACT_EVERY_N_TURNS = 3;
 
 let _persistence = null;
 let _llm = null;
+let _getChatWindow = null;
 let turnsSinceExtract = 0;
 
 let memoryData = {
@@ -15,9 +16,10 @@ let memoryData = {
     enabled: true,
 };
 
-function init({ persistence, llm }) {
+function init({ persistence, llm, getChatWindow }) {
     _persistence = persistence;
     _llm = llm;
+    _getChatWindow = getChatWindow || null;
 }
 
 function loadMemory() {
@@ -48,6 +50,39 @@ function clearMemory() {
     memoryData.facts = [];
     turnsSinceExtract = 0;
     saveMemory();
+}
+
+function removeFact(index) {
+    if (index < 0 || index >= memoryData.facts.length) return false;
+    memoryData.facts.splice(index, 1);
+    saveMemory();
+    return true;
+}
+
+function addFact(factText) {
+    if (!factText || typeof factText !== 'string' || factText.length < 3 || factText.length > 200) return false;
+    const isDuplicate = memoryData.facts.some(f =>
+        f.fact.toLowerCase().includes(factText.toLowerCase()) ||
+        factText.toLowerCase().includes(f.fact.toLowerCase())
+    );
+    if (isDuplicate) return false;
+    memoryData.facts.push({ fact: factText, timestamp: Date.now() });
+    if (memoryData.facts.length > MAX_FACTS) {
+        memoryData.facts = memoryData.facts.slice(-MAX_FACTS);
+    }
+    saveMemory();
+
+    // Notify the chat window
+    if (_getChatWindow) {
+        const chatWindow = _getChatWindow();
+        if (chatWindow && chatWindow.webContents) {
+            chatWindow.webContents.send('memory-updated', {
+                newFacts: [factText],
+                totalFacts: memoryData.facts.length,
+            });
+        }
+    }
+    return true;
 }
 
 function buildMemoryBlock() {
@@ -153,6 +188,17 @@ Respond ONLY with a JSON array of short fact strings, e.g. ["works on a game cal
         }
 
         saveMemory();
+
+        // Notify the chat window about newly stored memories
+        if (_getChatWindow && newFacts.length > 0) {
+            const chatWindow = _getChatWindow();
+            if (chatWindow && chatWindow.webContents) {
+                chatWindow.webContents.send('memory-updated', {
+                    newFacts: newFacts.filter(f => typeof f === 'string' && f.length >= 3),
+                    totalFacts: memoryData.facts.length,
+                });
+            }
+        }
     } catch (e) {
         console.warn('Pet memory: fact extraction failed:', e.message);
     }
@@ -166,6 +212,8 @@ module.exports = {
     isEnabled,
     setEnabled,
     clearMemory,
+    removeFact,
+    addFact,
     buildMemoryBlock,
     afterResponse,
 };

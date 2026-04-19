@@ -85,6 +85,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     arcadeBuyItem: (itemId) => ipcRenderer.invoke('arcade-buy-item', { itemId }),
     arcadeUseItem: (itemId) => ipcRenderer.invoke('arcade-use-item', { itemId }),
     onArcadeUpdate: (callback) => ipcRenderer.on('arcade-update', (_event, data) => callback(data)),
+    // Pet Memory
+    onMemoryUpdate: (callback) => ipcRenderer.on('memory-updated', (_event, data) => callback(data)),
+    addPetMemoryFact: (fact) => ipcRenderer.invoke('add-pet-memory-fact', { fact }),
     // Sprite face control (forward to main renderer)
     setFace: (face) => ipcRenderer.send('chat-set-face', face),
 });

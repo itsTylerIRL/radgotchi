@@ -562,6 +562,21 @@ async function handleInvoke(channel, args) {
             petMemory.clearMemory();
             return { success: true };
 
+        case 'get-pet-memory-facts':
+            return petMemory.getFacts();
+
+        case 'remove-pet-memory-fact': {
+            const idx = args && args.index;
+            const removed = petMemory.removeFact(idx);
+            return { success: removed, facts: petMemory.getFacts() };
+        }
+
+        case 'add-pet-memory-fact': {
+            const factText = args && args.fact;
+            const added = petMemory.addFact(factText);
+            return { success: added };
+        }
+
         case 'network-discovery-toggle': {
             const enabled = args;
             if (enabled) networkDiscovery.startNetworkDiscovery();

@@ -348,6 +348,9 @@
         // Settings (LLM config save, memory, PFP)
         saveLlmConfig: (config) => invoke('save-llm-config', config),
         clearPetMemory: () => invoke('clear-pet-memory'),
+        getPetMemoryFacts: () => invoke('get-pet-memory-facts'),
+        removePetMemoryFact: (index) => invoke('remove-pet-memory-fact', { index }),
+        addPetMemoryFact: (fact) => invoke('add-pet-memory-fact', { fact }),
         openSettings: () => { window.location.href = '/settings'; },
 
         // System Metrics & LLM Config

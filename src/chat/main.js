@@ -279,6 +279,26 @@ if (api.onActivityLogUpdate) {
     });
 }
 
+// Pet Memory updates — show subtle indicator when memories are stored
+if (api.onMemoryUpdate) {
+    api.onMemoryUpdate((data) => {
+        const count = data.newFacts ? data.newFacts.length : 0;
+        if (count === 0) return;
+        const label = count === 1 ? `memory saved: ${data.newFacts[0]}` : `${count} memories saved`;
+        const msgEl = addMessage('system', `🧠 ${label}`);
+        if (msgEl) msgEl.classList.add('memory-note');
+        // Auto-dismiss after 6 seconds
+        if (msgEl) {
+            setTimeout(() => {
+                msgEl.style.opacity = '0';
+                msgEl.style.transform = 'translateY(-10px)';
+                msgEl.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                setTimeout(() => msgEl.remove(), 300);
+            }, 6000);
+        }
+    });
+}
+
 // Network updates
 if (api.onNetworkUpdate) {
     api.onNetworkUpdate((data) => {

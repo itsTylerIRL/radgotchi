@@ -438,6 +438,25 @@ export async function sendMessage() {
     const message = inputEl.value.trim();
     if (!message || isSending) return;
 
+    // Handle /remember command — store a memory directly
+    if (message.toLowerCase().startsWith('/remember ')) {
+        const fact = message.slice(10).trim();
+        if (!fact) return;
+        inputEl.value = '';
+        addMessage('user', message);
+        if (window.electronAPI && window.electronAPI.addPetMemoryFact) {
+            const result = await window.electronAPI.addPetMemoryFact(fact);
+            if (result && result.success) {
+                addMessage('system', '🧠 memorized: ' + fact);
+            } else {
+                addMessage('system', '🧠 already known or invalid');
+            }
+        } else {
+            addMessage('system', 'Memory storage not available');
+        }
+        return;
+    }
+
     // Wake up if sleeping
     const toggleSleep = document.getElementById('toggle-sleep');
     const terminalContainer = document.querySelector('.terminal-container');
