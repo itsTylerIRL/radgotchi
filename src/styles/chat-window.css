@@ -2999,3 +2999,48 @@ body::after {
     border-color: var(--term-green);
     box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Web / Mobile mode overrides
+   ═══════════════════════════════════════════════════════════════════════ */
+body[data-web-mode="true"] {
+    touch-action: manipulation; /* Prevent double-tap zoom */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    zoom: 1 !important; /* Override any JS-set zoom */
+}
+
+body[data-web-mode="true"] * {
+    touch-action: manipulation;
+}
+
+body[data-web-mode="true"] .terminal-header {
+    -webkit-app-region: unset;
+    cursor: default;
+}
+
+body[data-web-mode="true"] .zoom-controls {
+    display: none !important;
+}
+
+body[data-web-mode="true"] .close-btn {
+    display: none !important;
+}
+
+/* Hide desktop-only controls: work/sleep buttons, movement dropdown */
+body[data-web-mode="true"] #toggle-pomo,
+body[data-web-mode="true"] #toggle-sleep {
+    display: none !important;
+}
+
+body[data-web-mode="true"] .control-group:has(#select-movement),
+body[data-web-mode="true"] .control-group:has(#select-movement) + .control-divider {
+    display: none !important;
+}
+
+body[data-web-mode="true"] .control-select,
+body[data-web-mode="true"] button,
+body[data-web-mode="true"] input,
+body[data-web-mode="true"] textarea {
+    font-size: 16px; /* Prevents iOS auto-zoom on focus */
+}

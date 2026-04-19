@@ -22,6 +22,7 @@ const togglePomo = document.getElementById('toggle-pomo');
 const pomoStopBtn = document.getElementById('pomo-stop-btn');
 
 let isMuted = false;
+const isWebMode = document.body.dataset.webMode === 'true';
 
 // Load saved mute state
 try {
@@ -39,8 +40,13 @@ function closeChat() {
     if (window.electronAPI.removeChatStreamListeners) window.electronAPI.removeChatStreamListeners();
     setTimeout(() => window.electronAPI.closeChat(), 250);
 }
-closeBtn.addEventListener('click', closeChat);
-document.addEventListener('contextmenu', (e) => { e.preventDefault(); closeChat(); });
+if (isWebMode) {
+    // Hide close button in web mode — no window to close
+    closeBtn.style.display = 'none';
+} else {
+    closeBtn.addEventListener('click', closeChat);
+    document.addEventListener('contextmenu', (e) => { e.preventDefault(); closeChat(); });
+}
 
 // Settings
 settingsBtn.addEventListener('click', () => { SoundSystem.play('click'); window.electronAPI.openSettings(); });
@@ -146,7 +152,7 @@ toggleLang.addEventListener('click', () => {
     if (window.electronAPI && window.electronAPI.setLanguage) window.electronAPI.setLanguage(newLang);
 });
 
-// Zoom
+// Zoom — disabled in web mode (causes zoom-on-tap issues on mobile)
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const zoomLevelEl = document.getElementById('zoom-level');
@@ -154,19 +160,27 @@ let currentZoom = 100;
 const MIN_ZOOM = 50, MAX_ZOOM = 150, ZOOM_STEP = 10;
 
 export function applyZoomSilent(newZoom) {
+    if (isWebMode) return; // No CSS zoom in web/mobile mode
     currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
     zoomLevelEl.textContent = currentZoom + '%';
     document.body.style.zoom = currentZoom / 100;
 }
 
 function updateZoom(newZoom) {
+    if (isWebMode) return;
     applyZoomSilent(newZoom);
     if (window.electronAPI && typeof window.electronAPI.setZoom === 'function') window.electronAPI.setZoom(currentZoom);
     SoundSystem.play('selectChange');
 }
 
-zoomInBtn.addEventListener('click', () => updateZoom(currentZoom + ZOOM_STEP));
-zoomOutBtn.addEventListener('click', () => updateZoom(currentZoom - ZOOM_STEP));
+if (isWebMode) {
+    // Hide zoom controls on mobile/web
+    const zoomControls = document.querySelector('.zoom-controls');
+    if (zoomControls) zoomControls.style.display = 'none';
+} else {
+    zoomInBtn.addEventListener('click', () => updateZoom(currentZoom + ZOOM_STEP));
+    zoomOutBtn.addEventListener('click', () => updateZoom(currentZoom - ZOOM_STEP));
+}
 
 // Pomodoro toggle
 togglePomo.addEventListener('click', () => {

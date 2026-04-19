@@ -1171,6 +1171,7 @@ module.exports = {
     sendChatMessage,
     sendChatMessageStream,
     showChatSettingsDialog,
+    buildSettingsHtml,
     syncColorToSettingsWindow,
     broadcastColor,
     colorPresets,

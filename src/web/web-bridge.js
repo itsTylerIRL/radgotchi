@@ -217,6 +217,15 @@
         // LLM Profiles
         getLlmProfiles: () => invoke('get-llm-profiles'),
         loadLlmProfile: (id) => invoke('load-llm-profile', id),
+        saveLlmProfile: (name) => invoke('save-llm-profile', name),
+        updateLlmProfile: (id) => invoke('update-llm-profile', id),
+        deleteLlmProfile: (id) => invoke('delete-llm-profile', id),
+        renameLlmProfile: (id, name) => invoke('rename-llm-profile', { id, name }),
+
+        // Settings (LLM config save, memory, PFP)
+        saveLlmConfig: (config) => invoke('save-llm-config', config),
+        clearPetMemory: () => invoke('clear-pet-memory'),
+        openSettings: () => { window.location.href = '/settings'; },
 
         // System Metrics & LLM Config
         getSystemMetrics: () => invoke('get-system-metrics'),

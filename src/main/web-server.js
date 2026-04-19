@@ -50,28 +50,130 @@ function getProjectRoot() {
     return path.join(__dirname, '..', '..');
 }
 
-function serveChatHtml(res) {
-    const root = getProjectRoot();
-    let html = fs.readFileSync(path.join(root, 'chat.html'), 'utf-8');
-
+function injectWebMode(html) {
     // Inject the web bridge script before the closing </head> tag.
-    // This creates window.electronAPI backed by WebSocket instead of Electron IPC.
     const bridgeScript = `<script src="/src/web/web-bridge.js"></script>`;
     html = html.replace('</head>', bridgeScript + '\n</head>');
 
-    // Add viewport meta for mobile if missing
-    if (!html.includes('viewport')) {
-        html = html.replace('</head>', '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">\n</head>');
-    }
+    // Set viewport for mobile — prevent zoom on input focus
+    html = html.replace(
+        /<meta name="viewport"[^>]*>/,
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">'
+    );
+
+    // Mark web mode so client JS can detect it
+    html = html.replace('<body>', '<body data-web-mode="true">');
+
+    // Inject favicon and web app manifest links
+    const iconLinks = [
+        '<link rel="icon" type="image/x-icon" href="/assets/favicon_rg/favicon.ico">',
+        '<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon_rg/favicon-32x32.png">',
+        '<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon_rg/favicon-16x16.png">',
+        '<link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon_rg/apple-touch-icon.png">',
+        '<link rel="manifest" href="/manifest.json">',
+        '<meta name="theme-color" content="#0a0c0a">',
+        '<meta name="apple-mobile-web-app-capable" content="yes">',
+        '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">',
+    ].join('\n    ');
+    html = html.replace('</head>', '    ' + iconLinks + '\n</head>');
 
     // Relax CSP for web mode — allow WebSocket connections and inline scripts
     html = html.replace(
         /<meta http-equiv="Content-Security-Policy"[^>]*>/,
-        `<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: ws: wss:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src 'self' blob:; img-src 'self' blob: data: https: http:; connect-src 'self' ws: wss: http: https:;">`
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: ws: wss:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; media-src 'self' blob:; img-src 'self' blob: data: https: http:; connect-src 'self' ws: wss: http: https:;">`
+    );
+
+    return html;
+}
+
+function serveChatHtml(res) {
+    const root = getProjectRoot();
+    let html = fs.readFileSync(path.join(root, 'chat.html'), 'utf-8');
+    html = injectWebMode(html);
+
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(html);
+}
+
+function serveSettingsHtml(res) {
+    // Build settings HTML from llm module and inject web bridge
+    const { llm } = _deps;
+    let html = llm.buildSettingsHtml();
+
+    // Inject web bridge and viewport
+    const bridgeScript = `<script src="/src/web/web-bridge.js"></script>`;
+    html = html.replace('</head>', bridgeScript + '\n</head>');
+    html = html.replace(
+        /<meta name="viewport"[^>]*>/,
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">'
+    );
+    // Add viewport if not present
+    if (!html.includes('viewport')) {
+        html = html.replace('</head>', '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">\n</head>');
+    }
+
+    html = html.replace('<body>', '<body data-web-mode="true">');
+
+    // Relax CSP for web mode
+    html = html.replace(
+        /<meta http-equiv="Content-Security-Policy"[^>]*>/,
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: ws: wss:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; media-src 'self' blob:; img-src 'self' blob: data: https: http:; connect-src 'self' ws: wss: http: https:;">`
+    );
+
+    // Replace window.close() calls with navigation back to chat
+    html = html.replace(/window\.close\(\)/g, "window.location.href='/'");
+
+    // Replace Electron uploadPfp with a web-based file input approach
+    html = html.replace(
+        'async function uploadPfp() {',
+        `async function uploadPfp() {
+            if (document.body.dataset.webMode === 'true') {
+                // Web mode: use file input instead of Electron dialog
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        operatorPfpImageUrl = reader.result;
+                        const previewEl = document.getElementById('operatorPfpPreview');
+                        previewEl.innerHTML = '';
+                        const pfpImg = document.createElement('img');
+                        pfpImg.src = operatorPfpImageUrl;
+                        pfpImg.alt = 'PFP';
+                        previewEl.appendChild(pfpImg);
+                    };
+                    reader.readAsDataURL(file);
+                };
+                input.click();
+                return;
+            }
+            // Electron mode below`
     );
 
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
+}
+
+function serveManifest(res) {
+    const manifest = {
+        name: 'Radgotchi',
+        short_name: 'Radgotchi',
+        description: 'RAD TERMINAL — virtual pet chat',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#0a0c0a',
+        theme_color: '#0a0c0a',
+        icons: [
+            { src: '/assets/favicon_rg/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+            { src: '/assets/favicon_rg/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+            { src: '/assets/favicon_rg/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+        ]
+    };
+    res.writeHead(200, { 'Content-Type': 'application/manifest+json' });
+    res.end(JSON.stringify(manifest));
 }
 
 function serveStatic(reqPath, res) {
@@ -399,6 +501,34 @@ async function handleInvoke(channel, args) {
         case 'load-llm-profile':
             return llm.loadProfile(args);
 
+        case 'save-llm-config': {
+            if (args && args.memoryEnabled !== undefined) {
+                petMemory.setEnabled(args.memoryEnabled);
+            }
+            const { memoryEnabled, memoryCount, ...llmFields } = args || {};
+            const result = llm.saveLlmConfig(llmFields);
+            wsBroadcast('pfp-update', { operatorPfp: llm.getLlmConfig().operatorPfp || null });
+            return result;
+        }
+
+        case 'save-llm-profile':
+            return llm.saveProfile(args);
+
+        case 'update-llm-profile':
+            return llm.updateProfile(args);
+
+        case 'delete-llm-profile':
+            return llm.deleteProfile(args);
+
+        case 'rename-llm-profile': {
+            const { id, name } = args || {};
+            return llm.renameProfile(id, name);
+        }
+
+        case 'clear-pet-memory':
+            petMemory.clearMemory();
+            return { success: true };
+
         case 'network-discovery-toggle': {
             const enabled = args;
             if (enabled) networkDiscovery.startNetworkDiscovery();
@@ -563,6 +693,24 @@ function start(port = 7777) {
         // Root or /chat → serve chat.html with bridge injected
         if (pathname === '/' || pathname === '/chat' || pathname === '/chat.html') {
             serveChatHtml(res);
+            return;
+        }
+
+        // Settings page
+        if (pathname === '/settings') {
+            serveSettingsHtml(res);
+            return;
+        }
+
+        // Web app manifest
+        if (pathname === '/manifest.json') {
+            serveManifest(res);
+            return;
+        }
+
+        // Favicon shortcut (browsers request /favicon.ico by default)
+        if (pathname === '/favicon.ico') {
+            serveStatic('/assets/favicon_rg/favicon.ico', res);
             return;
         }
 
