@@ -3,7 +3,7 @@
 
 import SoundSystem from '../renderer/sounds.js';
 import { getCurrentLang } from './translations.js';
-import { addMessage } from './messages.js';
+import { addMessage, playArcadeBetReaction, playArcadeWinReaction, playArcadeLoseReaction, playArcadeDealReaction, playArcadeJackpotReaction } from './messages.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DOM Elements
@@ -109,6 +109,7 @@ async function playCoinflip(choice) {
     cfTailsBtn.disabled = true;
     cfResult.textContent = '🪙 FLIPPING...';
     cfResult.className = 'cf-result flipping';
+    playArcadeBetReaction();
 
     // Brief animation delay
     await new Promise(r => setTimeout(r, 400));
@@ -124,10 +125,12 @@ async function playCoinflip(choice) {
             cfResult.innerHTML = `${res.result === 'heads' ? '🪙' : '🔄'} ${res.result.toUpperCase()} — YOU WIN <span class="xp-gain">+${res.profit} XP</span>`;
             cfResult.className = 'cf-result win';
             SoundSystem.play('levelUp');
+            playArcadeWinReaction();
         } else {
             cfResult.innerHTML = `${res.result === 'heads' ? '🪙' : '🔄'} ${res.result.toUpperCase()} — YOU LOSE <span class="xp-loss">-${bet} XP</span>`;
             cfResult.className = 'cf-result lose';
             SoundSystem.play('hover');
+            playArcadeLoseReaction();
         }
     } catch (e) {
         cfResult.textContent = 'ERROR';
@@ -215,6 +218,7 @@ async function dealBlackjack() {
         bjDoubleBtn.disabled = !res.canDouble;
         setBjControls('playing');
         SoundSystem.play('click');
+        playArcadeDealReaction();
     } catch (e) {
         bjResult.textContent = 'ERROR';
         setBjControls('idle');
@@ -269,10 +273,13 @@ function renderBlackjackResult(res) {
         bjResult.innerHTML = `${label} <span class="xp-gain">+${res.profit} XP</span>`;
         bjResult.className = 'bj-result win';
         SoundSystem.play('levelUp');
+        if (res.outcome === 'blackjack') playArcadeJackpotReaction();
+        else playArcadeWinReaction();
     } else if (res.profit < 0) {
         bjResult.innerHTML = `${label} <span class="xp-loss">${res.profit} XP</span>`;
         bjResult.className = 'bj-result lose';
         SoundSystem.play('hover');
+        playArcadeLoseReaction();
     } else {
         bjResult.textContent = `${label} — BET RETURNED`;
         bjResult.className = 'bj-result push';

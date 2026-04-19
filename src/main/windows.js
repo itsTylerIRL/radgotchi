@@ -477,6 +477,10 @@ function registerChatIpc() {
         if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('chat-mood', mood);
     });
 
+    ipcMain.on('chat-set-face', (event, face) => {
+        if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('chat-set-face', face);
+    });
+
     ipcMain.on('sync-chat-color', (event, color) => {
         const spriteState = _llm.getSpriteState();
         spriteState.color = color;

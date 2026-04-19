@@ -50,6 +50,222 @@ export function updateWebSprite() {
     webSpriteContainer.style.setProperty('--sprite-hue', hueRotate + 'deg');
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Web Sprite Face Lifecycle — cycles faces locally for dynamic feel
+// ═══════════════════════════════════════════════════════════════════════════
+
+let _faceTimer = null;
+let _faceSequence = null;
+let _faceStep = 0;
+let _idleTimer = null;
+let _lastActivity = Date.now();
+let _faceLocked = false; // true while a sequence is playing
+
+const WEB_FACES = {
+    awake: 'AWAKE.png', happy: 'HAPPY.png', excited: 'EXCITED.png',
+    cool: 'COOL.png', grateful: 'GRATEFUL.png', motivated: 'MOTIVATED.png',
+    friend: 'FRIEND.png', smart: 'SMART.png', intense: 'INTENSE.png',
+    debug: 'DEBUG.png', bored: 'BORED.png', sad: 'SAD.png',
+    angry: 'ANGRY.png', lonely: 'LONELY.png', demotivated: 'DEMOTIVATED.png',
+    broken: 'BROKEN.png', look_l: 'LOOK_L.png', look_r: 'LOOK_R.png',
+    look_l_happy: 'LOOK_L_HAPPY.png', look_r_happy: 'LOOK_R_HAPPY.png',
+    sleep: 'SLEEP.png', sleep2: 'SLEEP2.png',
+    upload: 'UPLOAD.png', upload1: 'UPLOAD1.png', upload2: 'UPLOAD2.png',
+};
+
+function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+/** Set the sprite to a named face (web sprite img + desktop IPC) */
+export function setWebSpriteFace(faceName) {
+    if (!WEB_FACES[faceName]) return;
+    // Web mode: update the sprite img element directly
+    if (webSpriteImg) webSpriteImg.src = 'assets/gotchi/' + WEB_FACES[faceName];
+    // Desktop Electron: forward face change to main renderer window
+    const api = window.electronAPI;
+    if (api && api.setFace) api.setFace(faceName);
+}
+
+/** Play a timed face sequence: [{face, ms}, ...] then optionally revert */
+export function playFaceSequence(steps, revertFace = 'awake') {
+    stopFaceSequence();
+    _faceLocked = true;
+    _faceSequence = steps;
+    _faceStep = 0;
+    _runFaceStep(revertFace);
+}
+
+function _runFaceStep(revertFace) {
+    if (!_faceSequence || _faceStep >= _faceSequence.length) {
+        // Sequence done — revert
+        _faceLocked = false;
+        _faceSequence = null;
+        if (revertFace) setWebSpriteFace(revertFace);
+        return;
+    }
+    const step = _faceSequence[_faceStep];
+    setWebSpriteFace(step.face);
+    _faceStep++;
+    _faceTimer = setTimeout(() => _runFaceStep(revertFace), step.ms);
+}
+
+export function stopFaceSequence() {
+    if (_faceTimer) { clearTimeout(_faceTimer); _faceTimer = null; }
+    _faceSequence = null;
+    _faceStep = 0;
+    _faceLocked = false;
+}
+
+// ── Thinking sequence: cycles smart/debug/intense while waiting ──
+let _thinkTimer = null;
+const _thinkFaces = ['smart', 'debug', 'smart', 'intense', 'debug', 'smart'];
+let _thinkIdx = 0;
+
+export function startThinkingCycle() {
+    _lastActivity = Date.now();
+    stopFaceSequence();
+    _thinkIdx = 0;
+    setWebSpriteFace('smart');
+    _thinkTimer = setInterval(() => {
+        _thinkIdx = (_thinkIdx + 1) % _thinkFaces.length;
+        setWebSpriteFace(_thinkFaces[_thinkIdx]);
+    }, 1200);
+}
+
+export function stopThinkingCycle() {
+    if (_thinkTimer) { clearInterval(_thinkTimer); _thinkTimer = null; }
+}
+
+// ── Responding sequence: bouncy upload/excited cycle ──
+let _respondTimer = null;
+const _respondFaces = ['upload', 'upload1', 'upload2', 'upload1', 'excited', 'upload'];
+let _respondIdx = 0;
+
+export function startRespondingCycle() {
+    stopThinkingCycle();
+    _respondIdx = 0;
+    setWebSpriteFace('upload');
+    _respondTimer = setInterval(() => {
+        _respondIdx = (_respondIdx + 1) % _respondFaces.length;
+        setWebSpriteFace(_respondFaces[_respondIdx]);
+    }, 600);
+}
+
+export function stopRespondingCycle() {
+    if (_respondTimer) { clearInterval(_respondTimer); _respondTimer = null; }
+}
+
+// ── Reaction flash: show a face briefly then revert ──
+export function flashFace(faceName, durationMs = 1800) {
+    _lastActivity = Date.now();
+    stopFaceSequence();
+    stopThinkingCycle();
+    stopRespondingCycle();
+    setWebSpriteFace(faceName);
+    _faceTimer = setTimeout(() => setWebSpriteFace('awake'), durationMs);
+}
+
+// ── Success / Error reactions ──
+export function playSuccessReaction() {
+    _lastActivity = Date.now();
+    stopThinkingCycle();
+    stopRespondingCycle();
+    const face = _pick(['happy', 'excited', 'cool', 'grateful', 'motivated']);
+    setWebSpriteFace(face);
+    _faceTimer = setTimeout(() => setWebSpriteFace('awake'), 2500);
+}
+
+export function playErrorReaction() {
+    _lastActivity = Date.now();
+    stopThinkingCycle();
+    stopRespondingCycle();
+    const face = _pick(['broken', 'angry', 'sad']);
+    setWebSpriteFace(face);
+    _faceTimer = setTimeout(() => setWebSpriteFace('awake'), 2500);
+}
+
+// ── Arcade reactions ──
+export function playArcadeBetReaction() {
+    _lastActivity = Date.now();
+    setWebSpriteFace('intense');
+}
+
+export function playArcadeWinReaction() {
+    _lastActivity = Date.now();
+    playFaceSequence([
+        { face: 'excited', ms: 800 },
+        { face: 'cool', ms: 800 },
+        { face: 'happy', ms: 800 },
+    ], 'awake');
+}
+
+export function playArcadeLoseReaction() {
+    _lastActivity = Date.now();
+    playFaceSequence([
+        { face: 'sad', ms: 600 },
+        { face: 'demotivated', ms: 800 },
+        { face: 'bored', ms: 600 },
+    ], 'awake');
+}
+
+export function playArcadeDealReaction() {
+    _lastActivity = Date.now();
+    setWebSpriteFace('debug');
+}
+
+export function playArcadeJackpotReaction() {
+    _lastActivity = Date.now();
+    playFaceSequence([
+        { face: 'excited', ms: 500 },
+        { face: 'cool', ms: 500 },
+        { face: 'excited', ms: 500 },
+        { face: 'motivated', ms: 500 },
+        { face: 'happy', ms: 800 },
+    ], 'awake');
+}
+
+// ── Idle face cycling — mimics desktop mood routines ──
+const _idleRoutines = [
+    // patrol
+    [{ face: 'look_l', ms: 1500 }, { face: 'awake', ms: 800 }, { face: 'look_r', ms: 1500 }, { face: 'awake', ms: 800 }, { face: 'look_l_happy', ms: 1200 }],
+    // vibe
+    [{ face: 'cool', ms: 1800 }, { face: 'happy', ms: 1200 }, { face: 'cool', ms: 1500 }, { face: 'motivated', ms: 1200 }],
+    // study
+    [{ face: 'smart', ms: 1500 }, { face: 'debug', ms: 1200 }, { face: 'smart', ms: 1000 }, { face: 'excited', ms: 1200 }],
+    // social
+    [{ face: 'look_l', ms: 1000 }, { face: 'friend', ms: 1500 }, { face: 'happy', ms: 1200 }, { face: 'look_r', ms: 1000 }, { face: 'grateful', ms: 1200 }],
+    // workout
+    [{ face: 'motivated', ms: 1200 }, { face: 'intense', ms: 1000 }, { face: 'motivated', ms: 800 }, { face: 'excited', ms: 1000 }, { face: 'cool', ms: 1200 }],
+    // upload cycle
+    [{ face: 'upload', ms: 800 }, { face: 'upload1', ms: 600 }, { face: 'upload2', ms: 600 }, { face: 'upload1', ms: 600 }, { face: 'happy', ms: 1200 }],
+    // hack
+    [{ face: 'debug', ms: 1200 }, { face: 'smart', ms: 1000 }, { face: 'intense', ms: 1200 }, { face: 'debug', ms: 800 }, { face: 'excited', ms: 1200 }],
+    // chill
+    [{ face: 'cool', ms: 2000 }, { face: 'look_r_happy', ms: 1200 }, { face: 'happy', ms: 1500 }, { face: 'look_l_happy', ms: 1200 }],
+];
+
+function _startIdleLoop() {
+    if (_idleTimer) return;
+    _idleTimer = setInterval(() => {
+        // Don't interrupt active sequences
+        if (_faceLocked || _thinkTimer || _respondTimer) return;
+        const elapsed = Date.now() - _lastActivity;
+        // After 12s idle, 40% chance to run a routine
+        if (elapsed > 12000 && Math.random() < 0.40) {
+            const routine = _pick(_idleRoutines);
+            playFaceSequence(routine, 'awake');
+        }
+        // After 8s idle, 20% chance for a quick random face
+        else if (elapsed > 8000 && Math.random() < 0.20) {
+            const quick = _pick(['happy', 'cool', 'look_l', 'look_r', 'motivated', 'smart']);
+            setWebSpriteFace(quick);
+            setTimeout(() => { if (!_faceLocked) setWebSpriteFace('awake'); }, 2000);
+        }
+    }, 5000);
+}
+
+// Start idle loop on load (web mode only — desktop has its own mood engine)
+if (webSpriteImg) _startIdleLoop();
+
 let webSpriteMoodTimer = null;
 export function setWebSpriteMood(mood) {
     if (!webSpriteContainer) return;
@@ -259,6 +475,7 @@ export async function sendMessage() {
 
     window.electronAPI.chatMood('thinking');
     setWebSpriteMood('thinking');
+    startThinkingCycle();
 
     let streamedContent = '';
     let streamComplete = false;
@@ -269,6 +486,7 @@ export async function sendMessage() {
             streamedContent += data.content;
             streamMsgEl.classList.remove('thinking');
             setWebSpriteMood('responding');
+            if (_thinkTimer) startRespondingCycle(); // switch from thinking to responding cycle
             streamMsgEl.innerHTML = parseMarkdown(streamedContent);
             streamMsgEl.querySelectorAll('.copy-btn').forEach(btn => {
                 btn.textContent = t.copy;
@@ -285,6 +503,7 @@ export async function sendMessage() {
                 SoundSystem.play('messageReceive');
                 window.electronAPI.chatMood('success');
                 setWebSpriteMood('success');
+                playSuccessReaction();
                 // Build metrics for persistence
                 let savedMetrics = null;
                 // Show generation metrics
@@ -346,6 +565,7 @@ export async function sendMessage() {
         addMessage('system', t.err + ': ' + (data.error || 'Unknown error'));
         window.electronAPI.chatMood('error');
         setWebSpriteMood('error');
+        playErrorReaction();
         isSending = false;
         sendBtn.disabled = false;
         inputEl.focus();

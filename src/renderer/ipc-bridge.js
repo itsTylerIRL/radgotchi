@@ -2,6 +2,7 @@
 
 import SoundSystem from './sounds.js';
 import { setMood, setLevel, setSleep, setSleepAnimation, setWork, setWorkAnimation } from './mood-engine.js';
+import { setFace } from './pet-sprites.js';
 import { setLanguage, getLanguage } from './status-text.js';
 import { setAudioListening } from './audio-reactive.js';
 import { handleSystemEvent, assessHealth } from './health-monitor.js';
@@ -98,6 +99,13 @@ export function registerIpcListeners() {
                 case 'success': setMood('happy', { duration: 2000, status: 'TX COMPLETE' }); break;
                 case 'error': setMood('sad', { duration: 2000, status: 'COMMS ERROR' }); break;
             }
+        });
+    }
+
+    // Chat face control (arcade reactions, click interactions, etc.)
+    if (api.onChatFace) {
+        api.onChatFace((face) => {
+            if (face) setFace(face);
         });
     }
 

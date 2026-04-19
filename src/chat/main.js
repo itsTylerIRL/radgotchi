@@ -3,7 +3,8 @@
 import SoundSystem from '../renderer/sounds.js';
 import { getCurrentLang, setCurrentLang, updateLanguage } from './translations.js';
 import { addMessage, chatHistory, runBootAnimation, setSpriteState, setOperatorPfp,
-         updateBroAvatars, updateWebSprite, startSleepTimer, stopSleepTimer, attentionMsgEl, setAttentionMsgEl, loadResponseTimes } from './messages.js';
+         updateBroAvatars, updateWebSprite, startSleepTimer, stopSleepTimer, attentionMsgEl, setAttentionMsgEl, loadResponseTimes,
+         flashFace } from './messages.js';
 import { updateXpDisplay, updateNeedsDisplay, updatePomodoroDisplay } from './xp-display.js';
 import { addNetworkNode, updateNetworkNode, removeNetworkNode, updateNetworkTranslations, handleMeshMessage, loadMeshHistory } from './network-panel.js';
 import { handleAudioLevels } from './equalizer.js';
@@ -185,6 +186,10 @@ if (api.onSpriteUpdate) {
 
             // Play sound
             SoundSystem.play('click');
+
+            // Flash a random happy face
+            const clickFaces = ['happy', 'excited', 'grateful', 'cool', 'motivated', 'friend'];
+            flashFace(clickFaces[Math.floor(Math.random() * clickFaces.length)], 2000);
 
             // Random animation on sprite
             const img = webSpriteEl.querySelector('img');
