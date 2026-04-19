@@ -81,13 +81,30 @@
         }, 2000);
     }
 
-    // invoke: request/response over WebSocket
-    function invoke(channel, args) {
+    // Wait for WebSocket to be connected (resolves immediately if already open)
+    function waitForConnection(timeoutMs = 10000) {
         return new Promise((resolve, reject) => {
-            if (!connected || !ws || ws.readyState !== WebSocket.OPEN) {
-                reject(new Error('Not connected'));
+            if (connected && ws && ws.readyState === WebSocket.OPEN) {
+                resolve();
                 return;
             }
+            const start = Date.now();
+            const check = setInterval(() => {
+                if (connected && ws && ws.readyState === WebSocket.OPEN) {
+                    clearInterval(check);
+                    resolve();
+                } else if (Date.now() - start > timeoutMs) {
+                    clearInterval(check);
+                    reject(new Error('WebSocket connection timeout'));
+                }
+            }, 50);
+        });
+    }
+
+    // invoke: request/response over WebSocket (waits for connection if needed)
+    async function invoke(channel, args) {
+        await waitForConnection();
+        return new Promise((resolve, reject) => {
             const id = ++invokeCounter;
             const timer = setTimeout(() => {
                 pendingInvokes.delete(id);
@@ -98,10 +115,15 @@
         });
     }
 
-    // send: fire-and-forget over WebSocket
+    // send: fire-and-forget over WebSocket (waits for connection if needed)
     function send(channel, args) {
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'send', channel, args }));
+        } else {
+            // Queue until connected
+            waitForConnection().then(() => {
+                ws.send(JSON.stringify({ type: 'send', channel, args }));
+            }).catch(() => {});
         }
     }
 
