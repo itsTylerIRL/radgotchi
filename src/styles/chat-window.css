@@ -4119,3 +4119,19 @@ body[data-web-mode="true"] .control-select {
     padding: 4px 6px;
     max-width: 140px;
 }
+
+/* ── Clean bottom edge for mobile screens ── */
+/* Remove the green border at the bottom so it doesn't clip against
+   the phone's rounded screen corners. The controls bar bleeds to
+   the edge for a native-app feel. */
+body[data-web-mode="true"] .terminal-container {
+    border-bottom: none;
+}
+body[data-web-mode="true"] .terminal-container::after {
+    display: none;  /* hide bottom-right corner bracket */
+}
+body[data-web-mode="true"] .controls-bar {
+    border-top: 1px solid rgba(0, 255, 136, 0.2);
+    border-bottom: none;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+}
