@@ -8,6 +8,7 @@ import { updateXpDisplay, updateNeedsDisplay, updatePomodoroDisplay } from './xp
 import { addNetworkNode, updateNetworkNode, removeNetworkNode, updateNetworkTranslations, handleMeshMessage, loadMeshHistory } from './network-panel.js';
 import { handleAudioLevels } from './equalizer.js';
 import { applyColor, applyZoomSilent } from './controls.js';
+import { initArcade, handleArcadeUpdate } from './arcade.js';
 
 const terminalContainer = document.querySelector('.terminal-container');
 const selectMovement = document.getElementById('select-movement');
@@ -147,6 +148,7 @@ api.onChatReady(async (data) => {
     if (data.language && data.language === 'zh') { toggleLang.classList.add('active'); toggleLang.textContent = 'EN'; updateLanguage('zh'); }
     if (data.pomodoroActive) togglePomo.classList.add('active');
     loadMeshHistory();
+    initArcade();
 });
 
 // PFP updates
@@ -236,9 +238,15 @@ if (api.onNetworkUpdate) {
     api.onNetworkUpdate((data) => {
         if (data.type === 'node-online') addNetworkNode(data.node);
         else if (data.type === 'node-update') updateNetworkNode(data.node);
+        else if (data.type === 'node-stale') updateNetworkNode({ ...data.node, stale: true });
         else if (data.type === 'node-offline') removeNetworkNode(data.node);
         else if (data.type === 'mesh-message') handleMeshMessage(data.node);
     });
+}
+
+// Arcade updates
+if (api.onArcadeUpdate) {
+    api.onArcadeUpdate((data) => handleArcadeUpdate(data));
 }
 
 // Movement mode changes

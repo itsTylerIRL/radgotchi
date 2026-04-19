@@ -75,4 +75,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // System Metrics & LLM Config
     getSystemMetrics: () => ipcRenderer.invoke('get-system-metrics'),
     getLlmConfig: () => ipcRenderer.invoke('get-llm-config'),
+    // Arcade (Games, Shop, Inventory)
+    arcadeGetState: () => ipcRenderer.invoke('arcade-get-state'),
+    arcadeCoinflip: (bet, choice) => ipcRenderer.invoke('arcade-coinflip', { bet, choice }),
+    arcadeBlackjackDeal: (bet) => ipcRenderer.invoke('arcade-blackjack-deal', { bet }),
+    arcadeBlackjackHit: () => ipcRenderer.invoke('arcade-blackjack-hit'),
+    arcadeBlackjackStand: () => ipcRenderer.invoke('arcade-blackjack-stand'),
+    arcadeBlackjackDouble: () => ipcRenderer.invoke('arcade-blackjack-double'),
+    arcadeBuyItem: (itemId) => ipcRenderer.invoke('arcade-buy-item', { itemId }),
+    arcadeUseItem: (itemId) => ipcRenderer.invoke('arcade-use-item', { itemId }),
+    onArcadeUpdate: (callback) => ipcRenderer.on('arcade-update', (_event, data) => callback(data)),
 });

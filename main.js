@@ -25,6 +25,7 @@ const windows       = require('./src/main/windows');
 const broadcast     = require('./src/main/broadcast');
 const skillLoader   = require('./src/main/skill-loader');
 const webServer     = require('./src/main/web-server');
+const arcade        = require('./src/main/arcade');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Web mode flag (--web serves chat as HTTP server, no desktop UI)
@@ -202,8 +203,6 @@ function initModules() {
         getXpData: xpSystem.getXpData,
         getLlmConfig: llm.getLlmConfig,
         getRank: xpSystem.getRank,
-        getMainWindow: windows.getMainWindow,
-        getChatWindow: windows.getChatWindow,
         getIsSleeping: sleepWork.getIsSleeping,
         getIsVibing: sleepWork.getIsVibing,
         getPomodoroState: pomodoro.getState,
@@ -212,6 +211,13 @@ function initModules() {
     });
 
     petMemory.init({ persistence, llm });
+
+    arcade.init({
+        xpSystem,
+        petNeeds,
+        persistence,
+        addActivityLogEntry,
+    });
 
     windows.init({
         persistence,
@@ -224,6 +230,7 @@ function initModules() {
         petMemory,
         systemMonitor,
         networkDiscovery,
+        arcade,
         chatHistory: () => chatHistory,
         activityLog: () => activityLog,
         responseTimes: () => responseTimes,
@@ -282,6 +289,7 @@ function initializeWebMode() {
         petMemory,
         systemMonitor,
         networkDiscovery,
+        arcade,
         chatHistory: () => chatHistory,
         activityLog: () => activityLog,
         responseTimes: () => responseTimes,

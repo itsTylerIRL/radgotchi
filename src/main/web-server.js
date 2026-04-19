@@ -586,6 +586,39 @@ async function handleInvoke(channel, args) {
             persistence.saveMeshMessagesToDisk(args);
             return true;
 
+        // Arcade
+        case 'arcade-get-state':
+            return _deps.arcade.getArcadeState();
+
+        case 'arcade-coinflip': {
+            const { bet, choice } = args || {};
+            return _deps.arcade.playCoinflip(bet, choice);
+        }
+
+        case 'arcade-blackjack-deal': {
+            const { bet: bjBet } = args || {};
+            return _deps.arcade.startBlackjack(bjBet);
+        }
+
+        case 'arcade-blackjack-hit':
+            return _deps.arcade.blackjackHit();
+
+        case 'arcade-blackjack-stand':
+            return _deps.arcade.blackjackStand();
+
+        case 'arcade-blackjack-double':
+            return _deps.arcade.blackjackDouble();
+
+        case 'arcade-buy-item': {
+            const { itemId: buyId } = args || {};
+            return _deps.arcade.buyItem(buyId);
+        }
+
+        case 'arcade-use-item': {
+            const { itemId: useId } = args || {};
+            return _deps.arcade.useItem(useId);
+        }
+
         default:
             return { error: 'Unknown channel: ' + channel };
     }

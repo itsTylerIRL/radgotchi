@@ -320,6 +320,17 @@
         saveMeshMessages: (messages) => invoke('save-mesh-messages', messages),
         onNetworkUpdate: (cb) => on('network-update', cb),
 
+        // Arcade (Games, Shop, Inventory)
+        arcadeGetState: () => invoke('arcade-get-state'),
+        arcadeCoinflip: (bet, choice) => invoke('arcade-coinflip', { bet, choice }),
+        arcadeBlackjackDeal: (bet) => invoke('arcade-blackjack-deal', { bet }),
+        arcadeBlackjackHit: () => invoke('arcade-blackjack-hit'),
+        arcadeBlackjackStand: () => invoke('arcade-blackjack-stand'),
+        arcadeBlackjackDouble: () => invoke('arcade-blackjack-double'),
+        arcadeBuyItem: (itemId) => invoke('arcade-buy-item', { itemId }),
+        arcadeUseItem: (itemId) => invoke('arcade-use-item', { itemId }),
+        onArcadeUpdate: (cb) => on('arcade-update', cb),
+
         // LLM Profiles — use embedded data if available, fallback to WebSocket
         getLlmProfiles: () => {
             if (window.__RADGOTCHI_PROFILES__) {

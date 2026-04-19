@@ -317,6 +317,35 @@ function saveMeshMessagesToDisk(messages) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Arcade Data Persistence (games, shop, inventory)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getArcadeDataPath() {
+    return path.join(_app.getPath('userData'), 'arcade-data.json');
+}
+
+function loadArcadeDataFromDisk() {
+    try {
+        const dataPath = getArcadeDataPath();
+        if (fs.existsSync(dataPath)) {
+            const data = fs.readFileSync(dataPath, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (e) {
+        console.error('Failed to load arcade data:', e);
+    }
+    return null;
+}
+
+function saveArcadeDataToDisk(dataToSave) {
+    try {
+        fs.writeFileSync(getArcadeDataPath(), JSON.stringify(dataToSave, null, 2));
+    } catch (e) {
+        console.error('Failed to save arcade data:', e);
+    }
+}
+
 module.exports = {
     init,
     getAssetPath,
@@ -344,4 +373,7 @@ module.exports = {
     // Mesh messages
     loadMeshMessagesFromDisk,
     saveMeshMessagesToDisk,
+    // Arcade data
+    loadArcadeDataFromDisk,
+    saveArcadeDataToDisk,
 };

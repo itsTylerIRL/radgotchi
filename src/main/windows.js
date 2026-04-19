@@ -24,6 +24,7 @@ let _llm = null;
 let _petMemory = null;
 let _systemMonitor = null;
 let _networkDiscovery = null;
+let _arcade = null;
 let _chatHistory = null;
 let _activityLog = null;
 let _responseTimes = null;
@@ -41,6 +42,7 @@ function init(deps) {
     _petMemory = deps.petMemory;
     _systemMonitor = deps.systemMonitor;
     _networkDiscovery = deps.networkDiscovery;
+    _arcade = deps.arcade;
     _chatHistory = deps.chatHistory;
     _activityLog = deps.activityLog;
     _responseTimes = deps.responseTimes;
@@ -340,6 +342,16 @@ function createWindow() {
     ipcMain.handle('send-mesh-message', async (event, text) => _networkDiscovery.sendMeshMessage(text));
     ipcMain.handle('get-mesh-messages', async () => _persistence.loadMeshMessagesFromDisk());
     ipcMain.handle('save-mesh-messages', async (event, messages) => { _persistence.saveMeshMessagesToDisk(messages); return true; });
+
+    // Arcade IPC
+    ipcMain.handle('arcade-get-state', async () => _arcade.getArcadeState());
+    ipcMain.handle('arcade-coinflip', async (event, { bet, choice }) => _arcade.playCoinflip(bet, choice));
+    ipcMain.handle('arcade-blackjack-deal', async (event, { bet }) => _arcade.startBlackjack(bet));
+    ipcMain.handle('arcade-blackjack-hit', async () => _arcade.blackjackHit());
+    ipcMain.handle('arcade-blackjack-stand', async () => _arcade.blackjackStand());
+    ipcMain.handle('arcade-blackjack-double', async () => _arcade.blackjackDouble());
+    ipcMain.handle('arcade-buy-item', async (event, { itemId }) => _arcade.buyItem(itemId));
+    ipcMain.handle('arcade-use-item', async (event, { itemId }) => _arcade.useItem(itemId));
 
     mainWindow.on('closed', () => { mainWindow = null; });
 

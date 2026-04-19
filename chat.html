@@ -99,6 +99,74 @@
                 <span class="need-value" id="ram-value">0</span>
             </div>
         </div>
+        <!-- Arcade Panel (Games + Shop + Inventory) -->
+        <div class="arcade-bar" id="arcade-bar">
+            <div class="arcade-header" id="arcade-header">
+                <div class="arcade-title">
+                    <span class="arcade-title-icon">🎰</span>
+                    <span>ARCADE</span>
+                </div>
+                <div class="arcade-header-center">
+                    <div class="inventory-slots" id="inventory-slots">
+                        <span class="inventory-empty">EMPTY INV</span>
+                    </div>
+                </div>
+                <div class="arcade-header-right">
+                    <div class="arcade-stats-mini">
+                        <span class="arcade-stat-label">W</span><span class="arcade-stat-value" id="arcade-stat-wins">0</span>
+                        <span class="arcade-stat-label">L</span><span class="arcade-stat-value" id="arcade-stat-losses">0</span>
+                        <span class="arcade-stat-label">P/L</span><span class="arcade-stat-value positive" id="arcade-stat-profit">+0</span>
+                    </div>
+                    <button class="arcade-open-btn" id="arcade-open-btn" title="Toggle arcade">🕹️</button>
+                    <span class="arcade-expand-btn" id="arcade-expand-btn">&#x25BC;</span>
+                </div>
+            </div>
+            <div class="arcade-panel" id="arcade-panel">
+                <div class="arcade-tabs">
+                    <button class="arcade-tab active" id="arcade-tab-games">GAMES</button>
+                    <button class="arcade-tab" id="arcade-tab-shop">SHOP</button>
+                </div>
+                <div class="arcade-games" id="arcade-games">
+                    <!-- Coinflip -->
+                    <div class="game-section">
+                        <div class="game-title">🪙 COINFLIP <span class="game-odds">1.8x</span></div>
+                        <div class="game-row">
+                            <input type="number" class="game-bet-input" id="cf-bet" placeholder="BET XP" min="5" max="500" />
+                            <button class="game-btn heads" id="cf-heads">HEADS</button>
+                            <button class="game-btn tails" id="cf-tails">TAILS</button>
+                        </div>
+                        <div class="cf-result" id="cf-result"></div>
+                    </div>
+                    <!-- Blackjack -->
+                    <div class="game-section">
+                        <div class="game-title">🃏 BLACKJACK <span class="game-odds">2x / 2.5x BJ</span></div>
+                        <div class="game-row">
+                            <input type="number" class="game-bet-input" id="bj-bet" placeholder="BET XP" min="10" max="500" />
+                            <button class="game-btn deal" id="bj-deal">DEAL</button>
+                            <button class="game-btn" id="bj-hit" disabled>HIT</button>
+                            <button class="game-btn" id="bj-stand" disabled>STAND</button>
+                            <button class="game-btn" id="bj-double" disabled>2X</button>
+                        </div>
+                        <div class="bj-table" id="bj-table">
+                            <div class="bj-hand">
+                                <span class="bj-hand-label">DEALER</span>
+                                <div class="bj-cards" id="bj-dealer-cards"></div>
+                                <span class="bj-value" id="bj-dealer-value"></span>
+                            </div>
+                            <div class="bj-hand">
+                                <span class="bj-hand-label">YOU</span>
+                                <div class="bj-cards" id="bj-player-cards"></div>
+                                <span class="bj-value" id="bj-player-value"></span>
+                            </div>
+                        </div>
+                        <div class="bj-result" id="bj-result"></div>
+                    </div>
+                </div>
+                <div class="arcade-shop hidden" id="arcade-shop">
+                    <div class="shop-items" id="shop-items"></div>
+                </div>
+            </div>
+        </div>
         <!-- Network Discovery Panel (RAD MESH) -->
         <div class="network-bar" id="network-bar">
             <div class="network-header" id="network-header">

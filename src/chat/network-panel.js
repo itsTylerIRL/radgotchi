@@ -69,6 +69,7 @@ function renderNetworkNodes() {
         .forEach(node => {
             const nodeEl = document.createElement('div');
             nodeEl.className = 'network-node';
+            if (node.stale) nodeEl.classList.add('node-stale');
             nodeEl.dataset.nodeId = node.nodeId;
             const signalClass = node.signalStrength ? node.signalStrength.toLowerCase() : 'weak';
             const actClass = ACTIVITY_CLASSES[node.activity] || '';
