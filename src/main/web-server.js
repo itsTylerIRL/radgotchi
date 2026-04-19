@@ -51,8 +51,8 @@ function getProjectRoot() {
 }
 
 function injectWebMode(html) {
-    // Inject the web bridge script before the closing </head> tag.
-    const bridgeScript = `<script src="/src/web/web-bridge.js"></script>`;
+    // Inject the web bridge script before the closing </head> tag (cache-bust).
+    const bridgeScript = `<script src="/src/web/web-bridge.js?v=${Date.now()}"></script>`;
     html = html.replace('</head>', bridgeScript + '\n</head>');
 
     // Set viewport for mobile — prevent zoom on input focus
@@ -89,9 +89,42 @@ function injectWebMode(html) {
 function serveChatHtml(res) {
     const root = getProjectRoot();
     let html = fs.readFileSync(path.join(root, 'chat.html'), 'utf-8');
+
+    // Embed initial state directly in the HTML so the page doesn't depend on
+    // WebSocket timing for initial data (profiles, XP, PFP, etc.)
+    // MUST be injected BEFORE injectWebMode() so the state <script> appears
+    // before web-bridge.js in the HTML — bridge reads __RADGOTCHI_INITIAL_STATE__
+    // at load time to seed its event buffer.
+    const { xpSystem, llm, petNeeds, pomodoro, sleepWork, movement } = _deps;
+    const xpStatus = xpSystem.getXpStatus();
+    const pState = pomodoro.getState();
+    xpStatus.pomodoro = {
+        active: pState.active, mode: pState.mode,
+        remaining: pState.active ? Math.max(0, pState.duration - (Date.now() - pState.startTime)) : 0,
+        pomosCompleted: pState.pomosCompleted,
+    };
+    const initialState = {
+        configured: llm.getLlmConfig().enabled,
+        movementMode: movement.getMovementMode(),
+        color: llm.getSpriteState().color || '#ff3344',
+        expressionOnly: false,
+        xp: xpStatus,
+        needs: petNeeds.getNeeds(),
+        spriteState: llm.getSpriteState(),
+        operatorPfp: llm.getLlmConfig().operatorPfp || null,
+        zoom: 100,
+        isSleeping: sleepWork.getIsSleeping(),
+        language: xpSystem.getXpData().savedLang || 'en',
+        pomodoroActive: pState.active,
+    };
+    const profiles = llm.getProfiles();
+    const stateScript = `<script>window.__RADGOTCHI_INITIAL_STATE__ = ${JSON.stringify(initialState)};window.__RADGOTCHI_PROFILES__ = ${JSON.stringify(profiles)};</script>`;
+    html = html.replace('</head>', stateScript + '\n</head>');
+
+    // Now inject web-bridge (adds AFTER the state script since it also appends before </head>)
     html = injectWebMode(html);
 
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(html);
 }
 
@@ -100,8 +133,8 @@ function serveSettingsHtml(res) {
     const { llm } = _deps;
     let html = llm.buildSettingsHtml();
 
-    // Inject web bridge and viewport
-    const bridgeScript = `<script src="/src/web/web-bridge.js"></script>`;
+    // Inject web bridge and viewport (cache-bust)
+    const bridgeScript = `<script src="/src/web/web-bridge.js?v=${Date.now()}"></script>`;
     html = html.replace('</head>', bridgeScript + '\n</head>');
     html = html.replace(
         /<meta name="viewport"[^>]*>/,
@@ -153,7 +186,7 @@ function serveSettingsHtml(res) {
             // Electron mode below`
     );
 
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(html);
 }
 
@@ -690,6 +723,94 @@ function start(port = 7777) {
         const url = new URL(req.url, `http://${req.headers.host}`);
         const pathname = url.pathname;
 
+        // ── HTTP API fallback (when WebSocket is unavailable) ────────────
+
+        // POST /api/invoke — generic invoke handler
+        if (pathname === '/api/invoke' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', async () => {
+                try {
+                    const { channel, args } = JSON.parse(body);
+                    const result = await handleInvoke(channel, args);
+                    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                    res.end(JSON.stringify(result));
+                } catch (e) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: e.message }));
+                }
+            });
+            return;
+        }
+
+        // POST /api/send — fire-and-forget handler
+        if (pathname === '/api/send' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+                try {
+                    const { channel, args } = JSON.parse(body);
+                    // Use a virtual client that discards WS sends
+                    handleSend({ socket: null }, channel, args);
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ ok: true }));
+                } catch (e) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: e.message }));
+                }
+            });
+            return;
+        }
+
+        // POST /api/chat-stream — SSE streaming for chat messages
+        if (pathname === '/api/chat-stream' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+                try {
+                    const { messages } = JSON.parse(body);
+                    const { llm, sleepWork } = _deps;
+                    if (sleepWork.getIsSleeping()) sleepWork.stopSleepMode();
+
+                    res.writeHead(200, {
+                        'Content-Type': 'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        'Connection': 'keep-alive',
+                        'Access-Control-Allow-Origin': '*',
+                    });
+
+                    const fakeEvent = {
+                        reply: (eventName, data) => {
+                            if (res.writableEnded) return;
+                            res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
+                            // Close the stream when chat is done
+                            if (eventName === 'chat-stream-chunk' && data && data.done) {
+                                res.end();
+                            }
+                        }
+                    };
+                    llm.sendChatMessageStream(fakeEvent, messages);
+
+                    req.on('close', () => { /* client disconnected */ });
+                } catch (e) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: e.message }));
+                }
+            });
+            return;
+        }
+
+        // CORS preflight for API endpoints
+        if (req.method === 'OPTIONS' && pathname.startsWith('/api/')) {
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+            });
+            res.end();
+            return;
+        }
+
         // Root or /chat → serve chat.html with bridge injected
         if (pathname === '/' || pathname === '/chat' || pathname === '/chat.html') {
             serveChatHtml(res);
@@ -699,6 +820,69 @@ function start(port = 7777) {
         // Settings page
         if (pathname === '/settings') {
             serveSettingsHtml(res);
+            return;
+        }
+
+        // Debug page — diagnose WebSocket + module loading issues
+        if (pathname === '/debug') {
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+            res.end(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{background:#111;color:#0f0;font:14px monospace;padding:12px}h2{color:#0ff;margin:8px 0}.ok{color:#0f0}.err{color:#f33}.warn{color:#ff0}pre{white-space:pre-wrap;word-break:break-all}</style>
+</head><body><h2>RADGOTCHI WEB DEBUG</h2><div id="log"></div>
+<script>
+const log = document.getElementById('log');
+function add(cls, msg) { const d = document.createElement('div'); d.className = cls; d.textContent = msg; log.appendChild(d); }
+add('ok', '1. Page loaded');
+add('ok', '2. Bridge exists: ' + (typeof window.electronAPI !== 'undefined'));
+
+// Test WebSocket directly
+const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsUrl = proto + '//' + location.host + '/ws';
+add('ok', '3. Connecting to: ' + wsUrl);
+let gotOpen = false, gotReady = false, gotProfiles = false, msgCount = 0;
+try {
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => { gotOpen = true; add('ok', '4. WebSocket OPEN');
+        // Send profiles invoke
+        ws.send(JSON.stringify({ type: 'invoke', id: 1, channel: 'get-llm-profiles', args: null }));
+        add('ok', '5. Sent get-llm-profiles invoke');
+    };
+    ws.onmessage = (evt) => { msgCount++;
+        try { const m = JSON.parse(evt.data);
+            if (m.type === 'event' && m.event === 'chat-ready') { gotReady = true;
+                add('ok', '6. GOT chat-ready: configured=' + m.data.configured + ' xp.level=' + (m.data.xp&&m.data.xp.level) + ' pfp=' + !!(m.data.operatorPfp&&m.data.operatorPfp.imageUrl));
+            }
+            if (m.type === 'response' && m.id === 1) { gotProfiles = true;
+                const p = m.data.profiles || [];
+                add('ok', '7. GOT profiles: count=' + p.length + ' names=[' + p.map(x=>x.name).join(',') + '] active=' + m.data.activeProfileId);
+            }
+        } catch(e) { add('warn', 'Parse error: ' + e.message); }
+    };
+    ws.onerror = (e) => { add('err', 'WebSocket ERROR'); };
+    ws.onclose = (e) => { add('warn', 'WebSocket closed code=' + e.code); };
+    setTimeout(() => {
+        add(gotOpen ? 'ok' : 'err', '--- SUMMARY ---');
+        add(gotOpen ? 'ok' : 'err', 'WS connected: ' + gotOpen);
+        add(gotReady ? 'ok' : 'err', 'chat-ready received: ' + gotReady);
+        add(gotProfiles ? 'ok' : 'err', 'profiles received: ' + gotProfiles);
+        add('ok', 'Total messages: ' + msgCount);
+    }, 3000);
+} catch(e) { add('err', 'WebSocket create failed: ' + e.message); }
+
+// Test module loading
+const script = document.createElement('script');
+script.type = 'module';
+script.textContent = 'window.__moduleOk = true; document.getElementById("log").innerHTML += "<div class=ok>8. ES modules work</div>";';
+document.head.appendChild(script);
+setTimeout(() => { if (!window.__moduleOk) add('err', '8. ES modules FAILED to execute'); }, 1000);
+
+// Test web-bridge loading
+const bridgeScript = document.createElement('script');
+bridgeScript.src = '/src/web/web-bridge.js?v=' + Date.now();
+bridgeScript.onload = () => add('ok', '9. web-bridge.js loaded successfully');
+bridgeScript.onerror = (e) => add('err', '9. web-bridge.js FAILED to load');
+document.head.appendChild(bridgeScript);
+</script></body></html>`);
             return;
         }
 

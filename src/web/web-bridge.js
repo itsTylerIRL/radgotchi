@@ -13,6 +13,7 @@
     let connected = false;
     let pendingInvokes = new Map(); // id → { resolve, reject, timer }
     let eventListeners = {};        // channel → [callback, ...]
+    let eventBuffer = {};           // channel → [data, ...] — buffered until listener registered
     let invokeCounter = 0;
     let reconnectTimer = null;
 
@@ -49,10 +50,14 @@
                 // Server-pushed event
                 if (msg.type === 'event' && msg.event) {
                     const listeners = eventListeners[msg.event];
-                    if (listeners) {
+                    if (listeners && listeners.length > 0) {
                         for (const cb of listeners) {
                             try { cb(msg.data); } catch (e) { console.error('[WebBridge] Event handler error:', e); }
                         }
+                    } else {
+                        // No listeners yet — buffer for when they register
+                        if (!eventBuffer[msg.event]) eventBuffer[msg.event] = [];
+                        eventBuffer[msg.event].push(msg.data);
                     }
                     return;
                 }
@@ -81,61 +86,140 @@
         }, 2000);
     }
 
-    // Wait for WebSocket to be connected (resolves immediately if already open)
-    function waitForConnection(timeoutMs = 10000) {
-        return new Promise((resolve, reject) => {
-            if (connected && ws && ws.readyState === WebSocket.OPEN) {
-                resolve();
-                return;
+    // ── HTTP fallback helpers ──────────────────────────────────────────
+
+    const httpOrigin = window.location.origin;
+
+    async function httpInvoke(channel, args) {
+        const res = await fetch(`${httpOrigin}/api/invoke`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel, args }),
+        });
+        if (!res.ok) throw new Error(`HTTP invoke failed: ${res.status}`);
+        return res.json();
+    }
+
+    function httpSend(channel, args) {
+        fetch(`${httpOrigin}/api/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel, args }),
+        }).catch(() => {});
+    }
+
+    function httpChatStream(messages) {
+        fetch(`${httpOrigin}/api/chat-stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages }),
+        }).then(res => {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buf = '';
+
+            function pump() {
+                reader.read().then(({ done, value }) => {
+                    if (done) return;
+                    buf += decoder.decode(value, { stream: true });
+                    // Parse SSE frames
+                    const parts = buf.split('\n\n');
+                    buf = parts.pop(); // keep incomplete frame
+                    for (const part of parts) {
+                        let eventName = '', data = '';
+                        for (const line of part.split('\n')) {
+                            if (line.startsWith('event: ')) eventName = line.slice(7);
+                            else if (line.startsWith('data: ')) data = line.slice(6);
+                        }
+                        if (eventName && data) {
+                            try {
+                                const parsed = JSON.parse(data);
+                                const listeners = eventListeners[eventName];
+                                if (listeners) {
+                                    for (const cb of listeners) {
+                                        try { cb(parsed); } catch (e) { console.error('[WebBridge] SSE handler error:', e); }
+                                    }
+                                }
+                            } catch (e) { console.error('[WebBridge] SSE parse error:', e); }
+                        }
+                    }
+                    pump();
+                }).catch(() => {});
             }
-            const start = Date.now();
-            const check = setInterval(() => {
-                if (connected && ws && ws.readyState === WebSocket.OPEN) {
-                    clearInterval(check);
-                    resolve();
-                } else if (Date.now() - start > timeoutMs) {
-                    clearInterval(check);
-                    reject(new Error('WebSocket connection timeout'));
+            pump();
+        }).catch(err => {
+            const listeners = eventListeners['chat-stream-error'];
+            if (listeners) {
+                for (const cb of listeners) {
+                    try { cb({ error: err.message }); } catch (e) {}
                 }
-            }, 50);
+            }
         });
     }
 
-    // invoke: request/response over WebSocket (waits for connection if needed)
+    // ── Primary transport with automatic HTTP fallback ──────────────
+
+    function wsReady() {
+        return connected && ws && ws.readyState === WebSocket.OPEN;
+    }
+
+    // invoke: request/response — tries WS first, falls back to HTTP
     async function invoke(channel, args) {
-        await waitForConnection();
-        return new Promise((resolve, reject) => {
-            const id = ++invokeCounter;
-            const timer = setTimeout(() => {
-                pendingInvokes.delete(id);
-                reject(new Error('Invoke timeout: ' + channel));
-            }, 30000);
-            pendingInvokes.set(id, { resolve, reject, timer });
-            ws.send(JSON.stringify({ type: 'invoke', id, channel, args }));
-        });
+        if (wsReady()) {
+            return new Promise((resolve, reject) => {
+                const id = ++invokeCounter;
+                const timer = setTimeout(() => {
+                    pendingInvokes.delete(id);
+                    reject(new Error('Invoke timeout: ' + channel));
+                }, 30000);
+                pendingInvokes.set(id, { resolve, reject, timer });
+                ws.send(JSON.stringify({ type: 'invoke', id, channel, args }));
+            });
+        }
+        // WS not available — use HTTP
+        return httpInvoke(channel, args);
     }
 
-    // send: fire-and-forget over WebSocket (waits for connection if needed)
+    // send: fire-and-forget — tries WS first, falls back to HTTP
     function send(channel, args) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
+        if (wsReady()) {
             ws.send(JSON.stringify({ type: 'send', channel, args }));
         } else {
-            // Queue until connected
-            waitForConnection().then(() => {
-                ws.send(JSON.stringify({ type: 'send', channel, args }));
-            }).catch(() => {});
+            httpSend(channel, args);
         }
     }
 
-    // on: register event listener
+    // sendStream: streaming chat — tries WS first, falls back to SSE
+    function sendStream(messages) {
+        if (wsReady()) {
+            ws.send(JSON.stringify({ type: 'send', channel: 'send-chat-message-stream', args: { messages } }));
+        } else {
+            httpChatStream(messages);
+        }
+    }
+
+    // on: register event listener (flushes any buffered events)
     function on(event, callback) {
         if (!eventListeners[event]) eventListeners[event] = [];
         eventListeners[event].push(callback);
+        // Flush buffered events that arrived before this listener was registered
+        if (eventBuffer[event]) {
+            const buffered = eventBuffer[event];
+            delete eventBuffer[event];
+            for (const data of buffered) {
+                try { callback(data); } catch (e) { console.error('[WebBridge] Event handler error:', e); }
+            }
+        }
     }
 
     // removeAllListeners for a channel
     function removeAllListeners(event) {
         delete eventListeners[event];
+    }
+
+    // Seed event buffer from server-embedded state (injected as inline script before this runs)
+    if (window.__RADGOTCHI_INITIAL_STATE__) {
+        eventBuffer['chat-ready'] = [window.__RADGOTCHI_INITIAL_STATE__];
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -155,7 +239,7 @@
         sendChatMessage: (messages) => invoke('send-chat-message', { messages }),
 
         // Streaming chat
-        sendChatMessageStream: (messages) => send('send-chat-message-stream', { messages }),
+        sendChatMessageStream: (messages) => sendStream(messages),
         onChatStreamChunk: (cb) => on('chat-stream-chunk', cb),
         onChatStreamError: (cb) => on('chat-stream-error', cb),
         onChatToolStatus: (cb) => on('chat-tool-status', cb),
@@ -236,8 +320,14 @@
         saveMeshMessages: (messages) => invoke('save-mesh-messages', messages),
         onNetworkUpdate: (cb) => on('network-update', cb),
 
-        // LLM Profiles
-        getLlmProfiles: () => invoke('get-llm-profiles'),
+        // LLM Profiles — use embedded data if available, fallback to WebSocket
+        getLlmProfiles: () => {
+            if (window.__RADGOTCHI_PROFILES__) {
+                const data = window.__RADGOTCHI_PROFILES__;
+                return Promise.resolve(data);
+            }
+            return invoke('get-llm-profiles');
+        },
         loadLlmProfile: (id) => invoke('load-llm-profile', id),
         saveLlmProfile: (name) => invoke('save-llm-profile', name),
         updateLlmProfile: (id) => invoke('update-llm-profile', id),
@@ -250,16 +340,10 @@
         openSettings: () => { window.location.href = '/settings'; },
 
         // System Metrics & LLM Config
-        getSystemMetrics: () => invoke('get-system-metrics'),
         getLlmConfig: () => invoke('get-llm-config'),
+        getSystemMetrics: () => invoke('get-system-metrics'),
     };
 
-    // Defer connection until all scripts (including type="module") have loaded
-    // so that event listeners (e.g. onChatReady) are registered before
-    // the server pushes initial state on WebSocket connect.
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', connect);
-    } else {
-        connect(); // Already loaded (e.g. dynamic injection)
-    }
+    // Connect immediately — events are buffered until listeners register
+    connect();
 })();
