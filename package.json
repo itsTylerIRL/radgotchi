@@ -5,6 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "start:web": "electron . --web",
+    "start:web:port": "electron . --web --port=3000",
     "start:safe": "electron . --no-sandbox --disable-gpu",
     "start:wayland": "electron . --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-transparent-visuals",
     "build": "electron-builder",
@@ -92,12 +94,17 @@
       "index.html",
       "chat.html",
       "src/**/*",
-      "assets/**/*"
+      "assets/**/*",
+      "skills/**/*"
     ],
     "extraResources": [
       {
         "from": "assets",
         "to": "assets"
+      },
+      {
+        "from": "skills",
+        "to": "skills"
       }
     ]
   }

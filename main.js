@@ -23,6 +23,17 @@ const petMemory     = require('./src/main/pet-memory');
 const llm           = require('./src/main/llm');
 const windows       = require('./src/main/windows');
 const broadcast     = require('./src/main/broadcast');
+const skillLoader   = require('./src/main/skill-loader');
+const webServer     = require('./src/main/web-server');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Web mode flag (--web serves chat as HTTP server, no desktop UI)
+// ═══════════════════════════════════════════════════════════════════════════
+const isWebMode = process.argv.includes('--web');
+const webPort = (() => {
+    const portArg = process.argv.find(a => a.startsWith('--port='));
+    return portArg ? parseInt(portArg.split('=')[1], 10) || 7777 : 7777;
+})();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Platform GPU configuration (must happen before app ready)
@@ -51,7 +62,7 @@ app.on('child-process-gone', (event, details) => {
 // Single instance lock
 // ═══════════════════════════════════════════════════════════════════════════
 const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
+if (!gotTheLock && !isWebMode) {
     app.quit();
 } else {
     app.on('second-instance', () => {
@@ -105,8 +116,10 @@ function addActivityLogEntry(type, message, messageZh) {
     const entry = { type, message, messageZh: messageZh || message, timestamp: Date.now() };
     activityLog.push(entry);
     if (activityLog.length % 5 === 0) saveChatData();
-    const cw = windows.getChatWindow();
-    if (cw && cw.webContents) cw.webContents.send('activity-log-update', entry);
+    if (!isWebMode) {
+        const cw = windows.getChatWindow();
+        if (cw && cw.webContents) cw.webContents.send('activity-log-update', entry);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -114,6 +127,8 @@ function addActivityLogEntry(type, message, messageZh) {
 // ═══════════════════════════════════════════════════════════════════════════
 function initModules() {
     persistence.init(app, screen);
+    skillLoader.init(app);
+    skillLoader.loadSkills();
 
     broadcast.init({
         getMainWindow: windows.getMainWindow,
@@ -218,6 +233,70 @@ function initModules() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Web mode lifecycle (--web flag)
+// ═══════════════════════════════════════════════════════════════════════════
+function initializeWebMode() {
+    initModules();
+
+    // Load persisted data
+    llm.loadLlmConfig();
+    const loadResult = xpSystem.loadXpData(petNeeds.getNeeds());
+    if (loadResult && loadResult.pomosCompleted) {
+        pomodoro.setPomosCompleted(loadResult.pomosCompleted);
+    }
+    petMemory.loadMemory();
+    loadChatData();
+    persistence.loadWindowStates();
+
+    // Start background systems (no UI needed)
+    xpSystem.startPassiveXpGain();
+    petNeeds.broadcastNeeds();
+    petNeeds.startNeedsDecay();
+
+    // Restore sleep mode if it was active last session
+    if (xpSystem.getXpData().savedSleeping) {
+        sleepWork.startSleepMode();
+    }
+
+    // Restore network discovery if it was active last session
+    const ndState = persistence.getWindowState('networkDiscovery', {});
+    if (ndState.enabled) {
+        networkDiscovery.startNetworkDiscovery();
+    }
+
+    // Log session start
+    const xpData = xpSystem.getXpData();
+    addActivityLogEntry('session-start',
+        'Session started (web mode). Session #' + xpData.totalSessions,
+        '会话开始 (网页模式)。第 ' + xpData.totalSessions + ' 次会话');
+
+    // Start HTTP + WebSocket server
+    webServer.init({
+        persistence,
+        xpSystem,
+        petNeeds,
+        pomodoro,
+        movement,
+        sleepWork,
+        llm,
+        petMemory,
+        systemMonitor,
+        networkDiscovery,
+        chatHistory: () => chatHistory,
+        activityLog: () => activityLog,
+        responseTimes: () => responseTimes,
+        saveChatData,
+        addActivityLogEntry,
+    });
+    webServer.start(webPort);
+
+    // Keep Electron alive — Electron may exit when no windows are open
+    // even though the HTTP server is active on the Node event loop
+    const { powerSaveBlocker } = require('electron');
+    powerSaveBlocker.start('prevent-app-suspension');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // App lifecycle
 // ═══════════════════════════════════════════════════════════════════════════
 function initializeApp() {
@@ -266,6 +345,12 @@ function initializeApp() {
 }
 
 app.whenReady().then(() => {
+    // Web mode: skip all Electron UI, just serve HTTP
+    if (isWebMode) {
+        initializeWebMode();
+        return;
+    }
+
     // Display media request handler — platform-specific system audio capture
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
         if (process.platform === 'win32') {
@@ -314,7 +399,11 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {});
 
 app.on('will-quit', () => {
-    windows.cleanup();
+    if (isWebMode) {
+        webServer.stop();
+    } else {
+        windows.cleanup();
+    }
     systemMonitor.stopSystemEventMonitoring();
     movement.stopMovement();
     movement.stopIdleDetection();

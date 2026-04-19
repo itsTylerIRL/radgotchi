@@ -2,6 +2,7 @@
 
 const { BrowserWindow } = require('electron');
 const path = require('path');
+const skillLoader = require('./skill-loader');
 
 // LLM Configuration
 let llmConfig = {
@@ -192,209 +193,7 @@ You MUST use the provided tool functions for any request that needs real-time or
 ` : ''}${_petMemory && _petMemory.buildMemoryBlock() ? _petMemory.buildMemoryBlock() + '\n\n' : ''}${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Tool Definitions & Execution
-// ═══════════════════════════════════════════════════════════════════════════
-
-const TOOL_DEFINITIONS = [
-    {
-        type: 'function',
-        function: {
-            name: 'web_search',
-            description: 'Search the internet for current information — news, weather, scores, prices, facts, etc.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    query: { type: 'string', description: 'The search query' }
-                },
-                required: ['query']
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: 'read_file',
-            description: 'Read the contents of a file on the local filesystem. Use absolute paths.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    path: { type: 'string', description: 'Absolute path to the file to read' }
-                },
-                required: ['path']
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: 'create_file',
-            description: 'Create or overwrite a file on the local filesystem with the given content.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    path: { type: 'string', description: 'Absolute path for the file' },
-                    content: { type: 'string', description: 'Content to write to the file' }
-                },
-                required: ['path', 'content']
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: 'list_directory',
-            description: 'List files and folders in a directory.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    path: { type: 'string', description: 'Absolute path to the directory' }
-                },
-                required: ['path']
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: 'run_command',
-            description: 'Run a shell command and return its output. Do NOT run destructive commands.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    command: { type: 'string', description: 'The shell command to execute' }
-                },
-                required: ['command']
-            }
-        }
-    }
-];
-
-// Blocked patterns for shell commands (safety)
-const BLOCKED_COMMANDS = [
-    /\brm\s+(-rf?|--recursive)\b/i, /\brm\s+-/i, /\brmdir\b/i,
-    /\bmkfs\b/i, /\bdd\s+/i, /\bshutdown\b/i, /\breboot\b/i,
-    /\bsudo\b/i, /\bformat\b/i, />\s*\/dev\//i,
-];
-
-function executeToolCall(name, args) {
-    const fs = require('fs');
-    const { execSync } = require('child_process');
-    const os = require('os');
-
-    try {
-        switch (name) {
-            case 'web_search': {
-                const query = args.query || '';
-                const https = require('https');
-                return new Promise((resolve) => {
-                    const searchPath = '/search?q=' + encodeURIComponent(query) + '&source=web';
-                    const req = https.get({
-                        hostname: 'search.brave.com',
-                        path: searchPath,
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                            'Accept': 'text/html,application/xhtml+xml',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                        },
-                        timeout: 15000
-                    }, (res) => {
-                        let data = '';
-                        res.on('data', c => data += c);
-                        res.on('end', () => {
-                            const snippets = [];
-                            let m;
-                            // Brave snippet descriptions (contain dates + content)
-                            const descRe = /<div class="snippet[^"]*svelte[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-                            while ((m = descRe.exec(data)) && snippets.length < 8) {
-                                const text = m[1].replace(/<[^>]+>/g, '').trim();
-                                if (text && text.length > 20) snippets.push(text);
-                            }
-                            // Generic snippet divs
-                            const genRe = /<div class="generic-snippet[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-                            while ((m = genRe.exec(data)) && snippets.length < 12) {
-                                const text = m[1].replace(/<[^>]+>/g, '').trim();
-                                if (text && text.length > 15) snippets.push(text);
-                            }
-                            if (snippets.length === 0) {
-                                resolve({ result: 'No search results found for: ' + query });
-                            } else {
-                                resolve({ result: snippets.join('\n') });
-                            }
-                        });
-                    });
-                    req.on('error', (e) => resolve({ error: 'Search failed: ' + e.message }));
-                    req.on('timeout', () => { req.destroy(); resolve({ error: 'Search timed out' }); });
-                });
-            }
-
-            case 'read_file': {
-                const filePath = args.path || '';
-                // Basic path traversal protection
-                const resolved = require('path').resolve(filePath);
-                if (!fs.existsSync(resolved)) {
-                    return { error: `File not found: ${resolved}` };
-                }
-                const stat = fs.statSync(resolved);
-                if (stat.size > 512 * 1024) {
-                    return { error: `File too large (${(stat.size / 1024).toFixed(0)}KB). Max 512KB.` };
-                }
-                const content = fs.readFileSync(resolved, 'utf-8');
-                return { result: content };
-            }
-
-            case 'create_file': {
-                const filePath = args.path || '';
-                const content = args.content || '';
-                const resolved = require('path').resolve(filePath);
-                const dir = require('path').dirname(resolved);
-                if (!fs.existsSync(dir)) {
-                    fs.mkdirSync(dir, { recursive: true });
-                }
-                fs.writeFileSync(resolved, content, 'utf-8');
-                return { result: `File created: ${resolved} (${content.length} bytes)` };
-            }
-
-            case 'list_directory': {
-                const dirPath = args.path || os.homedir();
-                const resolved = require('path').resolve(dirPath);
-                if (!fs.existsSync(resolved)) {
-                    return { error: `Directory not found: ${resolved}` };
-                }
-                const entries = fs.readdirSync(resolved, { withFileTypes: true });
-                const listing = entries.slice(0, 100).map(e =>
-                    (e.isDirectory() ? '📁 ' : '📄 ') + e.name
-                ).join('\n');
-                return { result: listing || '(empty directory)' };
-            }
-
-            case 'run_command': {
-                const cmd = args.command || '';
-                if (BLOCKED_COMMANDS.some(re => re.test(cmd))) {
-                    return { error: 'Command blocked for safety: ' + cmd };
-                }
-                try {
-                    const output = execSync(cmd, {
-                        timeout: 15000,
-                        maxBuffer: 512 * 1024,
-                        cwd: os.homedir(),
-                        encoding: 'utf-8'
-                    });
-                    return { result: output.slice(0, 4000) || '(no output)' };
-                } catch (e) {
-                    const stderr = e.stderr ? e.stderr.slice(0, 1000) : '';
-                    const stdout = e.stdout ? e.stdout.slice(0, 1000) : '';
-                    return { error: `Command failed: ${stderr || stdout || e.message}` };
-                }
-            }
-
-            default:
-                return { error: `Unknown tool: ${name}` };
-        }
-    } catch (e) {
-        return { error: `Tool execution error: ${e.message}` };
-    }
-}
+// Tool definitions and execution are loaded from skills/*.md via skill-loader
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Response Extraction — handles standard, tool-calling, and thinking LLMs
@@ -608,10 +407,10 @@ function _streamRequest(event, messages, toolRound) {
             stream: !(useTools || hasToolContext)
         };
         if (useTools) {
-            body.tools = TOOL_DEFINITIONS;
+            body.tools = skillLoader.getToolDefinitions();
             body.tool_choice = 'auto';
         }
-        if (useTools) console.log('[LLM] Tools enabled (non-streaming), sending', TOOL_DEFINITIONS.length, 'tool definitions, round', toolRound);
+        if (useTools) console.log('[LLM] Tools enabled (non-streaming), sending', skillLoader.getSkillCount(), 'tool definitions, round', toolRound);
         const requestBody = JSON.stringify(body);
         const streamStartTime = Date.now();
 
@@ -858,10 +657,7 @@ async function _handleToolCalls(event, messages, assistantMsg, streamStartTime, 
     const toolCalls = assistantMsg.tool_calls || [];
 
     // Notify chat window about each tool call
-    const TOOL_ICONS = {
-        web_search: '🔍', read_file: '📖', create_file: '📝',
-        list_directory: '📁', run_command: '⚙️'
-    };
+    const TOOL_ICONS = skillLoader.getToolIcons();
 
     // Build the updated conversation with the assistant's tool_calls message
     const userMessages = messages.filter(m => m.role !== 'system');
@@ -887,7 +683,7 @@ async function _handleToolCalls(event, messages, assistantMsg, streamStartTime, 
 
         let result;
         try {
-            result = await Promise.resolve(executeToolCall(toolName, args));
+            result = await skillLoader.executeToolCall(toolName, args);
         } catch (e) {
             result = { error: 'Execution failed: ' + e.message };
         }
