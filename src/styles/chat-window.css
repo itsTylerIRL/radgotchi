@@ -3575,3 +3575,316 @@ body[data-web-mode="true"] .web-sprite-container.error img {
 body[data-web-mode="true"] .message-wrapper.assistant .message-avatar.sprite-avatar {
     display: none !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBILE TAMAGOTCHI INTERFACE
+   Sprite centered with needs gauges (left) and stat readouts (right)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 600px) {
+
+    /* ── Switch to CSS Grid: 3-column tamagotchi zone ── */
+    body[data-web-mode="true"] .terminal-container {
+        display: grid;
+        grid-template-columns: 56px 1fr 56px;
+        grid-template-rows:
+            auto auto auto           /* header, info, level */
+            minmax(100px, 22vh)      /* tamagotchi zone */
+            auto auto auto auto      /* arcade, network, pomo, sparkline */
+            1fr                      /* messages */
+            auto auto;               /* input, controls */
+        grid-template-areas:
+            "header   header   header"
+            "info     info     info"
+            "level    level    level"
+            "needs    sprite   stats"
+            "arcade   arcade   arcade"
+            "network  network  network"
+            "pomo     pomo     pomo"
+            "spark    spark    spark"
+            "msgs     msgs     msgs"
+            "input    input    input"
+            "ctrls    ctrls    ctrls";
+    }
+
+    /* Assign grid areas */
+    body[data-web-mode="true"] .terminal-header      { grid-area: header; }
+    body[data-web-mode="true"] .info-bar             { grid-area: info; }
+    body[data-web-mode="true"] .level-bar            { grid-area: level; }
+    body[data-web-mode="true"] .needs-bar            { grid-area: needs; }
+    body[data-web-mode="true"] .web-sprite-container { grid-area: sprite; }
+    body[data-web-mode="true"] .stats-panel          { grid-area: stats; }
+    body[data-web-mode="true"] .arcade-bar           { grid-area: arcade; }
+    body[data-web-mode="true"] .network-bar          { grid-area: network; }
+    body[data-web-mode="true"] .pomodoro-bar         { grid-area: pomo; }
+    body[data-web-mode="true"] .latency-sparkline    { grid-area: spark; }
+    body[data-web-mode="true"] .messages-area        { grid-area: msgs; min-height: 0; }
+    body[data-web-mode="true"] .input-area           { grid-area: input; }
+    body[data-web-mode="true"] .controls-bar         { grid-area: ctrls; }
+
+    /* ── HEADER compact ── */
+    body[data-web-mode="true"] .terminal-header {
+        padding: 6px 8px;
+    }
+
+    body[data-web-mode="true"] .terminal-title {
+        font-size: 8px;
+    }
+
+    body[data-web-mode="true"] .info-bar {
+        flex-wrap: wrap;
+        gap: 2px 6px;
+        padding: 3px 8px;
+        font-size: 7px;
+    }
+
+    body[data-web-mode="true"] .info-bar .info-sep {
+        display: none;
+    }
+
+    /* ── LEVEL BAR ─ lit-up badges ── */
+    body[data-web-mode="true"] .level-bar {
+        padding: 3px 8px;
+        gap: 6px;
+    }
+
+    body[data-web-mode="true"] .level-badge {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 8px;
+        color: var(--term-green);
+        background: rgba(0, 255, 136, 0.2);
+        border: 1px solid var(--term-green);
+        text-shadow: 0 0 8px var(--term-green), 0 0 16px rgba(0, 255, 136, 0.4);
+        box-shadow: 0 0 6px rgba(0, 255, 136, 0.3), inset 0 0 8px rgba(0, 255, 136, 0.1);
+    }
+
+    body[data-web-mode="true"] .rank-badge {
+        font-size: 8px;
+        font-weight: 800;
+        padding: 2px 8px;
+        letter-spacing: 1px;
+        color: var(--term-cyan);
+        background: rgba(0, 212, 255, 0.2);
+        border: 1px solid var(--term-cyan);
+        text-shadow: 0 0 8px var(--term-cyan), 0 0 16px rgba(0, 212, 255, 0.4);
+        box-shadow: 0 0 6px rgba(0, 212, 255, 0.3), inset 0 0 8px rgba(0, 212, 255, 0.1);
+    }
+
+    /* ═══ TAMAGOTCHI DISPLAY ZONE ═══ */
+
+    /* ── Needs bar → left gauge panel ── */
+    body[data-web-mode="true"] .needs-bar {
+        flex-direction: column;
+        gap: 4px;
+        padding: 6px 4px;
+        border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+        border-right: 1px solid rgba(0, 255, 136, 0.15);
+        border-top: 1px solid rgba(0, 255, 136, 0.25);
+        background:
+            linear-gradient(180deg,
+                rgba(0, 255, 136, 0.05) 0%,
+                rgba(0, 0, 0, 0.5) 50%,
+                rgba(0, 255, 136, 0.03) 100%);
+        justify-content: center;
+        align-items: stretch;
+    }
+
+    body[data-web-mode="true"] .needs-bar .need-divider {
+        display: none;
+    }
+
+    body[data-web-mode="true"] .needs-bar .need-item {
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        flex: 0 0 auto;
+    }
+
+    body[data-web-mode="true"] .needs-bar .need-label {
+        font-size: 6px;
+        min-width: unset;
+        text-align: center;
+        letter-spacing: 1.5px;
+    }
+
+    body[data-web-mode="true"] .needs-bar .need-progress {
+        width: 100%;
+        height: 4px;
+        border-radius: 1px;
+    }
+
+    body[data-web-mode="true"] .needs-bar .need-value {
+        font-size: 8px;
+        min-width: unset;
+        text-align: center;
+        color: var(--term-green);
+        font-weight: 700;
+        text-shadow: 0 0 4px rgba(0, 255, 136, 0.4);
+    }
+
+    /* ── Sprite → center viewport (hero) ── */
+    body[data-web-mode="true"] .web-sprite-container {
+        display: flex !important;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 6px 4px 4px;
+        background:
+            /* Faint scan lines */
+            repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 3px,
+                rgba(0, 255, 136, 0.015) 3px,
+                rgba(0, 255, 136, 0.015) 6px
+            ),
+            /* Radial viewport glow */
+            radial-gradient(ellipse at center,
+                rgba(0, 255, 136, 0.07) 0%,
+                rgba(0, 0, 0, 0.25) 45%,
+                rgba(0, 0, 0, 0.55) 100%);
+        border-top: 1px solid rgba(0, 255, 136, 0.25);
+        border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+        position: relative;
+        overflow: visible;
+    }
+
+    /* HUD corner bracket decorations */
+    body[data-web-mode="true"] .web-sprite-container::before,
+    body[data-web-mode="true"] .web-sprite-container::after {
+        content: '';
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-color: rgba(0, 255, 136, 0.45);
+        border-style: solid;
+        z-index: 2;
+        pointer-events: none;
+    }
+
+    body[data-web-mode="true"] .web-sprite-container::before {
+        top: 3px;
+        left: 3px;
+        border-width: 1px 0 0 1px;
+    }
+
+    body[data-web-mode="true"] .web-sprite-container::after {
+        bottom: 3px;
+        right: 3px;
+        border-width: 0 1px 1px 0;
+    }
+
+    /* Prominent but compact sprite */
+    body[data-web-mode="true"] .web-sprite-container img {
+        height: 72px !important;
+        width: auto;
+        filter:
+            invert(1) sepia(1) saturate(8) hue-rotate(var(--sprite-hue, 100deg)) brightness(1.15)
+            drop-shadow(0 0 4px var(--term-green))
+            drop-shadow(0 0 12px var(--term-green))
+            drop-shadow(0 0 24px rgba(0, 255, 136, 0.25))
+            contrast(1.1) !important;
+    }
+
+    /* ── Stats panel → right readout panel ── */
+    body[data-web-mode="true"] .stats-panel {
+        display: flex !important;
+        flex-direction: column;
+        gap: 0;
+        padding: 4px 3px;
+        border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+        border-left: 1px solid rgba(0, 255, 136, 0.15);
+        border-top: 1px solid rgba(0, 255, 136, 0.25);
+        background:
+            linear-gradient(180deg,
+                rgba(0, 255, 136, 0.05) 0%,
+                rgba(0, 0, 0, 0.5) 50%,
+                rgba(0, 255, 136, 0.03) 100%);
+        justify-content: center;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    body[data-web-mode="true"] .stats-panel .stats-row {
+        flex-direction: column;
+        gap: 0;
+        border-bottom: none;
+        padding: 0;
+    }
+
+    body[data-web-mode="true"] .stats-panel .stat-item {
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+        padding: 1px 0;
+        border-bottom: 1px dotted rgba(0, 255, 136, 0.08);
+    }
+
+    body[data-web-mode="true"] .stats-panel .stat-item:last-child {
+        border-bottom: none;
+    }
+
+    body[data-web-mode="true"] .stats-panel .stat-label {
+        font-size: 5px;
+        min-width: unset;
+        text-align: center;
+        letter-spacing: 1px;
+        line-height: 1.2;
+    }
+
+    body[data-web-mode="true"] .stats-panel .stat-value {
+        font-size: 7px;
+        text-align: center;
+        line-height: 1.2;
+        text-shadow: 0 0 4px rgba(0, 255, 136, 0.3);
+    }
+
+    /* ═══ Tamagotchi zone glow pulse ═══ */
+    @keyframes tama-border-pulse {
+        0%, 100% { border-color: rgba(0, 255, 136, 0.15); }
+        50% { border-color: rgba(0, 255, 136, 0.3); }
+    }
+
+    body[data-web-mode="true"] .needs-bar,
+    body[data-web-mode="true"] .stats-panel {
+        animation: tama-border-pulse 4s ease-in-out infinite;
+    }
+
+    /* ═══ BELOW THE TAMAGOTCHI ZONE ═══ */
+
+    /* Compact arcade/network headers on mobile */
+    body[data-web-mode="true"] .arcade-header,
+    body[data-web-mode="true"] .network-header {
+        padding: 3px 8px;
+    }
+
+    /* Input area adjustments */
+    body[data-web-mode="true"] .input-area {
+        padding: 8px;
+        gap: 6px;
+    }
+
+    body[data-web-mode="true"] .message-input {
+        font-size: 16px; /* prevent iOS zoom */
+        padding: 8px;
+    }
+
+    body[data-web-mode="true"] .send-btn {
+        padding: 8px 10px;
+        font-size: 10px;
+    }
+
+    /* Controls bar compact */
+    body[data-web-mode="true"] .controls-bar {
+        gap: 8px;
+        padding: 5px 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    body[data-web-mode="true"] .control-divider {
+        display: none;
+    }
+
+} /* end @media (max-width: 600px) */
