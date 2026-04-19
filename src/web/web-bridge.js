@@ -254,6 +254,12 @@
         getLlmConfig: () => invoke('get-llm-config'),
     };
 
-    // Start connection
-    connect();
+    // Defer connection until all scripts (including type="module") have loaded
+    // so that event listeners (e.g. onChatReady) are registered before
+    // the server pushes initial state on WebSocket connect.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', connect);
+    } else {
+        connect(); // Already loaded (e.g. dynamic injection)
+    }
 })();
