@@ -17,6 +17,39 @@ function init(app) {
     } else {
         skillsDir = path.join(__dirname, '..', '..', 'skills');
     }
+    // Load .env file from the project root so skills can read API keys
+    // without requiring system-level environment variables
+    _loadDotEnv(path.join(skillsDir, '..'));
+}
+
+/**
+ * Parse a simple .env file and merge into process.env (won't overwrite existing vars).
+ */
+function _loadDotEnv(dir) {
+    const envPath = path.join(dir, '.env');
+    if (!fs.existsSync(envPath)) return;
+    try {
+        const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const eqIdx = trimmed.indexOf('=');
+            if (eqIdx < 1) continue;
+            const key = trimmed.slice(0, eqIdx).trim();
+            let val = trimmed.slice(eqIdx + 1).trim();
+            // Strip surrounding quotes
+            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                val = val.slice(1, -1);
+            }
+            // Don't overwrite existing env vars
+            if (process.env[key] === undefined) {
+                process.env[key] = val;
+            }
+        }
+        console.log('[Skills] Loaded .env file from', envPath);
+    } catch (e) {
+        console.warn('[Skills] Failed to read .env file:', e.message);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
