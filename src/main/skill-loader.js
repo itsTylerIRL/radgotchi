@@ -144,6 +144,24 @@ function extractJsCodeBlock(body) {
     return match ? match[1].trim() : null;
 }
 
+/**
+ * Parse a timeout value from frontmatter. Accepts plain ms numbers or
+ * suffix forms like "45s" / "2m". Falls back to `defaultMs` on bad input.
+ */
+function parseTimeout(val, defaultMs) {
+    if (val == null) return defaultMs;
+    if (typeof val === 'number') return val > 0 ? val : defaultMs;
+    const s = String(val).trim().toLowerCase();
+    const m = s.match(/^(\d+(?:\.\d+)?)(ms|s|m)?$/);
+    if (!m) return defaultMs;
+    const n = parseFloat(m[1]);
+    const unit = m[2] || 'ms';
+    if (unit === 'ms') return Math.max(1, n);
+    if (unit === 's') return Math.max(1, n * 1000);
+    if (unit === 'm') return Math.max(1, n * 60000);
+    return defaultMs;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Build OpenAI-format tool definition from parsed metadata
 // ═══════════════════════════════════════════════════════════════════════════
@@ -260,6 +278,9 @@ function loadSkills() {
                 execute,
                 icon: meta.icon || '🔧',
                 file,
+                // Per-skill timeout (ms) from frontmatter, default 30s.
+                // Set higher for skills that hit slow upstreams (e.g. web_search).
+                timeoutMs: parseTimeout(meta.timeout, 30000),
             });
 
             console.log(`[Skills] Loaded: ${meta.name} (${file})`);
@@ -303,9 +324,18 @@ async function executeToolCall(name, args) {
     if (!skill.execute) {
         return { error: `Skill '${name}' has no handler` };
     }
+    const timeoutMs = skill.timeoutMs || 30000;
     try {
-        const result = await skill.execute(args);
-        return result;
+        // Race the skill against a hard timeout so a hung skill (slow network,
+        // stalled subprocess) can't freeze the chat indefinitely.
+        const result = await Promise.race([
+            Promise.resolve().then(() => skill.execute(args)),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(`Skill '${name}' timed out after ${Math.round(timeoutMs / 1000)}s`)), timeoutMs)
+            ),
+        ]);
+        if (result && typeof result === 'object') return result;
+        return { result: result == null ? '' : String(result) };
     } catch (e) {
         return { error: `Tool execution error: ${e.message}` };
     }

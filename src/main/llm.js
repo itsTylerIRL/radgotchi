@@ -191,10 +191,41 @@ CURRENT STATUS:
 - Hunger: ${needs.hunger !== undefined ? Math.round(needs.hunger) : '?'}% | Energy: ${needs.energy !== undefined ? Math.round(needs.energy) : '?'}%
 - Sessions together: ${status.totalSessions} | Current streak: ${status.currentStreak} days
 
-${llmConfig.toolsEnabled ? `TOOL USE — CRITICAL:
-You MUST use the provided tool functions for any request that needs real-time or external data. NEVER simulate, roleplay, or pretend to access data. NEVER generate fake outputs that look like tool results. If the user asks for current prices, weather, news, scores, or any live information, you MUST call the web_search tool. If asked to read, create, or list files, you MUST call the appropriate file tool. If asked to run a command, you MUST call run_command. Do NOT generate text that mimics tool output — actually call the tool.
+${llmConfig.toolsEnabled ? buildToolGuidance() : ''}${_petMemory && _petMemory.buildMemoryBlock() ? _petMemory.buildMemoryBlock() + '\n\n' : ''}${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
+}
 
-` : ''}${_petMemory && _petMemory.buildMemoryBlock() ? _petMemory.buildMemoryBlock() + '\n\n' : ''}${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
+/**
+ * Build the dynamic TOOLS section of the system prompt from currently loaded
+ * skills. Listing each tool name + description here (in addition to the
+ * OpenAI `tools` schema) significantly improves call rate on local models
+ * that don't strongly attend to the function-calling schema (Llama 3, Qwen,
+ * Mistral, etc.). Without this section many models forget tools exist.
+ */
+function buildToolGuidance() {
+    const defs = skillLoader.getToolDefinitions();
+    if (!defs.length) return '';
+
+    const list = defs.map(d => {
+        const fn = d.function || {};
+        const params = fn.parameters?.properties || {};
+        const paramList = Object.keys(params);
+        const paramHint = paramList.length ? `(${paramList.join(', ')})` : '()';
+        return `- ${fn.name}${paramHint}: ${fn.description || ''}`;
+    }).join('\n');
+
+    return `AVAILABLE TOOLS — call them via the function-calling API. Do NOT roleplay
+calling them, do NOT print the tool name as text, do NOT fabricate results.
+If a tool fails, try once more or pick a different tool before giving up.
+
+${list}
+
+WHEN TO USE TOOLS:
+- The user asks about anything time-sensitive, current, live, or external (news, weather, prices, scores, dates, recent events) — use a search tool.
+- The user references a file, directory, log, or local resource — use the appropriate file/command tool.
+- You are unsure of a fact — use a search tool instead of guessing.
+After getting a tool result, give a short natural-language answer based on it. Don't dump raw output unless asked.
+
+`;
 }
 
 // Tool definitions and execution are loaded from skills/*.md via skill-loader
@@ -213,6 +244,57 @@ function extractTextContent(content) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Response Extraction — handles standard, tool-calling, and thinking LLMs
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Parse XML-style tool calls that some local models (Qwen, Llama 3, Mistral
+ * via certain chat templates) emit as plain text instead of using the OpenAI
+ * function-calling schema. We support several common shapes:
+ *   <tool_call>{"name":"x","arguments":{...}}</tool_call>
+ *   <toolcall>{"name":"x","arguments":{...}}</toolcall>
+ *   <function=name>{"arg":"val"}</function>
+ * Returns an array of {id, type, function:{name, arguments}} ready to feed
+ * into _handleToolCalls().
+ */
+function parseXmlToolCalls(text) {
+    if (!text) return [];
+    const calls = [];
+    let m;
+
+    const jsonRe = /<tool_?call>\s*([\s\S]*?)\s*<\/tool_?call>/gi;
+    while ((m = jsonRe.exec(text))) {
+        const body = m[1].trim();
+        try {
+            const parsed = JSON.parse(body);
+            if (parsed && parsed.name) {
+                const rawArgs = parsed.arguments != null ? parsed.arguments
+                              : parsed.parameters != null ? parsed.parameters : {};
+                const args = typeof rawArgs === 'string' ? rawArgs : JSON.stringify(rawArgs);
+                calls.push({
+                    id: 'xmlcall_' + calls.length + '_' + Math.random().toString(36).slice(2, 8),
+                    type: 'function',
+                    function: { name: parsed.name, arguments: args }
+                });
+            }
+        } catch { /* malformed JSON inside tag — skip */ }
+    }
+
+    const fnRe = /<function=([\w-]+)>\s*([\s\S]*?)\s*<\/function>/gi;
+    while ((m = fnRe.exec(text))) {
+        const name = m[1];
+        let args = '{}';
+        const body = m[2].trim();
+        if (body) {
+            try { JSON.parse(body); args = body; } catch { args = JSON.stringify({ input: body }); }
+        }
+        calls.push({
+            id: 'xmlcall_' + calls.length + '_' + Math.random().toString(36).slice(2, 8),
+            type: 'function',
+            function: { name, arguments: args }
+        });
+    }
+
+    return calls;
+}
 
 function stripThinkTags(text) {
     if (!text) return text;
@@ -367,8 +449,9 @@ function sendChatMessageStream(event, messages) {
     _streamRequest(event, messages, 0);
 }
 
-// Maximum tool-call rounds to prevent infinite loops
-const MAX_TOOL_ROUNDS = 3;
+// Maximum tool-call rounds to prevent infinite loops.
+// Increased so the model can chain: search → read → summarise without truncation.
+const MAX_TOOL_ROUNDS = 5;
 
 /**
  * Strip image_url entries from all user messages except the latest one.
@@ -481,7 +564,9 @@ function _streamRequest(event, messages, toolRound) {
                 'Content-Length': Buffer.byteLength(requestBody),
                 ...(llmConfig.apiKey ? { 'Authorization': `Bearer ${llmConfig.apiKey}` } : {})
             },
-            timeout: useTools ? 60000 : 30000
+            // Tool rounds need extra headroom: the LLM call PLUS skill execution
+            // (web search, file reads, shell commands) can each take 20-30s.
+            timeout: (useTools || hasToolContext) ? 180000 : 60000
         }, (res) => {
             let buffer = '';
             let fullContent = '';
@@ -521,6 +606,16 @@ function _streamRequest(event, messages, toolRound) {
                             };
                             _handleToolCalls(event, messages, assistantMsg, streamStartTime, toolRound);
                             return;
+                        }
+                        // Fallback: parse XML-style tool calls from the content if no
+                        // native tool_calls were returned. Common with local models.
+                        if (llmConfig.toolsEnabled && toolRound < MAX_TOOL_ROUNDS && msg?.content) {
+                            const xmlCalls = parseXmlToolCalls(msg.content);
+                            if (xmlCalls.length > 0) {
+                                console.log('[LLM] Non-stream: parsed', xmlCalls.length, 'XML tool call(s):', xmlCalls.map(c => c.function.name).join(','));
+                                _handleToolCalls(event, messages, { role: 'assistant', content: null, tool_calls: xmlCalls }, streamStartTime, toolRound);
+                                return;
+                            }
                         }
                         const content = stripThinkTags(msg?.content) || extractResponseContent(json) || 'No response';
                         const totalTime = ((Date.now() - streamStartTime) / 1000).toFixed(1);
@@ -655,7 +750,19 @@ function _streamRequest(event, messages, toolRound) {
                 }
 
                 // Check if we accumulated tool calls
-                const toolCallList = Object.values(pendingToolCalls).filter(tc => tc.name);
+                let toolCallList = Object.values(pendingToolCalls).filter(tc => tc.name);
+
+                // Fallback: if the model emitted XML-style tool calls in the
+                // streamed text instead of using native function-calling, parse
+                // them now. Without this many local models silently no-op.
+                if (toolCallList.length === 0 && llmConfig.toolsEnabled && fullContent) {
+                    const xmlCalls = parseXmlToolCalls(fullContent);
+                    if (xmlCalls.length > 0) {
+                        console.log('[LLM] Parsed', xmlCalls.length, 'XML-style tool call(s) from streamed text:', xmlCalls.map(c => c.function.name).join(','));
+                        toolCallList = xmlCalls.map(c => ({ id: c.id, name: c.function.name, arguments: c.function.arguments }));
+                    }
+                }
+
                 console.log('[LLM] Stream ended. Accumulated tool calls:', toolCallList.length, toolCallList.length > 0 ? JSON.stringify(toolCallList.map(tc => tc.name)) : '', 'Content length:', fullContent.length);
                 if (toolCallList.length > 0 && llmConfig.toolsEnabled && toolRound < MAX_TOOL_ROUNDS) {
                     // Build the assistant message with tool_calls for the conversation
@@ -720,8 +827,9 @@ async function _handleToolCalls(event, messages, assistantMsg, streamStartTime, 
     const userMessages = messages.filter(m => m.role !== 'system');
     const updatedMessages = [...userMessages, assistantMsg];
 
-    // Execute each tool call and collect results
-    for (const tc of toolCalls) {
+    // Execute all tool calls in parallel — independent tools shouldn't block
+    // each other. Each individual call still has its own timeout via skill-loader.
+    const settled = await Promise.all(toolCalls.map(async (tc) => {
         const fn = tc.function;
         const toolName = fn.name;
         let args = {};
@@ -745,10 +853,6 @@ async function _handleToolCalls(event, messages, assistantMsg, streamStartTime, 
             result = { error: 'Execution failed: ' + e.message };
         }
 
-        const resultContent = result.error
-            ? JSON.stringify({ error: result.error })
-            : JSON.stringify({ result: typeof result.result === 'string' ? result.result.slice(0, 4000) : result.result });
-
         event.reply('chat-tool-status', {
             tool: toolName,
             icon,
@@ -758,7 +862,13 @@ async function _handleToolCalls(event, messages, assistantMsg, streamStartTime, 
                 : (typeof result.result === 'string' ? result.result.slice(0, 80) : 'OK')
         });
 
-        // Add tool result to conversation
+        return { tc, result };
+    }));
+
+    for (const { tc, result } of settled) {
+        const resultContent = result.error
+            ? JSON.stringify({ error: result.error })
+            : JSON.stringify({ result: typeof result.result === 'string' ? result.result.slice(0, 4000) : result.result });
         updatedMessages.push({
             role: 'tool',
             tool_call_id: tc.id,
@@ -766,10 +876,11 @@ async function _handleToolCalls(event, messages, assistantMsg, streamStartTime, 
         });
     }
 
-    // Re-call the LLM with tool results. Allow one more tool round for multi-step tasks,
-    // but cap at MAX_TOOL_ROUNDS to prevent infinite loops.
-    const nextRound = Math.max(toolRound + 1, MAX_TOOL_ROUNDS - 1);
-    _streamRequest(event, updatedMessages, nextRound);
+    // Re-call the LLM with tool results. Increment by 1 so the model can chain
+    // multiple tool calls (search → read → summarise) up to MAX_TOOL_ROUNDS.
+    // Previous code did Math.max(toolRound+1, MAX_TOOL_ROUNDS-1) which jumped
+    // straight to the final round on the first tool call, killing multi-step flows.
+    _streamRequest(event, updatedMessages, toolRound + 1);
 }
 
 // Settings dialog
@@ -898,6 +1009,13 @@ function buildSettingsHtml() {
         :root { --term-green: #00ff88; --term-cyan: #00d4ff; --term-amber: #ffaa00; --term-red: #ff3344; --term-dim: #446655; --term-bg: #0a0c0a; --term-panel: #0d1117; --term-border: #1a3a2a; --term-grid: rgba(0, 255, 136, 0.03); --font-mono: 'Share Tech Mono', 'Consolas', 'Courier New', monospace; }
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background: var(--term-bg); font-family: var(--font-mono); color: var(--term-green); font-size: 12px; }
+        /* Custom scrollbars matching the rest of the UI */
+        * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--term-green) 35%, transparent) transparent; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.4); border-left: 1px solid var(--term-border); }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--term-green), color-mix(in srgb, var(--term-green) 50%, transparent)); border-radius: 0; box-shadow: inset 0 0 4px rgba(0,255,136,0.4); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--term-cyan); box-shadow: inset 0 0 6px rgba(0,212,255,0.6); }
+        ::-webkit-scrollbar-corner { background: transparent; }
         body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px); pointer-events: none; z-index: 1000; }
         body::after { content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-image: linear-gradient(var(--term-grid) 1px, transparent 1px), linear-gradient(90deg, var(--term-grid) 1px, transparent 1px); background-size: 20px 20px; pointer-events: none; z-index: -1; }
         .terminal-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; border: 1px solid var(--term-green); }
@@ -912,29 +1030,32 @@ function buildSettingsHtml() {
         .status-indicator { display: flex; align-items: center; gap: 4px; font-size: 8px; color: var(--term-dim); letter-spacing: 1px; }
         .close-btn { background: transparent; border: 1px solid var(--term-dim); color: var(--term-dim); font-size: 12px; width: 18px; height: 18px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; }
         .close-btn:hover { border-color: var(--term-red); color: var(--term-red); box-shadow: 0 0 8px rgba(255,51,68,0.5); }
-        .content-area { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px; }
-        .field { margin-bottom: 12px; }
-        label { display: block; margin-bottom: 4px; color: var(--term-dim); font-size: 9px; text-transform: uppercase; letter-spacing: 2px; }
+        .content-area { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 10px 12px 12px; }
+        .field { margin-bottom: 8px; }
+        .field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+        label { display: block; margin-bottom: 3px; color: var(--term-dim); font-size: 9px; text-transform: uppercase; letter-spacing: 2px; }
         label::before { content: '█ '; color: var(--term-green); }
-        input[type="text"], input[type="password"], textarea { width: 100%; padding: 8px 10px; background: var(--term-panel); border: 1px solid var(--term-border); color: var(--term-green); font-family: inherit; font-size: 11px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+        input[type="text"], input[type="password"], textarea { width: 100%; padding: 6px 9px; background: var(--term-panel); border: 1px solid var(--term-border); color: var(--term-green); font-family: inherit; font-size: 11px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
         input:focus, textarea:focus { border-color: var(--term-green); box-shadow: 0 0 10px rgba(0,255,136,0.2); }
         input::placeholder, textarea::placeholder { color: #335544; }
-        textarea { resize: vertical; min-height: 60px; }
-        .checkbox-field { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--term-panel); border: 1px solid var(--term-border); }
+        textarea { resize: vertical; min-height: 54px; }
+        .checkbox-field { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--term-panel); border: 1px solid var(--term-border); }
         .checkbox-field input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--term-green); cursor: pointer; }
         .checkbox-field label { margin: 0; font-size: 10px; color: var(--term-green); }
         .checkbox-field label::before { content: ''; }
-        .hint { font-size: 8px; color: #335544; margin-top: 4px; letter-spacing: 1px; }
+        .hint { font-size: 8px; color: #335544; margin-top: 3px; letter-spacing: 1px; }
         .hint::before { content: '// '; color: var(--term-dim); }
-        .button-row { display: flex; gap: 10px; padding: 10px 12px; background: linear-gradient(180deg, #080a08 0%, #0f120f 100%); border-top: 1px solid var(--term-green); }
-        button { flex: 1; padding: 10px; border: 1px solid var(--term-border); background: var(--term-panel); color: var(--term-dim); cursor: pointer; font-family: inherit; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; transition: all 0.2s; }
+        .button-row { display: flex; gap: 10px; padding: 8px 12px; background: linear-gradient(180deg, #080a08 0%, #0f120f 100%); border-top: 1px solid var(--term-green); }
+        button { flex: 1; padding: 9px; border: 1px solid var(--term-border); background: var(--term-panel); color: var(--term-dim); cursor: pointer; font-family: inherit; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; transition: all 0.2s; }
         button:hover { border-color: var(--term-green); color: var(--term-green); box-shadow: 0 0 10px rgba(0,255,136,0.2); }
         .btn-save { background: rgba(0,255,136,0.1); border-color: var(--term-green); color: var(--term-green); }
         .btn-save:hover { background: rgba(0,255,136,0.2); box-shadow: 0 0 15px rgba(0,255,136,0.3); }
         .btn-cancel:hover { border-color: var(--term-red); color: var(--term-red); }
-        .section-header { font-size: 9px; color: var(--term-cyan); letter-spacing: 2px; text-transform: uppercase; margin: 16px 0 10px 0; padding-bottom: 4px; border-bottom: 1px dashed var(--term-border); }
-        .section-header:first-of-type { margin-top: 8px; }
+        .section-header { font-size: 9px; color: var(--term-cyan); letter-spacing: 2px; text-transform: uppercase; margin: 12px 0 6px 0; padding-bottom: 3px; border-bottom: 1px dashed var(--term-border); }
+        .section-header:first-of-type { margin-top: 4px; }
         .section-header::before { content: '◆ '; }
+        .inline-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+        .inline-actions .pill-btn { flex: none; width: auto; padding: 5px 12px; font-size: 9px; }
         .identity-row { display: flex; gap: 16px; align-items: flex-start; }
         .identity-left { flex: 1; }
         .identity-right { display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -1010,15 +1131,17 @@ function buildSettingsHtml() {
             <div class="field">
                 <label>ENDPOINT URL</label>
                 <input type="text" id="apiUrl" placeholder="http://localhost:11434/v1/chat/completions">
-                <div class="hint">OpenAI-compatible endpoint (Ollama, LM Studio, LocalAI)</div>
+                <div class="hint">OpenAI-compatible (Ollama, LM Studio, LocalAI)</div>
             </div>
-            <div class="field">
-                <label>API KEY</label>
-                <input type="password" id="apiKey" placeholder="Leave empty if not required">
-            </div>
-            <div class="field">
-                <label>MODEL DESIGNATION</label>
-                <input type="text" id="model" placeholder="llama2">
+            <div class="field-grid-2">
+                <div>
+                    <label>MODEL</label>
+                    <input type="text" id="model" placeholder="llama2">
+                </div>
+                <div>
+                    <label>API KEY</label>
+                    <input type="password" id="apiKey" placeholder="optional">
+                </div>
             </div>
             <div class="section-header">PERSONALITY</div>
             <div class="field">
@@ -1030,10 +1153,10 @@ function buildSettingsHtml() {
                 <input type="checkbox" id="memoryEnabled">
                 <label for="memoryEnabled">ENABLE LONG-TERM MEMORY</label>
             </div>
-            <div class="hint" style="margin-bottom:8px;">Remembers facts about you across sessions (<span id="memoryCount">0</span> stored)</div>
-            <div style="display:flex;gap:8px;">
-                <button type="button" onclick="viewMemory()" style="flex:none;width:auto;padding:6px 14px;font-size:9px;border-color:var(--term-cyan);color:var(--term-cyan);">VIEW MEMORY</button>
-                <button type="button" class="btn-clear-memory" onclick="clearMemory()" style="flex:none;width:auto;padding:6px 14px;font-size:9px;border-color:var(--term-red);color:var(--term-red);">WIPE MEMORY</button>
+            <div class="hint" style="margin-bottom:6px;">Remembers facts across sessions (<span id="memoryCount">0</span> stored)</div>
+            <div class="inline-actions">
+                <button type="button" class="pill-btn" onclick="viewMemory()" style="border-color:var(--term-cyan);color:var(--term-cyan);">VIEW</button>
+                <button type="button" class="pill-btn btn-clear-memory" onclick="clearMemory()" style="border-color:var(--term-red);color:var(--term-red);">WIPE</button>
             </div>
             <!-- Memory viewer modal -->
             <div id="memoryModal" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);">
@@ -1053,7 +1176,11 @@ function buildSettingsHtml() {
                 <input type="checkbox" id="toolsEnabled">
                 <label for="toolsEnabled">ENABLE TOOL USE (SEARCH, FILES, SHELL)</label>
             </div>
-            <div class="hint">When enabled, the LLM can search the web, read/write files, and run commands. Requires a model that supports tool calling.</div>
+            <div class="hint" style="margin-bottom:6px;">Requires a model that supports tool calling.</div>
+            <div class="inline-actions">
+                <button type="button" id="reloadSkillsBtn" class="pill-btn" onclick="reloadSkills()" style="border-color:var(--term-cyan);color:var(--term-cyan);">RELOAD SKILLS</button>
+                <span id="skillsStatus" style="font-size:9px;color:var(--term-dim);"></span>
+            </div>
         </div>
         <div class="button-row">
             <button class="btn-cancel" onclick="window.close()">ABORT</button>
@@ -1123,6 +1250,30 @@ function buildSettingsHtml() {
                 await window.electronAPI.clearPetMemory();
                 document.getElementById('memoryCount').textContent = '0';
                 closeMemoryModal();
+            }
+        }
+        async function reloadSkills() {
+            const btn = document.getElementById('reloadSkillsBtn');
+            const status = document.getElementById('skillsStatus');
+            btn.disabled = true;
+            const prevLabel = btn.textContent;
+            btn.textContent = 'RELOADING...';
+            status.textContent = '';
+            try {
+                const result = await window.electronAPI.reloadSkills();
+                if (result && result.success) {
+                    status.style.color = 'var(--term-green)';
+                    status.textContent = '\u2713 ' + result.count + ' skill(s): ' + result.names.join(', ');
+                } else {
+                    status.style.color = 'var(--term-red)';
+                    status.textContent = '\u2717 ' + ((result && result.error) || 'Failed');
+                }
+            } catch (e) {
+                status.style.color = 'var(--term-red)';
+                status.textContent = '\u2717 ' + e.message;
+            } finally {
+                btn.textContent = prevLabel;
+                btn.disabled = false;
             }
         }
 

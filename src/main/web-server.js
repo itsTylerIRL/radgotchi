@@ -17,6 +17,8 @@ let wsClients = new Set();
 
 // Intervals for pushing state updates
 let pushInterval = null;
+// Unsubscribe callback returned by broadcast.subscribe() in startPushEvents
+let _broadcastUnsubscribe = null;
 
 const MIME_TYPES = {
     '.html': 'text/html',
@@ -722,17 +724,18 @@ function handleSend(client, channel, args) {
 function startPushEvents() {
     const { xpSystem, petNeeds, pomodoro, sleepWork, llm, networkDiscovery, addActivityLogEntry } = _deps;
 
-    // Hook into broadcast module to forward events to web clients
+    // Subscribe to the central broadcast channel so every event the Electron
+    // windows would receive is also forwarded to web clients. This is the
+    // primary path for real-time XP, needs, pomodoro, sprite, mood, etc.
+    // Stored on _deps so stop() can unsubscribe.
     const broadcast = require('./broadcast');
-    const origBroadcast = broadcast.broadcastToWindows;
-    broadcast.broadcastToWindows = function(eventName, data) {
-        // Call original (sends to Electron windows if any)
-        origBroadcast(eventName, data);
-        // Also push to web clients
+    _broadcastUnsubscribe = broadcast.subscribe((eventName, data) => {
         wsBroadcast(eventName, data);
-    };
+    });
 
-    // Periodic state push (XP, needs, pomodoro) for clients that connect mid-session
+    // Periodic state push as a safety net for clients that connect mid-session
+    // or miss an update due to a transient WebSocket reconnect. Lower frequency
+    // than before since broadcasts now happen in real time.
     pushInterval = setInterval(() => {
         if (wsClients.size === 0) return;
 
@@ -746,7 +749,8 @@ function startPushEvents() {
         };
         wsBroadcast('xp-update', xpStatus);
         wsBroadcast('needs-update', petNeeds.getNeeds());
-    }, 10000);
+        wsBroadcast('pomodoro-update', xpStatus.pomodoro);
+    }, 5000);
 
     // WebSocket keep-alive ping every 30s
     setInterval(() => {
@@ -980,6 +984,7 @@ document.head.appendChild(bridgeScript);
 
 function stop() {
     if (pushInterval) { clearInterval(pushInterval); pushInterval = null; }
+    if (_broadcastUnsubscribe) { _broadcastUnsubscribe(); _broadcastUnsubscribe = null; }
     for (const client of wsClients) {
         try { client.socket.destroy(); } catch (e) {}
     }

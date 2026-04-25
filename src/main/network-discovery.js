@@ -64,6 +64,15 @@ function init({ getXpData, getLlmConfig, getRank, getIsSleeping, getIsVibing, ge
     mesh.on('peer-stale', (node) => broadcastNetworkUpdate('node-stale', node));
     mesh.on('peer-offline', (node) => broadcastNetworkUpdate('node-offline', node));
     mesh.on('message', (data) => broadcastNetworkUpdate('mesh-message', data));
+    mesh.on('started', () => broadcast.broadcastToWindows('network-update', {
+        type: 'mesh-started',
+        nodeId: mesh.nodeId,
+        totalNodes: mesh.getPeers().length,
+    }));
+    mesh.on('stopped', () => broadcast.broadcastToWindows('network-update', {
+        type: 'mesh-stopped',
+        totalNodes: 0,
+    }));
     mesh.on('error', (err) => console.error('RadMesh error:', err.message));
 }
 

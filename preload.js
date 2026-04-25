@@ -72,6 +72,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     uploadPfp: () => ipcRenderer.invoke('upload-pfp'),
     sendChatMessage: (messages) => ipcRenderer.invoke('send-chat-message', { messages }),
 
+    // Reload skills from disk (skills/*.md) without restarting the app
+    reloadSkills: () => ipcRenderer.invoke('reload-skills'),
+
     // LLM Profiles
     getLlmProfiles: () => ipcRenderer.invoke('get-llm-profiles'),
     saveLlmProfile: (name) => ipcRenderer.invoke('save-llm-profile', name),

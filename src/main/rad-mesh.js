@@ -70,6 +70,10 @@ class RadMesh extends EventEmitter {
 
         // Presence payload builder — set via setPresenceBuilder()
         this._buildPresence = null;
+
+        // Cached broadcast addresses — refreshed periodically by _getBroadcastAddresses
+        this._interfaceCache = null;
+        this._interfaceCacheAt = 0;
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -89,9 +93,13 @@ class RadMesh extends EventEmitter {
      * Start the mesh — bind socket, begin heartbeats and peer cleanup.
      */
     start() {
-        if (this._running) return;
+        // Already running, or recovery is pending — don't double-bind.
+        if (this._running || this._recovering) return;
         this._nodeId = this._generateNodeId();
         this._recoveryAttempts = 0;
+        // Reset interface cache so a fresh start re-detects current NICs
+        this._interfaceCache = null;
+        this._interfaceCacheAt = 0;
         this._createSocket();
     }
 
@@ -347,8 +355,12 @@ class RadMesh extends EventEmitter {
         const text = typeof data.text === 'string' ? data.text.slice(0, this._config.MESSAGE_MAX_LENGTH) : '';
         if (!text) return;
 
+        // Validate sender ID — same hardening as _handlePresence so a malformed
+        // message can't poison downstream state with undefined fields.
+        if (typeof data.nodeId !== 'string' || !data.nodeId || data.nodeId.length > 64) return;
+
         const msgId = data.msgId;
-        if (!msgId) return;
+        if (typeof msgId !== 'string' || !msgId || msgId.length > 128) return;
 
         // Dedup
         if (this._seenMessages.has(msgId)) return;
@@ -365,38 +377,52 @@ class RadMesh extends EventEmitter {
 
     _handlePresence(data, rinfo) {
         const nodeId = data.nodeId;
+        // Validate node ID — a malformed packet with no nodeId would otherwise
+        // poison the peers Map with an `undefined` key.
+        if (typeof nodeId !== 'string' || !nodeId || nodeId.length > 64) return;
+
         const now = Date.now();
+        const existing = this._peers.get(nodeId);
 
         const peerEntry = {
             nodeId,
-            hostname: data.hostname,
+            hostname: typeof data.hostname === 'string' ? data.hostname.slice(0, 64) : (existing?.hostname || ''),
             ip: rinfo.address,
             port: rinfo.port,
-            level: data.level || 1,
-            rank: data.rank || 'TRAINEE',
-            operatorName: data.operatorName || 'UNKNOWN',
+            level: Number(data.level) || (existing?.level || 1),
+            rank: typeof data.rank === 'string' ? data.rank.slice(0, 32) : (existing?.rank || 'TRAINEE'),
+            operatorName: typeof data.operatorName === 'string' ? data.operatorName.slice(0, 32) : (existing?.operatorName || 'UNKNOWN'),
             lastSeen: now,
             signalStrength: this._calculateSignalStrength(rinfo.address),
-            activity: data.activity || 'idle',
-            hunger: typeof data.hunger === 'number' ? data.hunger : 100,
-            energy: typeof data.energy === 'number' ? data.energy : 100,
-            color: typeof data.color === 'string' ? data.color : null,
+            activity: typeof data.activity === 'string' ? data.activity : (existing?.activity || 'idle'),
+            hunger: typeof data.hunger === 'number' ? data.hunger : (existing?.hunger ?? 100),
+            energy: typeof data.energy === 'number' ? data.energy : (existing?.energy ?? 100),
+            color: typeof data.color === 'string' ? data.color : (existing?.color || null),
             state: 'ONLINE',
+            // Internal: when we last emitted a peer-update for this peer (throttle).
+            _lastEmit: existing?._lastEmit || 0,
         };
-
-        const existing = this._peers.get(nodeId);
-        const isNew = !existing;
-
-        // If peer was stale, it's back online — reset state
-        if (existing && existing.state === 'STALE') {
-            peerEntry.state = 'ONLINE';
-        }
 
         this._peers.set(nodeId, peerEntry);
 
-        if (isNew) {
+        if (!existing) {
+            peerEntry._lastEmit = now;
             this.emit('peer-online', this._peerData(peerEntry));
-        } else {
+            return;
+        }
+
+        // Detect meaningful changes that should always emit immediately so the
+        // UI reflects them without waiting for the throttle window.
+        const stateChanged = existing.state !== 'ONLINE'; // STALE → ONLINE recovery
+        const dataChanged = existing.level !== peerEntry.level
+                         || existing.rank !== peerEntry.rank
+                         || existing.activity !== peerEntry.activity
+                         || existing.operatorName !== peerEntry.operatorName
+                         || existing.color !== peerEntry.color;
+
+        const sinceLast = now - (existing._lastEmit || 0);
+        if (stateChanged || dataChanged || sinceLast >= this._config.PEER_UPDATE_MIN_INTERVAL_MS) {
+            peerEntry._lastEmit = now;
             this.emit('peer-update', this._peerData(peerEntry));
         }
     }
@@ -475,16 +501,41 @@ class RadMesh extends EventEmitter {
     // ═══════════════════════════════════════════════════════════════════
 
     _getBroadcastAddresses() {
+        // Cache results for 30s — NICs rarely change, walking them on every
+        // heartbeat (and again per message retry) is wasteful and contributed
+        // to noticeable jitter on machines with many adapters.
+        const now = Date.now();
+        if (this._interfaceCache && (now - this._interfaceCacheAt) < 30000) {
+            return this._interfaceCache;
+        }
+
         const interfaces = os.networkInterfaces();
         const addresses = [];
+        const skip = this._config.SKIP_INTERFACE_PATTERNS;
+
         for (const name of Object.keys(interfaces)) {
+            const lname = name.toLowerCase();
+            // Skip virtual / VPN / container interfaces that flood links
+            if (skip.some(pat => lname.includes(pat))) continue;
+
             for (const iface of interfaces[name]) {
-                if (iface.family === 'IPv4' && !iface.internal) {
-                    addresses.push(this._calcBroadcast(iface.address, iface.netmask));
-                }
+                if (iface.family !== 'IPv4' || iface.internal) continue;
+                // Skip APIPA / link-local 169.254/16 (no real LAN there)
+                if (iface.address.startsWith('169.254.')) continue;
+                // Skip /32 (point-to-point, no broadcast domain)
+                if (iface.netmask === '255.255.255.255') continue;
+                addresses.push(this._calcBroadcast(iface.address, iface.netmask));
             }
         }
-        return addresses;
+
+        // Always include 255.255.255.255 as a fallback so single-NIC hosts
+        // without a calculable subnet still reach peers.
+        if (addresses.length === 0) addresses.push('255.255.255.255');
+
+        // Deduplicate
+        this._interfaceCache = Array.from(new Set(addresses));
+        this._interfaceCacheAt = now;
+        return this._interfaceCache;
     }
 
     _calcBroadcast(ip, netmask) {
@@ -527,7 +578,10 @@ class RadMesh extends EventEmitter {
     }
 
     _generateNodeId() {
-        const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+        // Use cryptographic randomness — 6 chars of Math.random() base36 only
+        // gives ~36^6 = 2.2B IDs but with poor entropy; collisions on a small
+        // mesh were possible. crypto.randomBytes is collision-free for our scale.
+        const randomPart = crypto.randomBytes(4).toString('hex').toUpperCase();
         return `RG-${randomPart}`;
     }
 
@@ -547,6 +601,7 @@ class RadMesh extends EventEmitter {
             energy: peer.energy,
             color: peer.color,
             state: peer.state,
+            // Note: _lastEmit is intentionally NOT exposed to consumers.
         };
     }
 }

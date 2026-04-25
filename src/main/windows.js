@@ -4,6 +4,7 @@ const { BrowserWindow, Tray, Menu, ipcMain, nativeImage, desktopCapturer, screen
 const path = require('path');
 const os = require('os');
 const { broadcastToWindows: _broadcastToWindows } = require('./broadcast');
+const skillLoader = require('./skill-loader');
 
 let mainWindow = null;
 let chatWindow = null;
@@ -246,6 +247,21 @@ function createWindow() {
 
     ipcMain.handle('rename-llm-profile', async (event, { id, name }) => {
         return _llm.renameProfile(id, name);
+    });
+
+    // Reload skills from disk — lets users edit/add skills/*.md without restarting.
+    ipcMain.handle('reload-skills', async () => {
+        try {
+            skillLoader.loadSkills();
+            const defs = skillLoader.getToolDefinitions();
+            return {
+                success: true,
+                count: skillLoader.getSkillCount(),
+                names: defs.map(d => d.function?.name).filter(Boolean),
+            };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
     });
 
     // Chat with LLM (non-streaming)
