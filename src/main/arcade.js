@@ -9,6 +9,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 const { broadcastToWindows } = require('./broadcast');
+const dailyContract = require('./daily-contract');
 
 // Shop items — spend XP, get stat boosts
 const SHOP_ITEMS = {
@@ -20,6 +21,7 @@ const SHOP_ITEMS = {
         cost: 50,
         icon: '🍱',
         effect: { type: 'hunger', amount: 50 },
+        react: { mood: 'grateful', status: 'RATIONS RECEIVED', statusZh: '收到口粮', anim: 'rg-bounce' },
     },
     'energy-cell': {
         name: 'ENERGY CELL',
@@ -29,6 +31,7 @@ const SHOP_ITEMS = {
         cost: 50,
         icon: '🔋',
         effect: { type: 'energy', amount: 50 },
+        react: { mood: 'excited', status: 'POWER RESTORED', statusZh: '能量恢复', anim: 'rg-pulse' },
     },
     'stim-shot': {
         name: 'STIM SHOT',
@@ -38,6 +41,7 @@ const SHOP_ITEMS = {
         cost: 40,
         icon: '💉',
         effect: { type: 'both', amount: 25 },
+        react: { mood: 'intense', status: 'STIMS ONLINE', statusZh: '兴奋剂生效', anim: 'rg-shake' },
     },
     'full-restore': {
         name: 'FULL RESTORE',
@@ -47,6 +51,7 @@ const SHOP_ITEMS = {
         cost: 150,
         icon: '✨',
         effect: { type: 'both', amount: 100 },
+        react: { mood: 'motivated', status: 'FULL SYSTEMS RESTORE', statusZh: '系统完全恢复', anim: 'rg-spin' },
     },
 };
 
@@ -129,6 +134,12 @@ function useItem(itemId) {
 
     // Apply effect
     _petNeeds.feedPet(item.effect.amount, item.effect.type);
+
+    // Visible reaction on the pet — items shouldn't be silent stat changes
+    if (item.react) {
+        broadcastToWindows('pet-react', { ...item.react, duration: 3000 });
+    }
+    dailyContract.recordEvent('feed');
 
     saveArcadeData();
     broadcastArcadeUpdate();

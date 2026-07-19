@@ -88,6 +88,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onChatMood: (callback) => safeOn('chat-mood', (_event, mood) => callback(mood)),
     onChatFace: (callback) => safeOn('chat-set-face', (_event, face) => callback(face)),
     syncChatColor: (color) => ipcRenderer.send('sync-chat-color', color),
+
+    // Generic pet reactions (items, mesh contacts, contracts, needs warnings)
+    onPetReact: (callback) => safeOn('pet-react', (_event, data) => callback(data)),
     
     // Sprite state update (send current sprite to chat window for bro avatar)
     updateSprite: (sprite) => ipcRenderer.send('sprite-update', sprite),

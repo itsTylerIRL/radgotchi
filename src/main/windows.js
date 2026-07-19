@@ -469,6 +469,8 @@ function createChatWindow() {
                         isSleeping: _sleepWork.getIsSleeping(),
                         language: _xpSystem.getXpData().savedLang || 'en',
                         pomodoroActive: pState.active,
+                        sessionGapMs: _xpSystem.getXpData().sessionGapMs || 0,
+                        contract: require('./daily-contract').getStatus(),
                     });
                 }
             })
@@ -487,6 +489,8 @@ function createChatWindow() {
                         isSleeping: _sleepWork.getIsSleeping(),
                         language: _xpSystem.getXpData().savedLang || 'en',
                         pomodoroActive: _pomodoro.getState().active,
+                        sessionGapMs: _xpSystem.getXpData().sessionGapMs || 0,
+                        contract: require('./daily-contract').getStatus(),
                     });
                 }
             });

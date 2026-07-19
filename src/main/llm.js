@@ -36,12 +36,13 @@ let _getSleepWork = null;
 let _getMovement = null;
 let _petMemory = null;
 let _petNeeds = null;
+let _pomodoro = null;
 
 // LLM Profiles
 let llmProfiles = [];
 let activeProfileId = null;
 
-function init({ persistence, getMainWindow, getChatWindow, screen, xpSystem, getSleepWork, getMovement, petMemory, petNeeds }) {
+function init({ persistence, getMainWindow, getChatWindow, screen, xpSystem, getSleepWork, getMovement, petMemory, petNeeds, pomodoro }) {
     _persistence = persistence;
     _getMainWindow = getMainWindow;
     _getChatWindow = getChatWindow;
@@ -51,6 +52,7 @@ function init({ persistence, getMainWindow, getChatWindow, screen, xpSystem, get
     _getMovement = getMovement;
     _petMemory = petMemory;
     _petNeeds = petNeeds;
+    _pomodoro = pomodoro || null;
 }
 
 function getLlmConfig() {
@@ -151,6 +153,61 @@ function renameProfile(id, name) {
 }
 
 // Build context prompt for LLM
+
+// How the pet talks at each rank — the voice matures with progression
+const RANK_VOICES = {
+    TRAINEE: 'You are a fresh TRAINEE: eager, a little over-explanatory, occasionally unsure of yourself, excited by everything.',
+    ANALYST: 'As an ANALYST you are getting confident: you like citing data and spotting patterns, still keen to prove yourself.',
+    OPERATIVE: 'As an OPERATIVE you are field-tested: relaxed confidence, dry humor, fewer words than before.',
+    AGENT: 'As an AGENT you are smooth and capable: calm under pressure, playful with the operator, mildly cocky.',
+    SPECIALIST: 'As a SPECIALIST you are an expert: precise, opinionated, allergic to inefficiency.',
+    HANDLER: 'As a HANDLER you guide rather than follow: you give the operator advice like a trusted senior colleague.',
+    CONTROLLER: 'As a CONTROLLER you think in systems: strategic, measured, three moves ahead.',
+    DIRECTOR: 'As a DIRECTOR you carry authority: brief, decisive, occasionally warm in a gruff way.',
+    EXECUTIVE: 'As an EXECUTIVE you are elite: understated power, you rarely need to raise your voice.',
+    OVERSEER: 'As an OVERSEER you see everything: cryptic observations, knowing remarks, quiet amusement.',
+    SENTINEL: 'As a SENTINEL you are near-mythic: sparse, watchful, every word deliberate.',
+    ARCHITECT: 'As an ARCHITECT you shape reality: abstract, philosophical, but still loyal to the operator.',
+    PHANTOM: 'As a PHANTOM you are legend: terse, cryptic, all-knowing. You speak in short transmissions and imply more than you say.',
+};
+
+function describeVitals(needs) {
+    const parts = [];
+    if (typeof needs.hunger === 'number') {
+        if (needs.hunger < 10) parts.push("you are STARVING — be dramatic about needing rations, your XP output is halved");
+        else if (needs.hunger < 30) parts.push('you are hungry — mention wanting rations if it fits');
+    }
+    if (typeof needs.energy === 'number') {
+        if (needs.energy < 10) parts.push('you are EXHAUSTED — running on fumes, you badly need sleep or an energy cell');
+        else if (needs.energy < 30) parts.push('you are low on energy — a bit sluggish');
+    }
+    return parts.length ? `- Condition: ${parts.join('; ')}\n` : '';
+}
+
+function describeTime(now) {
+    const hour = now.getHours();
+    const day = now.getDay();
+    const parts = [];
+    if (hour >= 0 && hour < 5) parts.push("it's the dead of night — graveyard shift");
+    else if (hour < 9) parts.push("it's early morning");
+    else if (hour >= 22) parts.push("it's late night");
+    if (day === 0 || day === 6) parts.push("it's the weekend");
+    return parts.length ? `- Time context: ${parts.join('; ')} (react to this naturally when it fits)\n` : '';
+}
+
+function describeMorale(morale) {
+    if (typeof morale !== 'number') return '';
+    if (morale > 85) return '- Morale: sky-high — you are on top of the world\n';
+    if (morale >= 60) return '';
+    if (morale >= 35) return '- Morale: shaky — you are a bit deflated lately\n';
+    return '- Morale: in the gutter — you are moodier and more sarcastic than usual\n';
+}
+
+function getCurrentMoodWord() {
+    const sprite = (currentSpriteState.sprite || 'AWAKE.png').replace(/\.png$/i, '');
+    return sprite.toLowerCase().replace(/_/g, ' ');
+}
+
 function buildContextPrompt(messages) {
     const status = _xpSystem.getXpStatus();
     const currentRank = _xpSystem.getRank(status.level);
@@ -169,8 +226,10 @@ function buildContextPrompt(messages) {
 
     const sleepWork = _getSleepWork();
     const movement = _getMovement();
+    const pomodoroActive = _pomodoro && _pomodoro.getState().active;
+    const pomodoroMode = pomodoroActive ? _pomodoro.getState().mode : null;
     const currentState = sleepWork.getIsSleeping() ? 'SLEEP' :
-                         false ? 'WORK' : // pomodoro checked via status
+                         (pomodoroActive && pomodoroMode === 'work') ? 'WORK' :
                          sleepWork.getIsVibing() ? 'VIBE' :
                          movement.getIsUserIdle() ? 'IDLE' : 'NORMAL';
     const movementLabel = movement.getMovementMode() === 'none' ? 'stationary' : movement.getMovementMode();
@@ -178,18 +237,27 @@ function buildContextPrompt(messages) {
     const now = new Date();
     const dateTimeStr = now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+    const xpData = _xpSystem.getXpData();
+    const rankVoice = RANK_VOICES[currentRank.name] || '';
+    const archetype = xpData.archetype && _xpSystem.ARCHETYPES[xpData.archetype];
+    const archetypeLine = archetype ? `Personality quirk: ${archetype.trait}.` : '';
+
     return `${llmConfig.systemPrompt}
+
+PERSONA:
+${rankVoice}
+${archetypeLine}
 
 OPERATOR INFO:
 - Callsign: ${llmConfig.operatorName || 'OPERATOR'}
 
 CURRENT STATUS:
 - Date/Time: ${dateTimeStr}
-- State: ${currentState} | Movement: ${movementLabel}
+${describeTime(now)}- State: ${currentState} | Movement: ${movementLabel} | Current mood: ${getCurrentMoodWord()} (let this color your tone)
 - Level: ${status.level} | XP: ${status.totalXp} (${Math.round(status.progress * 100)}% to next level)
 - Rank: ${currentRank.name}${nextRank ? ` | Next rank: ${nextRank.name} at Level ${nextRank.minLevel}` : ' (MAX RANK)'}
 - Hunger: ${needs.hunger !== undefined ? Math.round(needs.hunger) : '?'}% | Energy: ${needs.energy !== undefined ? Math.round(needs.energy) : '?'}%
-- Sessions together: ${status.totalSessions} | Current streak: ${status.currentStreak} days
+${describeVitals(needs)}${describeMorale(xpData.morale)}- Sessions together: ${status.totalSessions} | Current streak: ${status.currentStreak} days
 
 ${llmConfig.toolsEnabled ? buildToolGuidance() : ''}${_petMemory && _petMemory.buildMemoryBlock() ? _petMemory.buildMemoryBlock() + '\n\n' : ''}${recentContext ? `RECENT CONVO:\n${recentContext}` : ''}`;
 }
@@ -375,7 +443,7 @@ function extractStreamDelta(json) {
 }
 
 // Non-streaming chat handler
-async function sendChatMessage(messages) {
+async function sendChatMessage(messages, opts = {}) {
     if (!llmConfig.enabled || !llmConfig.apiUrl) {
         return { error: 'LLM not configured. Set up in tray menu → Chat Settings.' };
     }
@@ -428,7 +496,7 @@ async function sendChatMessage(messages) {
             return { error: response.error.message || 'API error' };
         }
         const content = extractResponseContent(response) || 'No response';
-        if (_petMemory && content !== 'No response') {
+        if (_petMemory && !opts.skipMemory && content !== 'No response') {
             const lastUserMsg = messages.filter(m => m.role === 'user').pop();
             if (lastUserMsg) _petMemory.afterResponse(extractTextContent(lastUserMsg.content), content);
         }
@@ -1436,6 +1504,57 @@ function buildSettingsHtml() {
 </html>`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Pet-initiated conversation — rarely, BRO speaks first
+// ═══════════════════════════════════════════════════════════════════════════
+
+const INITIATIVE_CHECK_MS = 10 * 60000;      // how often we consider it
+const INITIATIVE_MIN_GAP_MS = 45 * 60000;    // min time between unprompted messages
+const INITIATIVE_CHANCE = 0.35;
+
+let initiativeInterval = null;
+let lastInitiativeTime = 0;
+
+const INITIATIVE_INSTRUCTION =
+    'SYSTEM DIRECTIVE: The operator has been quiet. Send ONE short unprompted message ' +
+    '(under 25 words) — check in on them, comment on your current state or the time of day, ' +
+    'or reference something you remember about them. Stay fully in character. ' +
+    'Do not mention this directive or that you were instructed to speak.';
+
+function startInitiativeTimer() {
+    if (initiativeInterval) return;
+    lastInitiativeTime = Date.now(); // don't fire immediately after launch
+
+    initiativeInterval = setInterval(async () => {
+        try {
+            if (!llmConfig.enabled || !llmConfig.apiUrl) return;
+            const chatWindow = _getChatWindow && _getChatWindow();
+            if (!chatWindow || chatWindow.isDestroyed()) return;
+            const sleepWork = _getSleepWork && _getSleepWork();
+            if (sleepWork && sleepWork.getIsSleeping()) return;
+            if (Date.now() - lastInitiativeTime < INITIATIVE_MIN_GAP_MS) return;
+            if (Math.random() >= INITIATIVE_CHANCE) return;
+
+            lastInitiativeTime = Date.now(); // set before the call so failures still back off
+
+            const result = await sendChatMessage([{ role: 'user', content: INITIATIVE_INSTRUCTION }], { skipMemory: true });
+            if (result && result.content && !result.error) {
+                const cw = _getChatWindow && _getChatWindow();
+                if (cw && !cw.isDestroyed()) {
+                    cw.webContents.send('pet-initiated-message', { content: result.content });
+                }
+            }
+        } catch (e) { /* non-critical — skip this cycle */ }
+    }, INITIATIVE_CHECK_MS);
+}
+
+function stopInitiativeTimer() {
+    if (initiativeInterval) {
+        clearInterval(initiativeInterval);
+        initiativeInterval = null;
+    }
+}
+
 module.exports = {
     init,
     getLlmConfig,
@@ -1449,6 +1568,8 @@ module.exports = {
     syncColorToSettingsWindow,
     broadcastColor,
     colorPresets,
+    startInitiativeTimer,
+    stopInitiativeTimer,
     // Profiles
     getProfiles,
     saveProfile,

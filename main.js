@@ -26,6 +26,7 @@ const broadcast     = require('./src/main/broadcast');
 const skillLoader   = require('./src/main/skill-loader');
 const webServer     = require('./src/main/web-server');
 const arcade        = require('./src/main/arcade');
+const dailyContract = require('./src/main/daily-contract');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Web mode flag (--web serves chat as HTTP server, no desktop UI)
@@ -137,6 +138,7 @@ function initModules() {
         getMainWindow: windows.getMainWindow,
         getChatWindow: windows.getChatWindow,
         getIsSleeping: sleepWork.getIsSleeping,
+        addActivityLogEntry,
     });
 
     xpSystem.init({
@@ -181,6 +183,8 @@ function initModules() {
         xpSystem,
         movement,
         cancelAttentionEvent: xpSystem.cancelAttentionEvent,
+        petMemory,
+        addActivityLogEntry,
     });
 
     systemMonitor.init({ getMainWindow: windows.getMainWindow });
@@ -195,6 +199,7 @@ function initModules() {
         getMovement: () => movement,
         petMemory,
         petNeeds,
+        pomodoro,
     });
 
     networkDiscovery.init({
@@ -215,6 +220,12 @@ function initModules() {
         petNeeds,
         persistence,
         addActivityLogEntry,
+    });
+
+    dailyContract.init({
+        persistence,
+        addActivityLogEntry,
+        addXp: xpSystem.addXp,
     });
 
     windows.init({
@@ -257,6 +268,7 @@ function initializeWebMode() {
     xpSystem.startPassiveXpGain();
     petNeeds.broadcastNeeds();
     petNeeds.startNeedsDecay();
+    dailyContract.ensureToday();
 
     // Restore sleep mode if it was active last session
     if (xpSystem.getXpData().savedSleeping) {
@@ -327,6 +339,8 @@ function initializeApp() {
     xpSystem.startPassiveXpGain();
     petNeeds.broadcastNeeds();
     petNeeds.startNeedsDecay();
+    dailyContract.ensureToday();
+    llm.startInitiativeTimer();
 
     // Restore sleep mode if it was active last session
     if (xpSystem.getXpData().savedSleeping) {

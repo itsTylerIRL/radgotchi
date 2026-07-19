@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     chatMood: (mood) => ipcRenderer.send('chat-mood', mood),
     onChatReady: (callback) => ipcRenderer.on('chat-ready', (_event, data) => callback(data)),
+    // Unprompted messages from the pet (initiative system)
+    onPetInitiated: (callback) => ipcRenderer.on('pet-initiated-message', (_event, data) => callback(data)),
     onSetColor: (callback) => ipcRenderer.on('set-color', (_event, color) => callback(color)),
     // Control APIs from chat panel
     setMovementMode: (mode) => ipcRenderer.send('chat-set-movement', mode),

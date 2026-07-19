@@ -1,7 +1,8 @@
 // IPC bridge — all electronAPI event listeners that connect main process to renderer modules
 
 import SoundSystem from './sounds.js';
-import { setMood, setLevel, setSleep, setSleepAnimation, setWork, setWorkAnimation } from './mood-engine.js';
+import { setMood, setLevel, setSleep, setSleepAnimation, setWork, setWorkAnimation,
+         setArchetype, setMorale } from './mood-engine.js';
 import { setFace } from './pet-sprites.js';
 import { setLanguage, getLanguage } from './status-text.js';
 import { setAudioListening } from './audio-reactive.js';
@@ -120,6 +121,23 @@ export function registerIpcListeners() {
     if (api.onXpUpdate) {
         api.onXpUpdate((data) => {
             if (data && typeof data.level === 'number') setLevel(data.level);
+            if (data && data.archetype) setArchetype(data.archetype);
+            if (data && typeof data.morale === 'number') setMorale(data.morale);
+        });
+    }
+
+    // Generic pet reactions (item use, mesh contacts, contracts, needs warnings)
+    if (api.onPetReact) {
+        api.onPetReact((data) => {
+            if (!data || !data.mood) return;
+            const lang = getLanguage();
+            const status = (lang === 'zh' && data.statusZh) ? data.statusZh : data.status;
+            setMood(data.mood, {
+                priority: true,
+                status: status || '',
+                anim: data.anim || '',
+                duration: data.duration || 3000,
+            });
         });
     }
 

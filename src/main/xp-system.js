@@ -1,6 +1,7 @@
 'use strict';
 
 const { broadcastToWindows } = require('./broadcast');
+const dailyContract = require('./daily-contract');
 
 // XP gains and losses
 const XP_CONFIG = {
@@ -47,6 +48,27 @@ const RANKS = [
     { minLevel: 50, name: 'PHANTOM', nameZh: '幻影' },
 ];
 
+// Seeded personality quirk — rolled once on first launch, persists in the save.
+// Biases idle routines (renderer) and adds a voice line to the LLM prompt.
+const ARCHETYPES = {
+    NIGHT_OWL: {
+        trait: "you're a night owl — sharpest after dark, grumble about mornings, romanticize the graveyard shift",
+        routines: ['hack', 'nap_prep', 'deepdive'],
+    },
+    GRINDER: {
+        trait: "you're a grinder — obsessed with reps, streaks, XP optimization, and never skipping a session",
+        routines: ['workout', 'study', 'analyst'],
+    },
+    GAMBLER: {
+        trait: "you're a gambler — you love odds, risk, double-or-nothing energy, and quoting your win rate",
+        routines: ['tactical', 'restless', 'upload_cycle'],
+    },
+    SOCIAL: {
+        trait: "you're a social operator — you crave contact, hype up the operator constantly, and hate radio silence",
+        routines: ['social', 'vibe', 'patrol'],
+    },
+};
+
 const MILESTONES = {
     clicks: [10, 50, 100, 250, 500, 1000, 2500, 5000],
     messages: [5, 25, 50, 100, 250, 500],
@@ -74,6 +96,9 @@ let xpData = {
     workStarted: 0,
     savedSleeping: false,
     savedLang: 'en',
+    archetype: null,
+    morale: 70,
+    sessionGapMs: 0,
 };
 
 let achievedMilestones = new Set();
@@ -118,6 +143,12 @@ function getRank(level) {
     return RANKS[0];
 }
 
+// Morale — slow-moving disposition (0-100) shaped over days, not seconds
+function adjustMorale(delta) {
+    const current = typeof xpData.morale === 'number' ? xpData.morale : 70;
+    xpData.morale = Math.max(0, Math.min(100, current + delta));
+}
+
 function checkMilestones(type, value, prevValue = 0) {
     const thresholds = MILESTONES[type];
     if (!thresholds) return;
@@ -126,6 +157,7 @@ function checkMilestones(type, value, prevValue = 0) {
         const key = `${type}-${threshold}`;
         if (value >= threshold && prevValue < threshold && !achievedMilestones.has(key)) {
             achievedMilestones.add(key);
+            adjustMorale(4);
 
             const labels = {
                 clicks: { en: 'CLICKS', zh: '点击' },
@@ -174,7 +206,16 @@ function loadXpData(petNeedsRef) {
         workStarted: saved.workStarted || 0,
         savedSleeping: saved.isSleeping || false,
         savedLang: saved.language || 'en',
+        archetype: saved.archetype || null,
+        morale: typeof saved.morale === 'number' ? saved.morale : 70,
+        sessionGapMs: saved.lastSaved ? Math.max(0, Date.now() - saved.lastSaved) : 0,
     };
+
+    // Roll a personality archetype once, on first launch
+    if (!xpData.archetype || !ARCHETYPES[xpData.archetype]) {
+        const keys = Object.keys(ARCHETYPES);
+        xpData.archetype = keys[Math.floor(Math.random() * keys.length)];
+    }
 
     // Update streak
     const today = new Date().toDateString();
@@ -184,11 +225,13 @@ function loadXpData(petNeedsRef) {
         const daysDiff = Math.floor((new Date(today) - lastDate) / (1000 * 60 * 60 * 24));
         if (daysDiff === 1) {
             xpData.currentStreak++;
+            adjustMorale(10);
             if (xpData.currentStreak > xpData.longestStreak) {
                 xpData.longestStreak = xpData.currentStreak;
             }
         } else if (daysDiff > 1) {
             xpData.currentStreak = 1;
+            adjustMorale(-10);
         }
     } else {
         xpData.currentStreak = 1;
@@ -237,6 +280,8 @@ function saveXpData(petNeedsRef) {
         workCompleted: _getPomosCompleted() || 0,
         isSleeping: _isSleeping(),
         language: xpData.savedLang || 'en',
+        archetype: xpData.archetype || null,
+        morale: typeof xpData.morale === 'number' ? xpData.morale : 70,
         petNeeds: petNeedsRef ? {
             hunger: petNeedsRef.hunger,
             energy: petNeedsRef.energy,
@@ -278,9 +323,12 @@ function addXp(amount, source = 'unknown') {
     if (_isSleeping()) return { leveledUp: false, newLevel: xpData.level, totalXp: xpData.totalXp };
 
     let finalAmount = amount;
-    // Needs penalty check delegated via feedPet callback existence
-    if (_feedPet) {
-        // Imported from pet-needs; check internally
+    // Starvation penalty — low hunger/energy halves XP gain (surfaced via needs warnings)
+    if (_getNeeds) {
+        const needs = _getNeeds();
+        if (needs && (needs.hunger < 20 || needs.energy < 20)) {
+            finalAmount = Math.max(1, Math.floor(amount * 0.5));
+        }
     }
 
     const oldLevel = xpData.level;
@@ -308,11 +356,33 @@ function addXp(amount, source = 'unknown') {
     const leveledUp = xpData.level > oldLevel;
 
     if (leveledUp) {
+        adjustMorale(8);
         const rank = getRank(xpData.level);
         _addActivityLogEntry('level-up',
             `Level up! Now level ${xpData.level} [${rank.name}]`,
             `等级提升！达到 ${xpData.level} 级 [${rank.nameZh}]`);
+
+        // Rank promotion — bigger deal than a level
+        const oldRank = getRank(oldLevel);
+        if (rank.name !== oldRank.name) {
+            _addActivityLogEntry('rank-up',
+                `⭐ PROMOTION CONFERRED: ${rank.name}. New clearance active.`,
+                `⭐ 晋升：${rank.nameZh}。新权限已激活。`);
+            broadcastToWindows('pet-react', {
+                mood: 'excited',
+                status: `RANK UP: ${rank.name}`,
+                statusZh: `晋升：${rank.nameZh}`,
+                anim: 'rg-spin',
+                duration: 4000,
+            });
+        }
     }
+
+    // Daily contract progress hooks
+    if (source === 'click') dailyContract.recordEvent('clicks');
+    else if (source === 'message-send') dailyContract.recordEvent('messages');
+    else if (source === 'pomodoro-work') dailyContract.recordEvent('pomodoro');
+    else if (source === 'coinflip-win' || source === 'blackjack-win') dailyContract.recordEvent('gamble-win');
 
     broadcastXpUpdate(leveledUp, oldLevel);
 
@@ -325,6 +395,9 @@ function addXp(amount, source = 'unknown') {
 
 function removeXp(amount, source = 'unknown') {
     if (_isSleeping()) return { leveledDown: false, newLevel: xpData.level, totalXp: xpData.totalXp };
+
+    if (source === 'attention-neglect') adjustMorale(-1);
+    else if (source === 'idle-decay') adjustMorale(-0.3);
 
     const oldLevel = xpData.level;
     xpData.totalXp = Math.max(0, xpData.totalXp - amount);
@@ -391,6 +464,8 @@ function getXpStatus() {
         pomodoro: { active: false, mode: 'work', remaining: 0, pomosCompleted: 0 },
         workStarted: xpData.workStarted || 0,
         workCompleted: _getPomosCompleted ? _getPomosCompleted() : 0,
+        archetype: xpData.archetype || null,
+        morale: typeof xpData.morale === 'number' ? Math.round(xpData.morale) : 70,
     };
 }
 
@@ -399,6 +474,10 @@ function startPassiveXpGain() {
 
     passiveXpInterval = setInterval(() => {
         addXp(XP_CONFIG.PASSIVE_XP, 'passive');
+
+        // Morale slowly regresses toward its resting point
+        const morale = typeof xpData.morale === 'number' ? xpData.morale : 70;
+        adjustMorale((60 - morale) * 0.002);
 
         const currentSessionMs = Date.now() - xpData.sessionStartTime;
         const totalUptimeMs = xpData.totalSessionTime + currentSessionMs;
@@ -528,6 +607,7 @@ function isAttentionActive() {
 module.exports = {
     XP_CONFIG,
     RANKS,
+    ARCHETYPES,
     init,
     getRank,
     getXpData,
@@ -536,6 +616,7 @@ module.exports = {
     calculateLevel,
     addXp,
     removeXp,
+    adjustMorale,
     broadcastXpUpdate,
     getXpStatus,
     startPassiveXpGain,

@@ -51,6 +51,22 @@ export function getLevel() { return currentLevel; }
 export function setLevel(lvl) { currentLevel = lvl; }
 export function getPetCount() { return petCount; }
 
+// Personality archetype (from main process save) — biases idle routine picks
+let favoredRoutines = [];
+const ARCHETYPE_ROUTINES = {
+    NIGHT_OWL: ['hack', 'nap_prep', 'deepdive'],
+    GRINDER: ['workout', 'study', 'analyst'],
+    GAMBLER: ['tactical', 'restless', 'upload_cycle'],
+    SOCIAL: ['social', 'vibe', 'patrol'],
+};
+export function setArchetype(archetype) {
+    favoredRoutines = ARCHETYPE_ROUTINES[archetype] || [];
+}
+
+// Morale (0-100, slow-moving) — biases idle disposition
+let currentMorale = 70;
+export function setMorale(morale) { currentMorale = morale; }
+
 // === Timer Helpers ===
 function stopRoutine() {
     currentRoutine = null;
@@ -198,6 +214,26 @@ function startIdleRoutine() {
     for (const r of gated) {
         pool.push(r); // double weight for unlocked advanced routines
     }
+
+    // Archetype preference — each pet has favorite ways to pass the time
+    for (const name of favoredRoutines) {
+        const fav = pool.find(r => r.name === name);
+        if (fav) { pool.push(fav); pool.push(fav); }
+    }
+
+    // Morale disposition — low morale broods, high morale vibes
+    if (currentMorale < 40) {
+        for (const name of ['existential', 'restless']) {
+            const r = pool.find(x => x.name === name);
+            if (r) { pool.push(r); pool.push(r); }
+        }
+    } else if (currentMorale > 80) {
+        for (const name of ['vibe', 'workout']) {
+            const r = pool.find(x => x.name === name);
+            if (r) pool.push(r);
+        }
+    }
+
     pool = pool.filter(Boolean);
     currentRoutine = pick(pool);
     idleStep = 0;

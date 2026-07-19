@@ -59,7 +59,10 @@ function init({ getXpData, getLlmConfig, getRank, getIsSleeping, getIsVibing, ge
     });
 
     // Wire mesh events → IPC broadcasts to renderer windows
-    mesh.on('peer-online', (node) => broadcastNetworkUpdate('node-online', node));
+    mesh.on('peer-online', (node) => {
+        broadcastNetworkUpdate('node-online', node);
+        reactToPeerOnline(node);
+    });
     mesh.on('peer-update', (node) => broadcastNetworkUpdate('node-update', node));
     mesh.on('peer-stale', (node) => broadcastNetworkUpdate('node-stale', node));
     mesh.on('peer-offline', (node) => broadcastNetworkUpdate('node-offline', node));
@@ -83,6 +86,27 @@ function broadcastNetworkUpdate(eventType, nodeData) {
         totalNodes: mesh.getPeers().length,
     };
     broadcast.broadcastToWindows('network-update', payload);
+}
+
+// Pet reacts when another operative appears on the mesh (rate-limited per peer)
+const PEER_REACT_COOLDOWN_MS = 10 * 60000;
+const peerReactTimes = new Map();
+
+function reactToPeerOnline(node) {
+    const id = node && (node.nodeId || node.id || node.operatorName);
+    if (!id) return;
+    const last = peerReactTimes.get(id) || 0;
+    if (Date.now() - last < PEER_REACT_COOLDOWN_MS) return;
+    peerReactTimes.set(id, Date.now());
+
+    const name = node.operatorName || 'UNKNOWN';
+    broadcast.broadcastToWindows('pet-react', {
+        mood: 'friend',
+        status: `CONTACT: ${name}`,
+        statusZh: `发现同伴：${name}`,
+        anim: 'rg-bounce',
+        duration: 3500,
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

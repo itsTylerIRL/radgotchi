@@ -135,7 +135,26 @@ api.onChatReady(async (data) => {
         hintEl.style.cursor = 'pointer';
         hintEl.addEventListener('click', () => { if (api.openSettings) api.openSettings(); });
     }
-    else if (!hasHistory) addMessage('assistant', t.linkEstablished);
+    else {
+        // Gap-aware greeting — the pet noticed you were gone
+        const gapMs = data.sessionGapMs || 0;
+        const days = Math.floor(gapMs / 86400000);
+        let wb = null;
+        if (gapMs > 7 * 86400000) wb = t.welcomeBackLong;
+        else if (gapMs > 48 * 3600000) wb = t.welcomeBackMedium;
+        else if (gapMs > 12 * 3600000) wb = t.welcomeBackShort;
+        if (wb) addMessage('assistant', wb.replace('{days}', days));
+        else if (!hasHistory) addMessage('assistant', t.linkEstablished);
+    }
+
+    // Daily directive briefing
+    if (data.contract && !data.contract.completed) {
+        addMessage('system', t.contractBrief
+            .replace('{brief}', lang === 'zh' ? data.contract.briefZh : data.contract.brief)
+            .replace('{progress}', data.contract.progress)
+            .replace('{target}', data.contract.target)
+            .replace('{bounty}', data.contract.bounty));
+    }
 
     if (data.movementMode) selectMovement.value = data.movementMode;
     if (data.color) {
@@ -167,6 +186,17 @@ api.onPfpUpdate((data) => {
         });
     }
 });
+
+// Unprompted messages from the pet (initiative system)
+if (api.onPetInitiated) {
+    api.onPetInitiated((data) => {
+        if (!data || !data.content) return;
+        addMessage('assistant', data.content);
+        chatHistory.push({ role: 'assistant', content: data.content });
+        SoundSystem.play('messageReceive');
+        if (api.saveChatMessage) api.saveChatMessage('assistant', data.content);
+    });
+}
 
 // Sprite updates
 if (api.onSpriteUpdate) {

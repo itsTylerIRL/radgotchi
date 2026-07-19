@@ -72,7 +72,20 @@ export const statusTextZH = {
 };
 
 export function getStatusText() {
-    return currentLang === 'zh' ? statusTextZH : statusTextEN;
+    const base = currentLang === 'zh' ? statusTextZH : statusTextEN;
+    const hour = new Date().getHours();
+    // Night shift flavor — different idle chatter after dark
+    if (hour >= 23 || hour < 6) {
+        const night = currentLang === 'zh'
+            ? { awake: ['夜班监控', '守夜中', '凌晨行动', '夜间信号'], bored: ['静夜无信号', '夜班待命'] }
+            : { awake: ['NIGHT WATCH', 'GRAVEYARD SHIFT', 'DARK HOURS OPS', 'MIDNIGHT SIGNAL'], bored: ['QUIET NIGHT', 'NIGHT SHIFT LULL'] };
+        return {
+            ...base,
+            awake: [...base.awake, ...night.awake, ...night.awake],
+            bored: [...base.bored, ...night.bored],
+        };
+    }
+    return base;
 }
 
 // === System Event Status — English ===
