@@ -10,6 +10,8 @@ import { handleSystemEvent, assessHealth } from './health-monitor.js';
 const container = document.getElementById('radgotchi-container');
 const faceFlipWrapper = document.getElementById('face-flip-wrapper');
 
+let metricsInterval = null;
+
 export function registerIpcListeners() {
     const api = window.electronAPI;
     if (!api) return;
@@ -37,7 +39,6 @@ export function registerIpcListeners() {
     if (api.onSystemEvent) api.onSystemEvent((event) => handleSystemEvent(event));
 
     // System metrics polling
-    let metricsInterval = null;
     async function pollMetrics() {
         try {
             const metrics = await api.getSystemMetrics();
@@ -46,6 +47,7 @@ export function registerIpcListeners() {
             // Metrics unavailable — non-critical, skip silently
         }
     }
+    if (metricsInterval) clearInterval(metricsInterval);
     metricsInterval = setInterval(pollMetrics, 5000);
     setTimeout(pollMetrics, 1000);
 

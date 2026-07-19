@@ -148,6 +148,7 @@ function initModules() {
         feedPet: petNeeds.feedPet,
         getPomosCompleted: pomodoro.getPomosCompleted,
         addActivityLogEntry,
+        getNeeds: petNeeds.getNeeds,
     });
 
     pomodoro.init({

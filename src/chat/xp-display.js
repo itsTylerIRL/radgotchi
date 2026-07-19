@@ -24,13 +24,14 @@ const pomoFill = document.getElementById('pomo-fill');
 const pomoCount = document.getElementById('pomo-count');
 const statsPanel = document.getElementById('stats-panel');
 
+// Keep in sync with RANKS in src/main/xp-system.js
 const RANKS = [
-    { name: 'TRAINEE', nameZh: '见习员', minLevel: 1 },
+    { name: 'TRAINEE', nameZh: '实习生', minLevel: 1 },
     { name: 'ANALYST', nameZh: '分析员', minLevel: 3 },
     { name: 'OPERATIVE', nameZh: '行动员', minLevel: 5 },
     { name: 'AGENT', nameZh: '特工', minLevel: 8 },
     { name: 'SPECIALIST', nameZh: '专家', minLevel: 11 },
-    { name: 'HANDLER', nameZh: '指挥官', minLevel: 14 },
+    { name: 'HANDLER', nameZh: '处理者', minLevel: 14 },
     { name: 'CONTROLLER', nameZh: '控制者', minLevel: 17 },
     { name: 'DIRECTOR', nameZh: '主管', minLevel: 20 },
     { name: 'EXECUTIVE', nameZh: '执行官', minLevel: 24 },
@@ -73,10 +74,11 @@ export function updateXpDisplay(xpData, animate = false) {
             totalStasis, deepestStasis, workStarted, workCompleted } = xpData;
     const lang = getCurrentLang();
 
+    const safeProgress = Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 0;
     levelBadge.textContent = 'LV ' + level;
     xpLabel.textContent = 'XP: ' + xpIntoLevel + ' / ' + xpNeeded;
-    xpPercent.textContent = Math.round(progress * 100) + '%';
-    xpFill.style.width = (progress * 100) + '%';
+    xpPercent.textContent = Math.round(safeProgress * 100) + '%';
+    xpFill.style.width = (safeProgress * 100) + '%';
     xpTotal.textContent = 'TOTAL: ' + totalXp;
 
     if (rank) { rankBadge.textContent = lang === 'zh' ? rankZh : rank; populateRankTooltip(level); }

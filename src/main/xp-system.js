@@ -28,6 +28,9 @@ const LEVEL_THRESHOLDS = [
     3300, 4100, 5000, 6000, 7200, 8500, 10000, 12000, 14500, 17500, 21000,
 ];
 
+// XP required per level beyond the last threshold (levels 22+)
+const XP_PER_LEVEL_BEYOND_MAX = 3000;
+
 const RANKS = [
     { minLevel: 1, name: 'TRAINEE', nameZh: '实习生' },
     { minLevel: 3, name: 'ANALYST', nameZh: '分析员' },
@@ -96,14 +99,16 @@ let _isUserIdle = null;
 let _feedPet = null;
 let _getPomosCompleted = null;
 let _addActivityLogEntry = null;
+let _getNeeds = null;
 
-function init({ persistence, getMainWindow, getChatWindow, isSleeping, isUserIdle, feedPet, getPomosCompleted, addActivityLogEntry }) {
+function init({ persistence, getMainWindow, getChatWindow, isSleeping, isUserIdle, feedPet, getPomosCompleted, addActivityLogEntry, getNeeds }) {
     _persistence = persistence;
     _isSleeping = isSleeping;
     _isUserIdle = isUserIdle;
     _feedPet = feedPet;
     _getPomosCompleted = getPomosCompleted;
     _addActivityLogEntry = addActivityLogEntry;
+    _getNeeds = getNeeds;
 }
 
 function getRank(level) {
@@ -211,6 +216,9 @@ function loadXpData(petNeedsRef) {
 }
 
 function saveXpData(petNeedsRef) {
+    // Fall back to the live needs object so callers that omit the argument
+    // don't wipe hunger/energy from the save file
+    if (!petNeedsRef && _getNeeds) petNeedsRef = _getNeeds();
     const currentSessionDuration = Date.now() - xpData.sessionStartTime;
     const dataToSave = {
         totalXp: xpData.totalXp,
@@ -240,6 +248,11 @@ function saveXpData(petNeedsRef) {
 }
 
 function calculateLevel(xp) {
+    const maxThreshold = LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+    if (xp >= maxThreshold) {
+        // Extrapolate beyond the threshold table so levels don't cap at 21
+        return LEVEL_THRESHOLDS.length + Math.floor((xp - maxThreshold) / XP_PER_LEVEL_BEYOND_MAX);
+    }
     for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
         if (xp >= LEVEL_THRESHOLDS[i]) return i + 1;
     }
@@ -248,7 +261,7 @@ function calculateLevel(xp) {
 
 function getXpForNextLevel(level) {
     if (level >= LEVEL_THRESHOLDS.length) {
-        return LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] + (level - LEVEL_THRESHOLDS.length + 1) * 3000;
+        return LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] + (level - LEVEL_THRESHOLDS.length + 1) * XP_PER_LEVEL_BEYOND_MAX;
     }
     return LEVEL_THRESHOLDS[level];
 }
@@ -256,7 +269,7 @@ function getXpForNextLevel(level) {
 function getXpForCurrentLevel(level) {
     if (level <= 1) return 0;
     if (level > LEVEL_THRESHOLDS.length) {
-        return LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] + (level - LEVEL_THRESHOLDS.length) * 3000;
+        return LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] + (level - LEVEL_THRESHOLDS.length) * XP_PER_LEVEL_BEYOND_MAX;
     }
     return LEVEL_THRESHOLDS[level - 1];
 }
@@ -348,9 +361,10 @@ function broadcastXpUpdate(leveledUp = false, oldLevel = 0) {
 function getXpStatus() {
     const currentLevelXp = getXpForCurrentLevel(xpData.level);
     const nextLevelXp = getXpForNextLevel(xpData.level);
-    const xpIntoLevel = xpData.totalXp - currentLevelXp;
+    const xpIntoLevel = Math.max(0, xpData.totalXp - currentLevelXp);
     const xpNeeded = nextLevelXp - currentLevelXp;
-    const progress = xpNeeded > 0 ? xpIntoLevel / xpNeeded : 1;
+    let progress = xpNeeded > 0 ? xpIntoLevel / xpNeeded : 1;
+    if (!Number.isFinite(progress)) progress = 1;
     const rank = getRank(xpData.level);
 
     const currentSessionMs = Date.now() - xpData.sessionStartTime;

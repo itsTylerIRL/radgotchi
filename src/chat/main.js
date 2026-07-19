@@ -129,7 +129,12 @@ api.onChatReady(async (data) => {
     }
 
     const t = (await import('./translations.js')).translations[lang];
-    if (!data.configured) addMessage('system', t.commsOffline);
+    if (!data.configured) {
+        addMessage('system', t.commsOffline);
+        const hintEl = addMessage('system', t.commsOfflineHint);
+        hintEl.style.cursor = 'pointer';
+        hintEl.addEventListener('click', () => { if (api.openSettings) api.openSettings(); });
+    }
     else if (!hasHistory) addMessage('assistant', t.linkEstablished);
 
     if (data.movementMode) selectMovement.value = data.movementMode;

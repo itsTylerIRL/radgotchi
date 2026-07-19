@@ -1,5 +1,7 @@
 // Interaction — drag detection, mouse tracking / eye follow, resize
 
+import SoundSystem from './sounds.js';
+
 const container = document.getElementById('radgotchi-container');
 const faceImg = document.getElementById('radgotchi-face');
 const faceFlipWrapper = document.getElementById('face-flip-wrapper');
@@ -46,6 +48,8 @@ window.addEventListener('mouseup', (e) => {
         if (window.electronAPI && window.electronAPI.stopDrag) window.electronAPI.stopDrag();
     } else {
         if (window.electronAPI && window.electronAPI.addXp) window.electronAPI.addXp(2, 'click');
+        // Face clicks already get sound + ripple via mood-engine; give container clicks feedback too
+        if (e.target !== faceImg) SoundSystem.play('click');
     }
     isDragging = false;
     dragStartX = 0;
@@ -85,7 +89,8 @@ async function updateEyeDirection() {
     } catch (e) {}
 }
 
-setInterval(updateEyeDirection, 50);
+// 100ms is visually indistinguishable for eye-follow and halves the IPC traffic vs 50ms
+setInterval(updateEyeDirection, 100);
 setTimeout(updateEyeDirection, 100);
 
 // === RESIZE (Mouse Wheel) ===

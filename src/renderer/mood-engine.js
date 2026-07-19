@@ -8,6 +8,14 @@ const faceEl = document.getElementById('radgotchi-face');
 const statusEl = document.getElementById('radgotchi-status');
 const container = document.getElementById('radgotchi-container');
 
+// Fade status text in whenever it changes (covers every writer of statusEl)
+const statusSwapObserver = new MutationObserver(() => {
+    statusEl.classList.remove('rg-status-swap');
+    void statusEl.offsetWidth;
+    statusEl.classList.add('rg-status-swap');
+});
+statusSwapObserver.observe(statusEl, { childList: true, characterData: true, subtree: true });
+
 // === State ===
 let mood = 'awake';
 let lastMood = 'awake';

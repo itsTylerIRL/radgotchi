@@ -459,6 +459,18 @@ body {
     transform: scale(1.05);
 }
 
+/* Soft fade-in when status text changes */
+.radgotchi-status.rg-status-swap {
+    animation: rg-status-fade-in 0.25s ease;
+}
+
+@keyframes rg-status-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(2px);
+    }
+}
+
 /* Color picker button */
 #color-picker-btn {
     position: absolute;

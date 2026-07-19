@@ -23,6 +23,17 @@ function getAssetPath(...paths) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Atomic Write Helper
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Write to a temp file then rename, so a crash mid-write can't corrupt the save
+function writeFileAtomic(filePath, data) {
+    const tmpPath = filePath + '.tmp';
+    fs.writeFileSync(tmpPath, data);
+    fs.renameSync(tmpPath, filePath);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // XP Data Persistence
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -45,7 +56,7 @@ function loadXpDataFromDisk() {
 
 function saveXpDataToDisk(dataToSave) {
     try {
-        fs.writeFileSync(getXpDataPath(), JSON.stringify(dataToSave, null, 2));
+        writeFileAtomic(getXpDataPath(), JSON.stringify(dataToSave, null, 2));
     } catch (e) {
         console.error('Failed to save XP data:', e);
     }
@@ -74,7 +85,7 @@ function loadChatDataFromDisk() {
 
 function saveChatDataToDisk(dataToSave) {
     try {
-        fs.writeFileSync(getChatDataPath(), JSON.stringify(dataToSave, null, 2));
+        writeFileAtomic(getChatDataPath(), JSON.stringify(dataToSave, null, 2));
     } catch (e) {
         console.error('Failed to save chat data:', e);
     }
@@ -105,7 +116,7 @@ function loadWindowStates() {
 
 function saveWindowStates() {
     try {
-        fs.writeFileSync(getWindowStatePath(), JSON.stringify(windowStates, null, 2));
+        writeFileAtomic(getWindowStatePath(), JSON.stringify(windowStates, null, 2));
     } catch (e) {
         console.error('Failed to save window states:', e);
     }
@@ -215,7 +226,7 @@ function loadLlmConfigFromDisk() {
 
 function saveLlmConfigToDisk(config) {
     try {
-        fs.writeFileSync(getLlmConfigPath(), JSON.stringify(config, null, 2));
+        writeFileAtomic(getLlmConfigPath(), JSON.stringify(config, null, 2));
         return true;
     } catch (e) {
         console.error('Failed to save LLM config:', e);
@@ -247,7 +258,7 @@ function loadLlmProfilesFromDisk() {
 
 function saveLlmProfilesToDisk(profiles) {
     try {
-        fs.writeFileSync(getLlmProfilesPath(), JSON.stringify(profiles, null, 2));
+        writeFileAtomic(getLlmProfilesPath(), JSON.stringify(profiles, null, 2));
         return true;
     } catch (e) {
         console.error('Failed to save LLM profiles:', e);
@@ -278,7 +289,7 @@ function loadPetMemoryFromDisk() {
 
 function savePetMemoryToDisk(dataToSave) {
     try {
-        fs.writeFileSync(getPetMemoryPath(), JSON.stringify(dataToSave, null, 2));
+        writeFileAtomic(getPetMemoryPath(), JSON.stringify(dataToSave, null, 2));
     } catch (e) {
         console.error('Failed to save pet memory:', e);
     }
@@ -311,7 +322,7 @@ function loadMeshMessagesFromDisk() {
 function saveMeshMessagesToDisk(messages) {
     try {
         const trimmed = Array.isArray(messages) ? messages.slice(-MESH_MSG_PERSIST_MAX) : [];
-        fs.writeFileSync(getMeshMessagesPath(), JSON.stringify(trimmed));
+        writeFileAtomic(getMeshMessagesPath(), JSON.stringify(trimmed));
     } catch (e) {
         console.error('Failed to save mesh messages:', e);
     }
@@ -340,7 +351,7 @@ function loadArcadeDataFromDisk() {
 
 function saveArcadeDataToDisk(dataToSave) {
     try {
-        fs.writeFileSync(getArcadeDataPath(), JSON.stringify(dataToSave, null, 2));
+        writeFileAtomic(getArcadeDataPath(), JSON.stringify(dataToSave, null, 2));
     } catch (e) {
         console.error('Failed to save arcade data:', e);
     }

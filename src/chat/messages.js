@@ -34,6 +34,13 @@ let sleepTimerEl = null;
 let sleepTimerInterval = null;
 let sleepStartTime = null;
 
+// Smart autoscroll — don't yank the view down if the user scrolled up to read
+const SCROLL_LOCK_THRESHOLD = 60;
+function scrollToBottom(force = false) {
+    const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < SCROLL_LOCK_THRESHOLD;
+    if (force || nearBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
 // In-place update message refs
 export let attentionMsgEl = null;
 export let pomodoroMsgEl = null;
@@ -382,7 +389,7 @@ export function addMessage(role, content, isThinking = false, timestamp = null, 
             }
         }
         messagesEl.appendChild(wrapperEl);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+        scrollToBottom(role === 'user');
         return msgEl;
     }
 
@@ -409,7 +416,7 @@ export function addMessage(role, content, isThinking = false, timestamp = null, 
     });
     msgEl.appendChild(closeBtn);
     messagesEl.appendChild(msgEl);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    scrollToBottom();
 
     if (persist && role === 'system' && window.electronAPI && window.electronAPI.saveChatMessage) {
         window.electronAPI.saveChatMessage('system', content);
@@ -439,7 +446,7 @@ export function addToolMessage(label, status = 'running', beforeEl = null) {
     } else {
         messagesEl.appendChild(msgEl);
     }
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    scrollToBottom();
     return msgEl;
 }
 
@@ -506,7 +513,7 @@ export async function sendMessage() {
     streamWrapperEl.appendChild(streamAvatarEl);
     streamWrapperEl.appendChild(streamMsgEl);
     messagesEl.appendChild(streamWrapperEl);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    scrollToBottom(true);
 
     window.electronAPI.chatMood('thinking');
     setWebSpriteMood('thinking');
@@ -528,7 +535,7 @@ export async function sendMessage() {
                 btn.setAttribute('data-copy', t.copy);
                 btn.setAttribute('data-copied', t.copied);
             });
-            messagesEl.scrollTop = messagesEl.scrollHeight;
+            scrollToBottom();
         }
         if (data.done) {
             streamComplete = true;
