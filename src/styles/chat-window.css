@@ -3884,10 +3884,10 @@ body[data-web-mode="true"] .terminal-container {
     grid-template-columns: 56px 1fr 56px;
     grid-template-rows:
         auto auto auto           /* header, info, level */
-        minmax(100px, 22vh)      /* tamagotchi zone */
+        minmax(84px, var(--tama-h, 20vh)) /* tamagotchi zone */
         auto auto auto auto      /* arcade, network, pomo, sparkline */
         1fr                      /* messages */
-        auto auto;               /* input, controls */
+        auto auto auto;          /* attach preview, input, controls */
     grid-template-areas:
         "header   header   header"
         "info     info     info"
@@ -3898,6 +3898,7 @@ body[data-web-mode="true"] .terminal-container {
         "pomo     pomo     pomo"
         "spark    spark    spark"
         "msgs     msgs     msgs"
+        "attach   attach   attach"
         "input    input    input"
         "ctrls    ctrls    ctrls";
 }
@@ -3914,6 +3915,7 @@ body[data-web-mode="true"] .network-bar          { grid-area: network; }
 body[data-web-mode="true"] .pomodoro-bar         { grid-area: pomo; }
 body[data-web-mode="true"] .latency-sparkline    { grid-area: spark; }
 body[data-web-mode="true"] .messages-area        { grid-area: msgs; min-height: 0; }
+body[data-web-mode="true"] .attachment-preview   { grid-area: attach; }
 body[data-web-mode="true"] .input-area           { grid-area: input; }
 body[data-web-mode="true"] .controls-bar         { grid-area: ctrls; }
 
@@ -3981,8 +3983,12 @@ body[data-web-mode="true"] .needs-bar {
             rgba(0, 255, 136, 0.05) 0%,
             rgba(0, 0, 0, 0.5) 50%,
             rgba(0, 255, 136, 0.03) 100%);
-    justify-content: center;
+    justify-content: safe center;
     align-items: stretch;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
 }
 
 body[data-web-mode="true"] .needs-bar .need-divider {
@@ -4096,9 +4102,11 @@ body[data-web-mode="true"] .stats-panel {
             rgba(0, 255, 136, 0.05) 0%,
             rgba(0, 0, 0, 0.5) 50%,
             rgba(0, 255, 136, 0.03) 100%);
-    justify-content: center;
+    justify-content: safe center;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-width: none;
 }
 
 /* Web mode always shows the panel — neutralize the collapse animation */
@@ -4161,12 +4169,12 @@ body[data-web-mode="true"] .network-header {
     padding: 3px 8px;
 }
 
-/* Input area adjustments */
+/* Input area adjustments — wraps so aux buttons drop to a second row on phones */
 body[data-web-mode="true"] .input-area {
     padding: 8px;
     gap: 6px;
     align-items: center;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
 }
 
 body[data-web-mode="true"] .input-prefix {
@@ -4177,7 +4185,7 @@ body[data-web-mode="true"] .input-prefix {
 }
 
 body[data-web-mode="true"] .message-input {
-    flex: 1;
+    flex: 1 1 120px;
     min-width: 0;
     font-size: 16px;
     padding: 10px 8px;
@@ -4213,7 +4221,7 @@ body[data-web-mode="true"] .input-btn.clear-btn {
 body[data-web-mode="true"] .controls-bar {
     gap: 8px;
     padding: 5px 8px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: center;
     align-items: center;
 }
@@ -4247,4 +4255,89 @@ body[data-web-mode="true"] .controls-bar {
     border-top: 1px solid rgba(0, 255, 136, 0.2);
     border-bottom: none;
     padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHONE BREAKPOINT — narrow screens get a tighter arrangement
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+    /* Narrower gauge columns, shorter sprite zone — more room for chat */
+    body[data-web-mode="true"] .terminal-container {
+        --tama-h: 15vh;
+        grid-template-columns: 46px 1fr 46px;
+    }
+
+    /* Header: drop the classification badge, tighten spacing */
+    body[data-web-mode="true"] .classification { display: none; }
+    body[data-web-mode="true"] .header-right { gap: 8px; }
+    body[data-web-mode="true"] .header-center { margin: 0 6px; }
+
+    /* Info bar: keep session/model/time, drop OS + token counter */
+    body[data-web-mode="true"] .info-bar span:has(> #os-info),
+    body[data-web-mode="true"] .info-bar span:has(> #session-tokens) {
+        display: none;
+    }
+
+    /* Level bar: let the progress bar take the space */
+    body[data-web-mode="true"] .level-bar { gap: 5px; padding: 3px 6px; }
+    body[data-web-mode="true"] .xp-total { min-width: unset; }
+
+    /* Messages: reclaim the wide side gutters and shrink avatars */
+    body[data-web-mode="true"] .message-wrapper {
+        padding: 12px 6px 0 6px;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+    body[data-web-mode="true"] .message-avatar {
+        width: 28px;
+        height: 28px;
+    }
+
+    /* Arcade header: hide the W/L mini-stats (still in the expanded panel) */
+    body[data-web-mode="true"] .arcade-stats-mini { display: none; }
+
+    /* Input row: prefix is decorative — trade it for input width */
+    body[data-web-mode="true"] .input-prefix { display: none; }
+    body[data-web-mode="true"] .input-area { padding: 6px; gap: 5px; }
+
+    /* Controls: tighter and allowed to wrap */
+    body[data-web-mode="true"] .controls-bar { gap: 6px; }
+    body[data-web-mode="true"] .control-select { max-width: 110px; }
+}
+
+/* Very narrow (folded/small phones): stack gauges above the sprite */
+@media (max-width: 340px) {
+    body[data-web-mode="true"] .terminal-container {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows:
+            auto auto auto
+            auto                  /* gauges row */
+            minmax(72px, 12vh)    /* sprite */
+            auto auto auto auto
+            1fr
+            auto auto auto;
+        grid-template-areas:
+            "header   header"
+            "info     info"
+            "level    level"
+            "needs    stats"
+            "sprite   sprite"
+            "arcade   arcade"
+            "network  network"
+            "pomo     pomo"
+            "spark    spark"
+            "msgs     msgs"
+            "attach   attach"
+            "input    input"
+            "ctrls    ctrls";
+    }
+    body[data-web-mode="true"] .needs-bar,
+    body[data-web-mode="true"] .stats-panel {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        gap: 2px 8px;
+        border-left: none;
+        border-right: none;
+    }
 }

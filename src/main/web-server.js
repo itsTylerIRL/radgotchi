@@ -247,9 +247,10 @@ function acceptWebSocket(req, socket) {
     const key = req.headers['sec-websocket-key'];
     if (!key) { socket.destroy(); return; }
 
+    // RFC 6455 magic GUID — must be exactly this value or clients reject the handshake
     const acceptKey = crypto
         .createHash('sha1')
-        .update(key + '258EAFA5-E914-47DA-95CA-5AB5CF11CE70')
+        .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
         .digest('base64');
 
     socket.write(
